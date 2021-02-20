@@ -1,0 +1,35 @@
+name: Run test suite
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  run_tox:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Checkout the CPython repo
+      uses: actions/checkout@v2
+      with:
+        repository: python/cpython
+        path: cpython
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Cache pip dependencies
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install tox
+    - name: Tox
+      run: tox

@@ -74,8 +74,6 @@ argparser.add_argument(
 
 
 def main() -> None:
-    from tests.utils import print_memstats
-
     args = argparser.parse_args()
 
     t0 = time.time()
@@ -127,8 +125,6 @@ def main() -> None:
         print("Caches sizes:")
         print(f"  token array : {len(tokenizer._tokens):10}")
         print(f"        cache : {len(parser._cache):10}")
-        if not print_memstats():
-            print("(Can't find psutil; install it for memory stats.)")
 
 
 if __name__ == "__main__":

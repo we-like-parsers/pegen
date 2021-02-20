@@ -91,7 +91,7 @@ named_item[NamedItem]:
     | it=forced_atom {NamedItem(None, it)}
     | it=lookahead {NamedItem(None, it)}
 
-forced_atom[NamedItem]:
+forced_atom[LookaheadOrCut]:
     | '&''&' ~ atom {Forced(atom)}
 
 lookahead[LookaheadOrCut]:
