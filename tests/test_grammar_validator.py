@@ -1,12 +1,10 @@
 import unittest
-from test import test_tools
 
-test_tools.skip_if_missing("peg_generator")
-with test_tools.imports_under_tool("peg_generator"):
-    from pegen.grammar import Grammar
-    from pegen.grammar_parser import GeneratedParser as GrammarParser
-    from pegen.testutil import parse_string
-    from pegen.validator import SubRuleValidator, ValidationError
+from pegen.grammar import Grammar
+from pegen.grammar_parser import GeneratedParser as GrammarParser
+from pegen.validator import SubRuleValidator, ValidationError
+
+from tests.utils import parse_string
 
 
 class TestPegen(unittest.TestCase):

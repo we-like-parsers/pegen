@@ -51,6 +51,7 @@ clean:  ## Clean any built/generated artifacts
 .PHONY: regen-metaparser
 regen-metaparser: src/pegen/metagrammar.gram src/pegen/*.py # Regenerate the metaparser
 	$(PYTHON) -m pegen -q src/pegen/metagrammar.gram -o src/pegen/grammar_parser.py
+	$(PYTHON) -m black src/pegen/grammar_parser.py
 
 .PHONY: help
 help:  ## Print this message

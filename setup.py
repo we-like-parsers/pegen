@@ -18,7 +18,7 @@ setup(
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
-        'Topic :: Software Development :: Parsers',
+        'Topic :: Software Development :: Compilers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
@@ -31,8 +31,8 @@ setup(
     python_requires='>=3.8, <4',
     install_requires=['psutil'],
     extras_require={
-        'lint': ['black', 'flake8'],
-        'test': ['pytest', 'pytest-cov', 'mypy'],
+        'lint': ['black', 'flake8', 'mypy'],
+        'test': ['pytest', 'pytest-cov'],
     },
     project_urls={
         'Bug Reports': 'https://github.com/we-like-parsers/pegen/issues',
