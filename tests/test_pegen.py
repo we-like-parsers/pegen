@@ -34,6 +34,20 @@ def test_parse_grammar() -> None:
     assert repr(rules["term"]) == expected_repr
 
 
+def test_parse_grammar_with_types() -> None:
+    grammar = """
+    start[ast.BinOp]: term ('+' term)* NEWLINE
+    term[T[int]]: NUMBER
+    c_rule[expr_ty*]: a=NUMBER? { _new_expr_ty(a) }
+    """
+
+    grammar: Grammar = parse_string(grammar, GrammarParser)
+    rules = grammar.rules
+    assert rules["start"].type.replace(" ", "") == "ast.BinOp"
+    assert rules["term"].type.replace(" ", "") == "T[int]"
+    assert rules["c_rule"].type == "expr_ty*"
+
+
 def test_long_rule_str() -> None:
     grammar_source = """
     start: zero | one | one zero | one one | one zero zero | one zero one | one one zero | one one one

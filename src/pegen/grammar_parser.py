@@ -193,28 +193,11 @@ class GeneratedParser(Parser):
 
     @memoize
     def rulename(self) -> Optional[RuleName]:
-        # rulename: NAME '[' NAME '*' ']' | NAME '[' NAME ']' | NAME
+        # rulename: NAME annotation | NAME
         mark = self.mark()
         cut = False
-        if (
-            (name := self.name())
-            and (literal := self.expect("["))
-            and (type := self.name())
-            and (literal_1 := self.expect("*"))
-            and (literal_2 := self.expect("]"))
-        ):
-            return (name.string, type.string + "*")
-        self.reset(mark)
-        if cut:
-            return None
-        cut = False
-        if (
-            (name := self.name())
-            and (literal := self.expect("["))
-            and (type := self.name())
-            and (literal_1 := self.expect("]"))
-        ):
-            return (name.string, type.string)
+        if (name := self.name()) and (annotation := self.annotation()):
+            return (name.string, annotation)
         self.reset(mark)
         if cut:
             return None
@@ -337,34 +320,17 @@ class GeneratedParser(Parser):
 
     @memoize
     def named_item(self) -> Optional[NamedItem]:
-        # named_item: NAME '[' NAME '*' ']' '=' ~ item | NAME '[' NAME ']' '=' ~ item | NAME '=' ~ item | item | forced_atom | lookahead
+        # named_item: NAME annotation '=' ~ item | NAME '=' ~ item | item | forced_atom | lookahead
         mark = self.mark()
         cut = False
         if (
             (name := self.name())
-            and (literal := self.expect("["))
-            and (type := self.name())
-            and (literal_1 := self.expect("*"))
-            and (literal_2 := self.expect("]"))
-            and (literal_3 := self.expect("="))
+            and (annotation := self.annotation())
+            and (literal := self.expect("="))
             and (cut := True)
             and (item := self.item())
         ):
-            return NamedItem(name.string, item, f"{type.string}*")
-        self.reset(mark)
-        if cut:
-            return None
-        cut = False
-        if (
-            (name := self.name())
-            and (literal := self.expect("["))
-            and (type := self.name())
-            and (literal_1 := self.expect("]"))
-            and (literal_2 := self.expect("="))
-            and (cut := True)
-            and (item := self.item())
-        ):
-            return NamedItem(name.string, item, type.string)
+            return NamedItem(name.string, item, annotation)
         self.reset(mark)
         if cut:
             return None
@@ -539,6 +505,23 @@ class GeneratedParser(Parser):
         return None
 
     @memoize
+    def annotation(self) -> Optional[str]:
+        # annotation: "[" ~ target_atoms "]"
+        mark = self.mark()
+        cut = False
+        if (
+            (literal := self.expect("["))
+            and (cut := True)
+            and (target_atoms := self.target_atoms())
+            and (literal_1 := self.expect("]"))
+        ):
+            return target_atoms
+        self.reset(mark)
+        if cut:
+            return None
+        return None
+
+    @memoize
     def target_atoms(self) -> Optional[str]:
         # target_atoms: target_atom target_atoms | target_atom
         mark = self.mark()
@@ -558,16 +541,33 @@ class GeneratedParser(Parser):
 
     @memoize
     def target_atom(self) -> Optional[str]:
-        # target_atom: "{" ~ target_atoms "}" | NAME | NUMBER | STRING | "?" | ":" | !"}" OP
+        # target_atom: "{" ~ target_atoms? "}" | "[" ~ target_atoms? "]" | NAME "*" | NAME | NUMBER | STRING | "?" | ":" | !"}" !"]" OP
         mark = self.mark()
         cut = False
         if (
             (literal := self.expect("{"))
             and (cut := True)
-            and (target_atoms := self.target_atoms())
+            and (atoms := self.target_atoms(),)
             and (literal_1 := self.expect("}"))
         ):
-            return "{" + target_atoms + "}"
+            return "{" + (atoms or "") + "}"
+        self.reset(mark)
+        if cut:
+            return None
+        cut = False
+        if (
+            (literal := self.expect("["))
+            and (cut := True)
+            and (atoms := self.target_atoms(),)
+            and (literal_1 := self.expect("]"))
+        ):
+            return "[" + (atoms or "") + "]"
+        self.reset(mark)
+        if cut:
+            return None
+        cut = False
+        if (name := self.name()) and (literal := self.expect("*")):
+            return name.string + "*"
         self.reset(mark)
         if cut:
             return None
@@ -602,7 +602,11 @@ class GeneratedParser(Parser):
         if cut:
             return None
         cut = False
-        if self.negative_lookahead(self.expect, "}") and (op := self.op()):
+        if (
+            self.negative_lookahead(self.expect, "}")
+            and self.negative_lookahead(self.expect, "]")
+            and (op := self.op())
+        ):
             return op.string
         self.reset(mark)
         if cut:
