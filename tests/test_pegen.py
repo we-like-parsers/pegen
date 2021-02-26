@@ -33,6 +33,7 @@ def test_parse_grammar() -> None:
     expected_repr = "Rule('term', None, Rhs([Alt([NamedItem(None, NameLeaf('NUMBER'))])]))"
     assert repr(rules["term"]) == expected_repr
 
+
 def test_parse_grammar_with_types() -> None:
     grammar = """
     start[ast.BinOp]: term ('+' term)* NEWLINE
@@ -45,6 +46,7 @@ def test_parse_grammar_with_types() -> None:
     assert rules["start"].type.replace(" ", "") == "ast.BinOp"
     assert rules["term"].type.replace(" ", "") == "T[int]"
     assert rules["c_rule"].type == "expr_ty*"
+
 
 def test_long_rule_str() -> None:
     grammar_source = """
