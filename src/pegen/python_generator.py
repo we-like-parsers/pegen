@@ -146,7 +146,8 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         subheader = self.grammar.metas.get("subheader", "")
         if subheader:
             self.print(subheader.format(filename=filename))
-        self.print("class GeneratedParser(Parser):")
+        cls_name = self.grammar.metas.get('class', 'GeneratedParser')
+        self.print(f"class {cls_name}(Parser):")
         while self.todo:
             for rulename, rule in list(self.todo.items()):
                 del self.todo[rulename]
