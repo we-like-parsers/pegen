@@ -7,13 +7,12 @@ rule_name: expression
 ```
 
 Optionally, a type can be included right after the rule name,
-which specifies the return type of the C or Python function
+which specifies the return type of the Python function
 corresponding to the rule:
 ```
 rule_name[return_type]: expression
 ```
-If the return type is omitted, then a `void *` is
-returned in C and an `Any` in Python.
+If the return type is omitted, then the return type is `Any`.
 
 ### Grammar Expressions
 
@@ -51,7 +50,7 @@ rule_name: (e1 e2)*
 ```
 
 ##### `[ e ] or e?`
-Optinally match e.
+Optionally match e.
 ```
 rule_name: [e]
 ```
@@ -111,13 +110,7 @@ rule_name[return_type]:
     | first_alt1 first_alt2 { first_alt1 }
     | second_alt1 second_alt2 { second_alt1 }
 ```
-If the action is omitted and C code is being generated, then there
-are two different possibilities:
-1.  If there's a single name in the alternative, this gets returned.
-2.  If not, a dummy name object gets returned.
-
-If Python code is being generated, then a list with all the parsed
-expressions gets returned.
+If the action is omitted, a list with all the parsed expressions gets returned.
 
 
 ### Variables in the Grammar
