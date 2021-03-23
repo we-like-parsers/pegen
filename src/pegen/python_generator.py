@@ -54,7 +54,8 @@ class PythonCallMakerVisitor(GrammarVisitor):
             name = name.lower()
             return name, f"self.{name}()"
         if name in ("NEWLINE", "DEDENT", "INDENT", "ENDMARKER", "ASYNC", "AWAIT"):
-            return name.lower(), f"self.expect({name!r})"
+            # Avoid using names that can be Python keywords
+            return "_" + name.lower(), f"self.expect({name!r})"
         return name, f"self.{name}()"
 
     def visit_StringLeaf(self, node: StringLeaf) -> Tuple[str, str]:
