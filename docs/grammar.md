@@ -139,7 +139,8 @@ This allows to specify the name of the generated parser.
   quoted string). This defaults to MODULE_PREFIX by default which is defined in
   pegen.python_generator. In general you should not modify the header since it
   defines necessary imports. If you need to add extra imports use the next
-  section.
+  section. Note that the header is formatted using `.format(filename=filename)`
+  allowing you to embed the grammar filename in the header.
 
 @subheader
 
