@@ -1,5 +1,7 @@
 # PEG grammar for Python
 
+# The subheader is formatted to include the filename, we must hence use double {}
+# when we need teh python code to do some formatting.
 @subheader'''
 import itertools
 import sys
@@ -24,7 +26,7 @@ class Parser(Parser):
             return node
         else:
             raise SyntaxError(
-                f"{error_msg} is only supported in Python {min_version} and above.
+                f"{{error_msg}} is only supported in Python {{min_version}} and above.
             )
 
     def raise_syntax_error(self, msg, node=None):
@@ -128,8 +130,8 @@ start: file  # CHANGED: Not present in the original
 file[ast.Module]: a=[statements] ENDMARKER { ast.Module(body=a, type_ignores=[]) }
 interactive[ast.Interactive]: a=statement_newline { ast.Interactive(body=a) }
 eval[ast.Expression]: a=expressions NEWLINE* ENDMARKER { ast.Expression(body=a) }
-#func_type[mod_ty]: '(' a=[type_expressions] ')' '->' b=expression NEWLINE* ENDMARKER { FunctionType(a, b, p->arena) }
-fstring[expr_ty]: star_expressions
+func_type[ast.FunctionType]: '(' a=[type_expressions] ')' '->' b=expression NEWLINE* ENDMARKER { ast.FunctionType(argtypes=a, returns=b) }
+fstring[ast.Expr]: star_expressions
 
 # type_expressions allow */** but ignore them
 type_expressions[list]:
@@ -199,11 +201,14 @@ assignment:
                 value=c,
                 simple=False,
             )
-        ) }
+        )
+     }
     | a=(z=star_targets '=' { z })+ b=(yield_expr | star_expressions) !'=' tc=[TYPE_COMMENT] {
-         ast.Assign(targets=a, value=b, type_comment=tc) }
+         ast.Assign(targets=a, value=b, type_comment=tc)
+     }
     | a=single_target b=augassign ~ c=(yield_expr | star_expressions) {
-        ast.AugAssign(target = a, op=b, value=c}
+        ast.AugAssign(target = a, op=b, value=c)
+     }
     | invalid_assignment
 
 augassign:
@@ -228,7 +233,7 @@ nonlocal_stmt[ast.NonLocal]: 'nonlocal' a=','.NAME+ {
     ast.NonLocal(names=[n.string for n in a])
 }
 
-yield_stmt[ast.Expr]: y=yield_expr { ast.Expr(value=y)) }
+yield_stmt[ast.Expr]: y=yield_expr { ast.Expr(value=y) }
 
 assert_stmt[ast.Assert]: 'assert' a=expression b=[',' z=expression { z }] {
     ast.Assert(test=a, message=b)
@@ -374,7 +379,7 @@ parameters[ast.arguments]:
 slash_no_default[List[Tuple[ast.arg, None]]]:
     | a=param_no_default+ '/' ',' { [(p, None) for p in a] }
     | a=param_no_default+ '/' &')' { [(p, None) for p in a] }
-slash_with_default[List[Tuple[ast.arg, Any]]:
+slash_with_default[List[Tuple[ast.arg, Any]]]:
     | a=param_no_default* b=param_with_default+ '/' ',' { a + b }
     | a=param_no_default* b=param_with_default+ '/' &')' { a + b }
 
@@ -413,8 +418,12 @@ annotation: ':' a=expression { a }
 default: '=' a=expression { a }
 
 decorators:
-    | a=('@' f=(dn=dec_primary args=['(' arguments ')'] NEWLINE {  }))+ {a} # Call or not depending on args
+    | a=('@' f=dec_maybe_call NEWLINE { f })+ { a }
     | a=('@' f=named_expression NEWLINE { f })+ { a }
+dec_maybe_call:
+    | dn=dec_primary args=[('(' b=arguments ')') { b }] {
+        ast.Call(func=dn, args=args[0], keywords=args[1]) if args else dn
+     }
 dec_primary:
     | a=dec_primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load) }
     | a=NAME { ast.Name(id=a.string, ctx=Load) }
@@ -455,7 +464,7 @@ named_expression:
     | a=NAME ':=' ~ b=expression {
         ast.NamedExpr(target=ast.Name(id=a.string, ctx=Store), value=b)
      }
-    | expression !':='
+    | a=expression !':=' { a }
     | invalid_named_expression
 
 annotated_rhs: yield_expr | star_expressions
@@ -539,8 +548,10 @@ inversion (memo):
     | comparison
 comparison:
     | a=bitwise_or b=compare_op_bitwise_or_pair+ {
-        ast.Compare(left=a, ops=self.get_comparison_ops(b), comparators=self.get_comparators(b) }
+        ast.Compare(left=a, ops=self.get_comparison_ops(b), comparators=self.get_comparators(b))
+     }
     | bitwise_or
+
 # Make a tuple of operator and comparator
 compare_op_bitwise_or_pair:
     | eq_bitwise_or
@@ -557,7 +568,7 @@ eq_bitwise_or: '==' a=bitwise_or { (ast.Eq(), a) }
 # Do not support the Barry as BDFL <> for not eq
 noteq_bitwise_or[tuple]:
     | '!=' a=bitwise_or { (ast.NotEq(), a) }
-lte_bitwise_or[CmpopExprPair*]: '<=' a=bitwise_or { (ast.LtE(), a)) }
+lte_bitwise_or[CmpopExprPair*]: '<=' a=bitwise_or { (ast.LtE(), a) }
 lt_bitwise_or[CmpopExprPair*]: '<' a=bitwise_or { ast.(Lt(), a) }
 gte_bitwise_or[CmpopExprPair*]: '>=' a=bitwise_or { (ast.GtE(), a) }
 gt_bitwise_or[CmpopExprPair*]: '>' a=bitwise_or { (ast.Gt(), a) }
@@ -613,6 +624,7 @@ primary:
             args=b[0] if b else None,
             keywords=b[1] if b else None,
         )
+     }
     | a=primary '[' b=slices ']' { ast.Subscript(value=a, slice=b, ctx=Load) }
     | atom
 
@@ -628,7 +640,7 @@ atom:
     | 'False' { ast.NameConstant(False) }
     | 'None' { ast.NameConstant(None) }
     | &STRING strings
-    | a=NUMBER { ast.ast.Num(n=ast.literal_eval(a.string) }
+    | a=NUMBER { ast.ast.Num(n=ast.literal_eval(a.string)) }
     | &'(' (tuple | group | genexp)
     | &'[' (list | listcomp)
     | &'{' (dict | set | dictcomp | setcomp)
@@ -642,7 +654,8 @@ listcomp[ast.ListComp]:
     | invalid_comprehension
 tuple[ast.Tuple]:
     | '(' a=[y=star_named_expression ',' z=[star_named_expressions] { [y] + z } ] ')' {
-        ast.Tuple(elts=a, ctx=Load) }
+        ast.Tuple(elts=a, ctx=Load)
+     }
 group:
     | '(' a=(yield_expr | named_expression) ')' { a }
     | invalid_group
@@ -655,7 +668,8 @@ setcomp[ast.SetComp]:
     | invalid_comprehension
 dict[ast.Dict]:
     | '{' a=[double_starred_kvpairs] '}' {
-        ast.Dict(keys=[kv[0] for kv in a], values=[kv[1] for kv in a])) }
+        ast.Dict(keys=[kv[0] for kv in a], values=[kv[1] for kv in a])
+     }
 dictcomp[ast.DictComp]:
     | '{' a=kvpair b=for_if_clauses '}' { ast.DictComp(key=a[0], value=a[1], generators=b) }
     | invalid_dict_comprehension
