@@ -230,7 +230,10 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                             f"[{self.local_variable_names[0]}] + {self.local_variable_names[1]}"
                         )
                     else:
-                        action = f"[{', '.join(self.local_variable_names)}]"
+                        if len(self.local_variable_names) == 1:
+                            action = f"{self.local_variable_names[0]}"
+                        else:
+                            action = f"[{', '.join(self.local_variable_names)}]"
                 if is_loop:
                     self.print(f"children.append({action})")
                     self.print(f"mark = self.mark()")
