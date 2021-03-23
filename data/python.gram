@@ -50,7 +50,7 @@ class Parser(Parser):
         node.ctx = context
         return node
 
-    def extract_import_level(self, tokens: List[token.TokenInfo]) -> int:
+    def extract_import_level(self, tokens: List[tokenize.TokenInfo]) -> int:
         """Extract the relative import level from the tokens preceding the module name.
 
         '.' count for one and '...' for 3.
@@ -125,8 +125,6 @@ class Parser(Parser):
         )
 
 '''
-
-start: file  # CHANGED: Not present in the original
 
 file[ast.Module]: a=[statements] ENDMARKER { ast.Module(body=a, type_ignores=[]) }
 interactive[ast.Interactive]: a=statement_newline { ast.Interactive(body=a) }
@@ -230,8 +228,8 @@ augassign:
 global_stmt[ast.Global]: 'global' a=','.NAME+ {
     ast.Global(names=[n.string for n in a])
 }
-nonlocal_stmt[ast.NonLocal]: 'nonlocal' a=','.NAME+ {
-    ast.NonLocal(names=[n.string for n in a])
+nonlocal_stmt[ast.Nonlocal]: 'nonlocal' a=','.NAME+ {
+    ast.Nonlocal(names=[n.string for n in a])
 }
 
 yield_stmt[ast.Expr]: y=yield_expr { ast.Expr(value=y) }
@@ -269,7 +267,7 @@ dotted_name[str]:
     | a=NAME { a.string }
 
 if_stmt[ast.If]:
-    | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=elif_stmt) }
+    | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c) }
     | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=[c] if c else []) }
 elif_stmt[List[ast.If]]:
     | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b)] + c }
@@ -278,7 +276,7 @@ else_block[list]: 'else' ':' b=block { b }
 
 while_stmt[ast.While]:
     | 'while' a=named_expression ':' b=block c=[else_block] {
-        ast.While(test=a, body=block, orelse=[c] if c else [])
+        ast.While(test=a, body=b, orelse=[c] if c else [])
      }
 
 for_stmt[Union[ast.For, ast.AsyncFor]]:
@@ -320,12 +318,12 @@ with_item[ast.withitem]:
 try_stmt[ast.Try]:
     | 'try' ':' b=block f=finally_block { ast.Try(body=b, finalbody=f) }
     | 'try' ':' b=block ex=except_block+ el=[else_block] f=[finally_block] {
-        ast.Try(body=block, handlers=ex, orelse=el, finalbody=f)
+        ast.Try(body=b, handlers=ex, orelse=el, finalbody=f)
      }
 except_block[ast.ExceptHandler]:
     | 'except' e=expression t=['as' z=NAME { z }] ':' b=block {
         ast.ExceptHandler(type=e, name=t.string, body=block) }
-    | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=block) }
+    | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b) }
 finally_block[list]: 'finally' ':' a=block { a }
 
 return_stmt[ast.Return]:
@@ -436,8 +434,8 @@ class_def_raw[ast.ClassDef]:
     | 'class' a=NAME b=['(' z=[arguments] ')' { z }] ':' c=block {
         ast.ClassDef(
             a.string,
-            bases=z[0],
-            keywords=z[1],
+            bases=b[0] if b else [],
+            keywords=b[1] if b else [],
             body=c,
         )
      }
@@ -536,7 +534,7 @@ lambda_param_with_default[Tuple[ast.arg, Any]]:
 lambda_param_maybe_default[Tuple[ast.arg, Any]]:
     | a=lambda_param c=default? ',' { (a, c) }
     | a=lambda_param c=default? &':' { (a, c) }
-lambda_param[arg_ty]: a=NAME { ast.arg(arg=a.string, annotation=None) }
+lambda_param[ast.arg]: a=NAME { ast.arg(arg=a.string, annotation=None) }
 
 disjunction (memo):
     | a=conjunction b=('or' c=conjunction { c })+ { ast.BoolOp(op=ast.Or(), values=[a] + b) }
@@ -641,7 +639,7 @@ atom:
     | 'False' { ast.NameConstant(False) }
     | 'None' { ast.NameConstant(None) }
     | &STRING strings
-    | a=NUMBER { ast.ast.Num(n=ast.literal_eval(a.string)) }
+    | a=NUMBER { ast.Num(n=ast.literal_eval(a.string)) }
     | &'(' (tuple | group | genexp)
     | &'[' (list | listcomp)
     | &'{' (dict | set | dictcomp | setcomp)
@@ -858,16 +856,20 @@ invalid_block:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
 invalid_comprehension:
     | ('[' | '(' | '{') a=starred_expression for_if_clauses {
-        self.raise_syntax_error("iterable unpacking cannot be used in comprehension", a) }
+        self.raise_syntax_error("iterable unpacking cannot be used in comprehension", a)
+     }
 invalid_dict_comprehension:
     | '{' a='**' bitwise_or for_if_clauses '}' {
-        self.raise_syntax_error("dict unpacking cannot be used in dict comprehension", a) }
+        self.raise_syntax_error("dict unpacking cannot be used in dict comprehension", a)
+     }
 invalid_parameters:
     | param_no_default* (slash_with_default | param_with_default+) param_no_default {
-        self.raise_syntax_error("non-default argument follows default argument") }
+        self.raise_syntax_error("non-default argument follows default argument")
+     }
 invalid_lambda_parameters:
     | lambda_param_no_default* (lambda_slash_with_default | lambda_param_with_default+) lambda_param_no_default {
-        self.raise_syntax_error("non-default argument follows default argument") }
+        self.raise_syntax_error("non-default argument follows default argument")
+     }
 invalid_star_etc:
     | '*' (')' | ',' (')' | '**')) {
         self.raise_syntax_error("named arguments must follow bare *")
