@@ -26,7 +26,7 @@ class Parser(Parser):
             return node
         else:
             raise SyntaxError(
-                f"{{error_msg}} is only supported in Python {{min_version}} and above.
+                f"{{error_msg}} is only supported in Python {{min_version}} and above."
             )
 
     def raise_syntax_error(self, msg, node=None):
@@ -196,7 +196,7 @@ assignment:
             (3, 6),
             "Variable annotation syntax is",
             ast.AnnAssign(
-                target=a,,
+                target=a,
                 annotation=b,
                 value=c,
                 simple=False,
@@ -213,18 +213,18 @@ assignment:
 
 augassign:
     | '+=' { ast.Add() }
-    | '-=' { op=ast.Sub() }
-    | '*=' { op=ast.Mult() }
-    | '@=' { self.check_version((3, 5), "The '@' operator is", op=ast.MatMult()) }
-    | '/=' { op=ast.Div() }
-    | '%=' { op=ast.Mod() }
-    | '&=' {op=ast.BitAnd() }
-    | '|=' { op=ast.BitOr() }
-    | '^=' { op=ast.BitXor() }
-    | '<<=' { op=ast.LShift() }
-    | '>>=' { op=ast.RShift() }
-    | '**=' { op=ast.Pow() }
-    | '//=' { op=ast.FloorDiv() }
+    | '-=' { ast.Sub() }
+    | '*=' { ast.Mult() }
+    | '@=' { self.check_version((3, 5), "The '@' operator is", ast.MatMult()) }
+    | '/=' { ast.Div() }
+    | '%=' { ast.Mod() }
+    | '&=' { ast.BitAnd() }
+    | '|=' { ast.BitOr() }
+    | '^=' { ast.BitXor() }
+    | '<<=' { ast.LShift() }
+    | '>>=' { ast.RShift() }
+    | '**=' { ast.Pow() }
+    | '//=' { ast.FloorDiv() }
 
 global_stmt[ast.Global]: 'global' a=','.NAME+ {
     ast.Global(names=[n.string for n in a])
@@ -568,14 +568,14 @@ eq_bitwise_or: '==' a=bitwise_or { (ast.Eq(), a) }
 # Do not support the Barry as BDFL <> for not eq
 noteq_bitwise_or[tuple]:
     | '!=' a=bitwise_or { (ast.NotEq(), a) }
-lte_bitwise_or[CmpopExprPair*]: '<=' a=bitwise_or { (ast.LtE(), a) }
-lt_bitwise_or[CmpopExprPair*]: '<' a=bitwise_or { ast.(Lt(), a) }
-gte_bitwise_or[CmpopExprPair*]: '>=' a=bitwise_or { (ast.GtE(), a) }
-gt_bitwise_or[CmpopExprPair*]: '>' a=bitwise_or { (ast.Gt(), a) }
-notin_bitwise_or[CmpopExprPair*]: 'not' 'in' a=bitwise_or { (ast.NotIn(), a) }
-in_bitwise_or[CmpopExprPair*]: 'in' a=bitwise_or { (ast.In(), a) }
-isnot_bitwise_or[CmpopExprPair*]: 'is' 'not' a=bitwise_or { (ast.IsNot(), a) }
-is_bitwise_or[CmpopExprPair*]: 'is' a=bitwise_or { (ast.Is(), a) }
+lte_bitwise_or: '<=' a=bitwise_or { (ast.LtE(), a) }
+lt_bitwise_or: '<' a=bitwise_or { (ast.Lt(), a) }
+gte_bitwise_or: '>=' a=bitwise_or { (ast.GtE(), a) }
+gt_bitwise_or: '>' a=bitwise_or { (ast.Gt(), a) }
+notin_bitwise_or: 'not' 'in' a=bitwise_or { (ast.NotIn(), a) }
+in_bitwise_or: 'in' a=bitwise_or { (ast.In(), a) }
+isnot_bitwise_or: 'is' 'not' a=bitwise_or { (ast.IsNot(), a) }
+is_bitwise_or: 'is' a=bitwise_or { (ast.Is(), a) }
 
 bitwise_or:
     | a=bitwise_or '|' b=bitwise_xor { ast.BinOp(left=a, op=ast.BitOr(), right=b) }
@@ -617,7 +617,7 @@ await_primary (memo):
     | primary
 primary:
     | a=primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load) }
-    | a=primary b=genexp { _Py_Call(a, CHECK(_PyPegen_singleton_seq(p, b)), NULL, EXTRA) }
+    | a=primary b=genexp { ast.Call(func=a, args=[b]) }
     | a=primary '(' b=[arguments] ')' {
         ast.Call(
             func=a,
@@ -682,7 +682,12 @@ for_if_clauses[List[ast.comprehension]]:
     | a=for_if_clause+ { a }
 for_if_clause[ast.comprehension]:
     | ASYNC 'for' a=star_targets 'in' ~ b=disjunction c=('if' z=disjunction { z })* {
-        CHECK_VERSION(6, "Async comprehensions are", _Py_comprehension(a, b, c, 1, p->arena)) }
+        self.check_version(
+            (3, 6),
+            "Async comprehensions are",
+            ast.comprehension(target=a, iter=b, ifs=c, is_async=True)
+        )
+     }
     | 'for' a=star_targets 'in' ~ b=disjunction c=('if' z=disjunction { z })* {
        ast.comprehension(target=a, iter=b, ifs=c) }
     | invalid_for_target
