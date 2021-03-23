@@ -11,29 +11,30 @@ from typing import Any, List, Tuple, TypeVar, Union
 # Singleton ast nodes, created once for efficiency
 Load = ast.Load()
 Store = ast.Store()
+Del = ast.Del()
 
-
+Node = TypeVar("Node")
 FC = TypeVar("FC", ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
 
 class Parser(Parser):
 
-    def check_version(self, min_version: Tuple[int, ...], error_msg: str, node):
+    def check_version(self, min_version: Tuple[int, ...], error_msg: str, node: Node) -> Node:
         """Check that the python version is high enough for a rule to apply.
 
         """
-        if sys.version >= min_version:
+        if sys.version_info >= min_version:
             return node
         else:
             raise SyntaxError(
                 f"{{error_msg}} is only supported in Python {{min_version}} and above."
             )
 
-    def raise_syntax_error(self, msg, node=None):
+    def raise_syntax_error(self, msg, node=None) -> None:
         """Raise a syntax error with a specific message."""
         raise SyntaxError(msg, )  # FIXME add those after msg (filename, lineno, offset, text))
 
-    def raise_indentation_error(self, msg):
+    def raise_indentation_error(self, msg) -> None:
         """Raise an indentation error."""
         raise IndentationError(msg)
 
@@ -49,7 +50,7 @@ class Parser(Parser):
         node.ctx = context
         return node
 
-    def extract_import_level(self, tokens: list) -> int:
+    def extract_import_level(self, tokens: List[token.TokenInfo]) -> int:
         """Extract the relative import level from the tokens preceding the module name.
 
         '.' count for one and '...' for 3.
@@ -149,7 +150,7 @@ statement_newline[list]:
     | a=compound_stmt NEWLINE { [a] }
     | simple_stmt
     | NEWLINE { [ast.Pass()] }
-    | ENDMARKER { _PyPegen_interactive_exit(p) }
+    | ENDMARKER { None }
 simple_stmt[list]:
     | a=small_stmt !';' NEWLINE { [a] } # Not needed, there for speedup
     | a=';'.small_stmt+ [';'] NEWLINE { a }
@@ -734,7 +735,7 @@ star_target (memo):
     | '*' a=(!'*' star_target) {
         ast.Starred(value=self.set_expr_context(a, Store), ctx=Store) }
     | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Store) }
-    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subcript(value=a, slice=b, ctx=Store) }
+    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Store) }
     | star_atom
 star_atom:
     | a=NAME { ast.Name(id=a.string, ctx=Store) }
@@ -769,7 +770,7 @@ target (memo):
 t_primary:
     | a=t_primary '.' b=NAME &t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Load) }
     | a=t_primary '[' b=slices ']' &t_lookahead { ast.Subscript(value=a, slice=b, ctx=Load) }
-    | a=t_primary b=genexp &t_lookahead { _Py_Call(a, CHECK(_PyPegen_singleton_seq(p, b)), NULL, EXTRA) }
+    | a=t_primary b=genexp &t_lookahead { ast.Call(func=a, args=[b]) }
     | a=t_primary '(' b=[arguments] ')' &t_lookahead {
         ast.Call(
             func=a,
