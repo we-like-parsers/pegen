@@ -8,10 +8,10 @@ import token
 import tokenize
 from typing import IO, Any, Dict, Final, Type, cast
 
+from pegen.build import build_parser
 from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser
 from pegen.parser import Parser
-from pegen.python_generator import PythonParserGenerator
 from pegen.tokenizer import Tokenizer
 
 ALL_TOKENS = token.tok_name
@@ -70,35 +70,6 @@ def import_file(full_name: str, path: str) -> Any:
     loader = cast(Any, spec.loader)
     loader.exec_module(mod)
     return mod
-
-
-def generate_c_parser_source(grammar: Grammar) -> str:
-    out = io.StringIO()
-    genr = CParserGenerator(grammar, ALL_TOKENS, EXACT_TOKENS, NON_EXACT_TOKENS, out)
-    genr.generate("<string>")
-    return out.getvalue()
-
-
-def generate_parser_c_extension(
-    grammar: Grammar, path: pathlib.PurePath, debug: bool = False
-) -> Any:
-    """Generate a parser c extension for the given grammar in the given path
-
-    Returns a module object with a parse_string() method.
-    TODO: express that using a Protocol.
-    """
-    # Make sure that the working directory is empty: reusing non-empty temporary
-    # directories when generating extensions can lead to segmentation faults.
-    # Check issue #95 (https://github.com/gvanrossum/pegen/issues/95) for more
-    # context.
-    assert not os.listdir(path)
-    source = path / "parse.c"
-    with open(source, "w", encoding="utf-8") as file:
-        genr = CParserGenerator(
-            grammar, ALL_TOKENS, EXACT_TOKENS, NON_EXACT_TOKENS, file, debug=debug
-        )
-        genr.generate("parse.c")
-    compile_c_extension(str(source), build_dir=str(path))
 
 
 def print_memstats() -> bool:

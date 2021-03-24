@@ -12,8 +12,8 @@ from pathlib import PurePath
 from typing import List, Optional, Any
 
 sys.path.insert(0, os.getcwd())
-from pegen.build import build_c_parser_and_generator
-from tests.utils import print_memstats
+from pegen.build import build_python_parser_and_generator
+from tests.utils import print_memstats, generate_parser, run_parser
 from scripts import show_parse
 
 SUCCESS = "\033[92m"
@@ -123,7 +123,7 @@ def parse_directory(
     skip_actions: bool,
     tree_arg: int,
     short: bool,
-    extension: Any,
+    parser: Any,
 ) -> int:
     if not directory:
         print("You must specify a directory of files to test.", file=sys.stderr)
@@ -135,12 +135,11 @@ def parse_directory(
             return 1
 
         try:
-            if not extension:
-                build_c_parser_and_generator(
+            if not parser:
+                
+                parser = generate_parser(
                     grammar_file,
-                    "data/Tokens",  # TODO: Don't hardcode this
-                    "peg_extension/parse.c",
-                    compile_extension=True,
+                    "python_parser_py.py",
                     skip_actions=skip_actions,
                 )
         except Exception as err:
@@ -156,7 +155,16 @@ def parse_directory(
         print("A grammar file was not provided - attempting to use existing file...\n")
 
     try:
-        from peg_extension import parse  # type: ignore
+        import tokenize
+        from pegen.tokenizer import Tokenizer
+        from python_parser_py import Parser
+
+        def parse(filepath):
+            with open(filepath):
+                tokengen = tokenize.generate_tokens(file.readline)
+                tokenizer = Tokenizer(tokengen, verbose=False)
+                parser = Parser(tokenizer, verbose=verbose)
+                return parser.start()
     except:
         print(
             "An existing parser was not found. Please run `make` or specify a grammar file with the `-g` flag.",
@@ -182,10 +190,8 @@ def parse_directory(
         if not should_exclude_file:
             try:
                 if tree_arg:
-                    tree = parse.parse_file(file, mode=1)
+                    tree = parse(file)
                     trees[file] = tree
-                else:
-                    parse.parse_file(file, mode=0)
                 if not short:
                     report_status(succeeded=True, file=file, verbose=verbose)
             except Exception as error:
