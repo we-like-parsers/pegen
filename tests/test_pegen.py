@@ -98,14 +98,14 @@ def test_gather() -> None:
     parser_class = make_parser(grammar)
     node = parse_string("42\n", parser_class)
     assert node == [
-        [[TokenInfo(NUMBER, string="42", start=(1, 0), end=(1, 2), line="42\n")]],
+        [TokenInfo(NUMBER, string="42", start=(1, 0), end=(1, 2), line="42\n")],
         TokenInfo(NEWLINE, string="\n", start=(1, 2), end=(1, 3), line="42\n"),
     ]
     node = parse_string("1, 2\n", parser_class)
     assert node == [
         [
-            [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1, 2\n")],
-            [TokenInfo(NUMBER, string="2", start=(1, 3), end=(1, 4), line="1, 2\n")],
+            TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1, 2\n"),
+            TokenInfo(NUMBER, string="2", start=(1, 3), end=(1, 4), line="1, 2\n"),
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 4), end=(1, 5), line="1, 2\n"),
     ]
@@ -120,7 +120,7 @@ def test_expr_grammar() -> None:
     parser_class = make_parser(grammar)
     node = parse_string("42\n", parser_class)
     assert node == [
-        [[TokenInfo(NUMBER, string="42", start=(1, 0), end=(1, 2), line="42\n")]],
+        TokenInfo(NUMBER, string="42", start=(1, 0), end=(1, 2), line="42\n"),
         TokenInfo(NEWLINE, string="\n", start=(1, 2), end=(1, 3), line="42\n"),
     ]
 
@@ -135,17 +135,17 @@ def test_optional_operator() -> None:
     node = parse_string("1+2\n", parser_class)
     assert node == [
         [
-            [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1+2\n")],
+            TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1+2\n"),
             [
                 TokenInfo(OP, string="+", start=(1, 1), end=(1, 2), line="1+2\n"),
-                [TokenInfo(NUMBER, string="2", start=(1, 2), end=(1, 3), line="1+2\n")],
+                TokenInfo(NUMBER, string="2", start=(1, 2), end=(1, 3), line="1+2\n"),
             ],
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 3), end=(1, 4), line="1+2\n"),
     ]
     node = parse_string("1\n", parser_class)
     assert node == [
-        [[TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1\n")], None],
+        [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1\n"), None],
         TokenInfo(NEWLINE, string="\n", start=(1, 1), end=(1, 2), line="1\n"),
     ]
 
@@ -160,14 +160,14 @@ def test_optional_literal() -> None:
     node = parse_string("1+\n", parser_class)
     assert node == [
         [
-            [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1+\n")],
+            TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1+\n"),
             TokenInfo(OP, string="+", start=(1, 1), end=(1, 2), line="1+\n"),
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 2), end=(1, 3), line="1+\n"),
     ]
     node = parse_string("1\n", parser_class)
     assert node == [
-        [[TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1\n")], None],
+        [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1\n"), None],
         TokenInfo(NEWLINE, string="\n", start=(1, 1), end=(1, 2), line="1\n"),
     ]
 
@@ -182,17 +182,17 @@ def test_alt_optional_operator() -> None:
     node = parse_string("1 + 2\n", parser_class)
     assert node == [
         [
-            [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 + 2\n")],
+            TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 + 2\n"),
             [
                 TokenInfo(OP, string="+", start=(1, 2), end=(1, 3), line="1 + 2\n"),
-                [TokenInfo(NUMBER, string="2", start=(1, 4), end=(1, 5), line="1 + 2\n")],
+                TokenInfo(NUMBER, string="2", start=(1, 4), end=(1, 5), line="1 + 2\n"),
             ],
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 5), end=(1, 6), line="1 + 2\n"),
     ]
     node = parse_string("1\n", parser_class)
     assert node == [
-        [[TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1\n")], None],
+        [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1\n"), None],
         TokenInfo(NEWLINE, string="\n", start=(1, 1), end=(1, 2), line="1\n"),
     ]
 
@@ -205,16 +205,16 @@ def test_repeat_0_simple() -> None:
     parser_class = make_parser(grammar)
     node = parse_string("1 2 3\n", parser_class)
     assert node == [
-        [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 2 3\n")],
+        TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 2 3\n"),
         [
-            [[TokenInfo(NUMBER, string="2", start=(1, 2), end=(1, 3), line="1 2 3\n")]],
-            [[TokenInfo(NUMBER, string="3", start=(1, 4), end=(1, 5), line="1 2 3\n")]],
+            TokenInfo(NUMBER, string="2", start=(1, 2), end=(1, 3), line="1 2 3\n"),
+            TokenInfo(NUMBER, string="3", start=(1, 4), end=(1, 5), line="1 2 3\n"),
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 5), end=(1, 6), line="1 2 3\n"),
     ]
     node = parse_string("1\n", parser_class)
     assert node == [
-        [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1\n")],
+        TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1\n"),
         [],
         TokenInfo(NEWLINE, string="\n", start=(1, 1), end=(1, 2), line="1\n"),
     ]
@@ -228,19 +228,15 @@ def test_repeat_0_complex() -> None:
     parser_class = make_parser(grammar)
     node = parse_string("1 + 2 + 3\n", parser_class)
     assert node == [
-        [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 + 2 + 3\n")],
+        TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 + 2 + 3\n"),
         [
             [
-                [
-                    TokenInfo(OP, string="+", start=(1, 2), end=(1, 3), line="1 + 2 + 3\n"),
-                    [TokenInfo(NUMBER, string="2", start=(1, 4), end=(1, 5), line="1 + 2 + 3\n")],
-                ]
+                TokenInfo(OP, string="+", start=(1, 2), end=(1, 3), line="1 + 2 + 3\n"),
+                TokenInfo(NUMBER, string="2", start=(1, 4), end=(1, 5), line="1 + 2 + 3\n"),
             ],
             [
-                [
-                    TokenInfo(OP, string="+", start=(1, 6), end=(1, 7), line="1 + 2 + 3\n"),
-                    [TokenInfo(NUMBER, string="3", start=(1, 8), end=(1, 9), line="1 + 2 + 3\n")],
-                ]
+                TokenInfo(OP, string="+", start=(1, 6), end=(1, 7), line="1 + 2 + 3\n"),
+                TokenInfo(NUMBER, string="3", start=(1, 8), end=(1, 9), line="1 + 2 + 3\n"),
             ],
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 9), end=(1, 10), line="1 + 2 + 3\n"),
@@ -255,10 +251,10 @@ def test_repeat_1_simple() -> None:
     parser_class = make_parser(grammar)
     node = parse_string("1 2 3\n", parser_class)
     assert node == [
-        [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 2 3\n")],
+        TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 2 3\n"),
         [
-            [[TokenInfo(NUMBER, string="2", start=(1, 2), end=(1, 3), line="1 2 3\n")]],
-            [[TokenInfo(NUMBER, string="3", start=(1, 4), end=(1, 5), line="1 2 3\n")]],
+            TokenInfo(NUMBER, string="2", start=(1, 2), end=(1, 3), line="1 2 3\n"),
+            TokenInfo(NUMBER, string="3", start=(1, 4), end=(1, 5), line="1 2 3\n"),
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 5), end=(1, 6), line="1 2 3\n"),
     ]
@@ -274,19 +270,15 @@ def test_repeat_1_complex() -> None:
     parser_class = make_parser(grammar)
     node = parse_string("1 + 2 + 3\n", parser_class)
     assert node == [
-        [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 + 2 + 3\n")],
+        TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 + 2 + 3\n"),
         [
             [
-                [
-                    TokenInfo(OP, string="+", start=(1, 2), end=(1, 3), line="1 + 2 + 3\n"),
-                    [TokenInfo(NUMBER, string="2", start=(1, 4), end=(1, 5), line="1 + 2 + 3\n")],
-                ]
+                TokenInfo(OP, string="+", start=(1, 2), end=(1, 3), line="1 + 2 + 3\n"),
+                TokenInfo(NUMBER, string="2", start=(1, 4), end=(1, 5), line="1 + 2 + 3\n"),
             ],
             [
-                [
-                    TokenInfo(OP, string="+", start=(1, 6), end=(1, 7), line="1 + 2 + 3\n"),
-                    [TokenInfo(NUMBER, string="3", start=(1, 8), end=(1, 9), line="1 + 2 + 3\n")],
-                ]
+                TokenInfo(OP, string="+", start=(1, 6), end=(1, 7), line="1 + 2 + 3\n"),
+                TokenInfo(NUMBER, string="3", start=(1, 8), end=(1, 9), line="1 + 2 + 3\n"),
             ],
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 9), end=(1, 10), line="1 + 2 + 3\n"),
@@ -304,9 +296,9 @@ def test_repeat_with_sep_simple() -> None:
     node = parse_string("1, 2, 3\n", parser_class)
     assert node == [
         [
-            [TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1, 2, 3\n")],
-            [TokenInfo(NUMBER, string="2", start=(1, 3), end=(1, 4), line="1, 2, 3\n")],
-            [TokenInfo(NUMBER, string="3", start=(1, 6), end=(1, 7), line="1, 2, 3\n")],
+            TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1, 2, 3\n"),
+            TokenInfo(NUMBER, string="2", start=(1, 3), end=(1, 4), line="1, 2, 3\n"),
+            TokenInfo(NUMBER, string="3", start=(1, 6), end=(1, 7), line="1, 2, 3\n"),
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 7), end=(1, 8), line="1, 2, 3\n"),
     ]
@@ -334,12 +326,12 @@ def test_left_recursive() -> None:
     assert node == [
         [
             [
-                [[TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 + 2 + 3\n")]],
+                TokenInfo(NUMBER, string="1", start=(1, 0), end=(1, 1), line="1 + 2 + 3\n"),
                 TokenInfo(OP, string="+", start=(1, 2), end=(1, 3), line="1 + 2 + 3\n"),
-                [TokenInfo(NUMBER, string="2", start=(1, 4), end=(1, 5), line="1 + 2 + 3\n")],
+                TokenInfo(NUMBER, string="2", start=(1, 4), end=(1, 5), line="1 + 2 + 3\n"),
             ],
             TokenInfo(OP, string="+", start=(1, 6), end=(1, 7), line="1 + 2 + 3\n"),
-            [TokenInfo(NUMBER, string="3", start=(1, 8), end=(1, 9), line="1 + 2 + 3\n")],
+            TokenInfo(NUMBER, string="3", start=(1, 8), end=(1, 9), line="1 + 2 + 3\n"),
         ],
         TokenInfo(NEWLINE, string="\n", start=(1, 9), end=(1, 10), line="1 + 2 + 3\n"),
     ]
@@ -420,7 +412,7 @@ def test_mutually_left_recursive() -> None:
         [
             [
                 [
-                    [TokenInfo(type=NAME, string="D", start=(1, 0), end=(1, 1), line="D A C A E")],
+                    TokenInfo(type=NAME, string="D", start=(1, 0), end=(1, 1), line="D A C A E"),
                     TokenInfo(type=NAME, string="A", start=(1, 2), end=(1, 3), line="D A C A E"),
                 ],
                 TokenInfo(type=NAME, string="C", start=(1, 4), end=(1, 5), line="D A C A E"),
@@ -434,7 +426,7 @@ def test_mutually_left_recursive() -> None:
     assert node == [
         [
             [
-                [TokenInfo(type=NAME, string="B", start=(1, 0), end=(1, 1), line="B C A E")],
+                TokenInfo(type=NAME, string="B", start=(1, 0), end=(1, 1), line="B C A E"),
                 TokenInfo(type=NAME, string="C", start=(1, 2), end=(1, 3), line="B C A E"),
             ],
             TokenInfo(type=NAME, string="A", start=(1, 4), end=(1, 5), line="B C A E"),
@@ -481,41 +473,19 @@ def test_lookahead() -> None:
     parser_class = make_parser(grammar)
     node = parse_string("foo = 12 + 12 .", parser_class)
     assert node == [
+        TokenInfo(NAME, string="foo", start=(1, 0), end=(1, 3), line="foo = 12 + 12 ."),
+        TokenInfo(OP, string="=", start=(1, 4), end=(1, 5), line="foo = 12 + 12 ."),
         [
+            TokenInfo(NUMBER, string="12", start=(1, 6), end=(1, 8), line="foo = 12 + 12 ."),
             [
-                [TokenInfo(NAME, string="foo", start=(1, 0), end=(1, 3), line="foo = 12 + 12 .")],
-                TokenInfo(OP, string="=", start=(1, 4), end=(1, 5), line="foo = 12 + 12 ."),
                 [
-                    [
-                        TokenInfo(
-                            NUMBER, string="12", start=(1, 6), end=(1, 8), line="foo = 12 + 12 ."
-                        )
-                    ],
-                    [
-                        [
-                            [
-                                TokenInfo(
-                                    OP,
-                                    string="+",
-                                    start=(1, 9),
-                                    end=(1, 10),
-                                    line="foo = 12 + 12 .",
-                                ),
-                                [
-                                    TokenInfo(
-                                        NUMBER,
-                                        string="12",
-                                        start=(1, 11),
-                                        end=(1, 13),
-                                        line="foo = 12 + 12 .",
-                                    )
-                                ],
-                            ]
-                        ]
-                    ],
-                ],
-            ]
-        ]
+                    TokenInfo(OP, string="+", start=(1, 9), end=(1, 10), line="foo = 12 + 12 ."),
+                    TokenInfo(
+                        NUMBER, string="12", start=(1, 11), end=(1, 13), line="foo = 12 + 12 ."
+                    ),
+                ]
+            ],
+        ],
     ]
 
 
@@ -557,7 +527,7 @@ def test_cut() -> None:
     node = parse_string("(1)", parser_class, verbose=True)
     assert node == [
         TokenInfo(OP, string="(", start=(1, 0), end=(1, 1), line="(1)"),
-        [TokenInfo(NUMBER, string="1", start=(1, 1), end=(1, 2), line="(1)")],
+        TokenInfo(NUMBER, string="1", start=(1, 1), end=(1, 2), line="(1)"),
         TokenInfo(OP, string=")", start=(1, 2), end=(1, 3), line="(1)"),
     ]
 
