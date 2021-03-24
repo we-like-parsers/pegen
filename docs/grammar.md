@@ -111,6 +111,9 @@ rule_name[return_type]:
     | second_alt1 second_alt2 { second_alt1 }
 ```
 If the action is omitted, a list with all the parsed expressions gets returned.
+However if the rule contains a single element it is returned as is without being
+wrapped in a list. Rules allowing to match multiple items (`+` or `*`) always
+return a list.
 
 
 ### Variables in the Grammar
