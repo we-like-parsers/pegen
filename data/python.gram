@@ -151,12 +151,12 @@ statement_newline[list]:
     | simple_stmt
     | NEWLINE { [ast.Pass()] }
     | ENDMARKER { None }
-simple_stmt[list]:
-    | a=small_stmt !';' NEWLINE { [a] } # Not needed, there for speedup
-    | a=';'.small_stmt+ [';'] NEWLINE { a }
+simple_stmts[list]:
+    | a=simple_stmt !';' NEWLINE { [a] } # Not needed, there for speedup
+    | a=';'.simple_stmt+ [';'] NEWLINE { a }
 # NOTE: assignment MUST precede expression, else parsing a simple assignment
 # will throw a SyntaxError.
-small_stmt (memo):
+simple_stmt (memo):
     | assignment
     | e=star_expressions { ast.Expr(value=e) }
     | &'return' return_stmt
@@ -249,9 +249,11 @@ import_name[ast.Import]: 'import' a=dotted_as_names { ast.Import(names=a) }
 # note below: the ('.' | '...') is necessary because '...' is tokenized as ELLIPSIS
 import_from[ast.Import]:
     | 'from' a=('.' | '...')* b=dotted_name 'import' c=import_from_targets {
-        ast.Import(module=b, names=c, level=self.extract_import_level(a)) }
+        ast.Import(module=b, names=c, level=self.extract_import_level(a))
+     }
     | 'from' a=('.' | '...')+ 'import' b=import_from_targets {
-        ast.Import(names=b, level=self.extract_import_level(a)) }
+        ast.Import(names=b, level=self.extract_import_level(a))
+     }
 import_from_targets[List[ast.alias]]:
     | '(' a=import_from_as_names [','] ')' { a }
     | import_from_as_names !','

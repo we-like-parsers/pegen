@@ -12,7 +12,7 @@ from pathlib import PurePath
 from typing import List, Optional, Any
 
 sys.path.insert(0, os.getcwd())
-from pegen.build import build_python_parser_and_generator
+from pegen.build import build_parser
 from tests.utils import print_memstats, generate_parser, run_parser
 from scripts import show_parse
 
@@ -92,7 +92,8 @@ def compare_trees(
     actual_text = ast.dump(actual_tree, include_attributes=include_attributes)
     if actual_text == expected_text:
         if verbose:
-            print("Tree for {file}:")
+            print("AST trees match.\n")
+            print(f"Tree for {file}:")
             print(show_parse.format_tree(actual_tree, include_attributes))
         return 0
 
@@ -102,9 +103,9 @@ def compare_trees(
     actual = show_parse.format_tree(actual_tree, include_attributes)
 
     if verbose:
-        print("Expected for {file}:")
+        print(f"Expected for {file}:")
         print(expected)
-        print("Actual for {file}:")
+        print(f"Actual for {file}:")
         print(actual)
         print(f"Diff for {file}:")
 
@@ -136,15 +137,12 @@ def parse_directory(
 
         try:
             if not parser:
-                
-                parser = generate_parser(
-                    grammar_file,
-                    "python_parser_py.py",
-                    skip_actions=skip_actions,
-                )
+                grammar = build_parser(grammar_file)[0]
+                GeneratedParser = generate_parser(grammar)  # TODO: skip_actions
         except Exception as err:
             print(
-                f"{FAIL}The following error occurred when generating the parser. Please check your grammar file.\n{ENDC}",
+                f"{FAIL}The following error occurred when generating the parser."
+                f" Please check your grammar file.\n{ENDC}",
                 file=sys.stderr,
             )
             traceback.print_exception(err.__class__, err, None)
@@ -153,17 +151,25 @@ def parse_directory(
 
     else:
         print("A grammar file was not provided - attempting to use existing file...\n")
+        try:
+            sys.path.insert(0, sys.path.insert(0, os.path.join(os.getcwd(), "data")))
+            from python_parser_py import GeneratedParser
+        except:
+            print(
+                "An existing parser was not found. Please run `make` or specify a grammar file with the `-g` flag.",
+                file=sys.stderr,
+            )
+            return 1
 
     try:
         import tokenize
         from pegen.tokenizer import Tokenizer
-        from python_parser_py import Parser
 
         def parse(filepath):
-            with open(filepath):
-                tokengen = tokenize.generate_tokens(file.readline)
+            with open(filepath) as f:
+                tokengen = tokenize.generate_tokens(f.readline)
                 tokenizer = Tokenizer(tokengen, verbose=False)
-                parser = Parser(tokenizer, verbose=verbose)
+                parser = GeneratedParser(tokenizer, verbose=verbose)
                 return parser.start()
     except:
         print(
@@ -196,7 +202,8 @@ def parse_directory(
                     report_status(succeeded=True, file=file, verbose=verbose)
             except Exception as error:
                 try:
-                    ast.parse(file)
+                    with open(file) as f:
+                        ast.parse(f.read())
                 except Exception:
                     if not short:
                         print(f"File {file} cannot be parsed by either pegen or the ast module.")
@@ -228,12 +235,6 @@ def parse_directory(
             f"That's {total_lines / total_seconds :,.0f} lines/sec,",
             f"or {total_bytes / total_seconds :,.0f} bytes/sec.",
         )
-
-    # Dump memo stats to @data.
-    with open("@data", "w") as datafile:
-        for i, count in enumerate(parse.get_memo_stats()):
-            if count:
-                datafile.write(f"{i:4d} {count:9d}\n")
 
     if short:
         print_memstats()

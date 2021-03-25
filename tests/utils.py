@@ -12,6 +12,7 @@ from pegen.build import build_parser
 from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser
 from pegen.parser import Parser
+from pegen.python_generator import PythonParserGenerator
 from pegen.tokenizer import Tokenizer
 
 ALL_TOKENS = token.tok_name
@@ -29,6 +30,8 @@ def generate_parser(grammar: Grammar) -> Type[Parser]:
 
     # Load the generated parser class.
     ns: Dict[str, Any] = {}
+    with open("xxx.py", "w") as f:
+        f.write(out.getvalue())
     exec(out.getvalue(), ns)
     return ns["GeneratedParser"]
 
