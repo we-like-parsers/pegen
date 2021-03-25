@@ -202,6 +202,13 @@ class Parser:
         return None
 
     @memoize
+    def type_comment(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == token.TYPE_COMMENT:
+            return self._tokenizer.getnext()
+        return None
+
+    @memoize
     def expect(self, type: str) -> Optional[tokenize.TokenInfo]:
         tok = self._tokenizer.peek()
         if tok.string == type:
