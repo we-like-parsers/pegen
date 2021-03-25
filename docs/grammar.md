@@ -134,7 +134,7 @@ can add dedicated sections to the grammar, which are discussed below:
 
 @class NAME
 
-This allows to specify the name of the generated parser.
+  This allows to specify the name of the generated parser.
 
 @header
 
@@ -147,14 +147,14 @@ This allows to specify the name of the generated parser.
 
 @subheader
 
-    Specify a subheader for the module as a string (one can typically use
-    triple quoted string). This is empty by default and is the safer to edit to
-    perform custom imports.
+  Specify a subheader for the module as a string (one can typically use
+  triple quoted string). This is empty by default and is the safer to edit to
+  perform custom imports.
 
 @trailer
 
-    Specify a trailer for the module which is appended to the parser definition.
-    It defaults to MODULE_SUFFIX which is defined in pegen.python_generator.
+  Specify a trailer for the module which is appended to the parser definition.
+  It defaults to MODULE_SUFFIX which is defined in pegen.python_generator.
 
 
 The following snippets illustrates naming the parser MyParser and making the
