@@ -178,7 +178,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print(f"# {node.name}: {rhs}")
             if node.nullable:
                 self.print(f"# nullable={node.nullable}")
-            self.print("mark = self.mark()")
+            self.print("mark = self._mark()")
             if is_loop:
                 self.print("children = []")
             self.visit(rhs, is_loop=is_loop, is_gather=is_gather)
@@ -238,9 +238,9 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                             action = f"[{', '.join(self.local_variable_names)}]"
                 if is_loop:
                     self.print(f"children.append({action})")
-                    self.print(f"mark = self.mark()")
+                    self.print(f"mark = self._mark()")
                 else:
                     self.print(f"return {action}")
-            self.print("self.reset(mark)")
+            self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
             self.print("if cut: return None")  # TODO: Only if needed.

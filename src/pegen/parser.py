@@ -42,12 +42,12 @@ def memoize(method: F) -> F:
     method_name = method.__name__
 
     def memoize_wrapper(self: P, *args: object) -> T:
-        mark = self.mark()
+        mark = self._mark()
         key = mark, method_name, args
         # Fast path: cache hit, and not verbose.
         if key in self._cache and not self._verbose:
             tree, endmark = self._cache[key]
-            self.reset(endmark)
+            self._reset(endmark)
             return tree
         # Slow path: no cache hit, or verbose.
         verbose = self._verbose
@@ -61,13 +61,13 @@ def memoize(method: F) -> F:
             self._level -= 1
             if verbose:
                 print(f"{fill}... {method_name}({argsr}) -> {tree!s:.200}")
-            endmark = self.mark()
+            endmark = self._mark()
             self._cache[key] = tree, endmark
         else:
             tree, endmark = self._cache[key]
             if verbose:
                 print(f"{fill}{method_name}({argsr}) -> {tree!s:.200}")
-            self.reset(endmark)
+            self._reset(endmark)
         return tree
 
     memoize_wrapper.__wrapped__ = method  # type: ignore
@@ -79,12 +79,12 @@ def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Option
     method_name = method.__name__
 
     def memoize_left_rec_wrapper(self: P) -> Optional[T]:
-        mark = self.mark()
+        mark = self._mark()
         key = mark, method_name, ()
         # Fast path: cache hit, and not verbose.
         if key in self._cache and not self._verbose:
             tree, endmark = self._cache[key]
-            self.reset(endmark)
+            self._reset(endmark)
             return tree
         # Slow path: no cache hit, or verbose.
         verbose = self._verbose
@@ -110,9 +110,9 @@ def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Option
                 print(f"{fill}Recursive {method_name} at {mark} depth {depth}")
 
             while True:
-                self.reset(mark)
+                self._reset(mark)
                 result = method(self)
-                endmark = self.mark()
+                endmark = self._mark()
                 depth += 1
                 if verbose:
                     print(
@@ -128,24 +128,24 @@ def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Option
                     break
                 self._cache[key] = lastresult, lastmark = result, endmark
 
-            self.reset(lastmark)
+            self._reset(lastmark)
             tree = lastresult
 
             self._level -= 1
             if verbose:
                 print(f"{fill}{method_name}() -> {tree!s:.200} [cached]")
             if tree:
-                endmark = self.mark()
+                endmark = self._mark()
             else:
                 endmark = mark
-                self.reset(endmark)
+                self._reset(endmark)
             self._cache[key] = tree, endmark
         else:
             tree, endmark = self._cache[key]
             if verbose:
                 print(f"{fill}{method_name}() -> {tree!s:.200} [fresh]")
             if tree:
-                self.reset(endmark)
+                self._reset(endmark)
         return tree
 
     memoize_left_rec_wrapper.__wrapped__ = method  # type: ignore
@@ -161,9 +161,8 @@ class Parser:
         self._level = 0
         self._cache: Dict[Tuple[Mark, str, Tuple[Any, ...]], Tuple[Any, Mark]] = {}
         # Pass through common tokenizer methods.
-        # TODO: Rename to _mark and _reset.
-        self.mark = self._tokenizer.mark
-        self.reset = self._tokenizer.reset
+        self._mark = self._tokenizer.mark
+        self._reset = self._tokenizer.reset
 
     @abstractmethod
     def start(self) -> Any:
@@ -224,15 +223,15 @@ class Parser:
         return None
 
     def positive_lookahead(self, func: Callable[..., T], *args: object) -> T:
-        mark = self.mark()
+        mark = self._mark()
         ok = func(*args)
-        self.reset(mark)
+        self._reset(mark)
         return ok
 
     def negative_lookahead(self, func: Callable[..., object], *args: object) -> bool:
-        mark = self.mark()
+        mark = self._mark()
         ok = func(*args)
-        self.reset(mark)
+        self._reset(mark)
         return not ok
 
     def make_syntax_error(self, filename: str = "<unknown>") -> SyntaxError:
