@@ -144,8 +144,8 @@ type_expressions[list]:
     | '**' a=expression { [a] }
     | a=','.expression+ {a}
 
-statements: a=statement+ { list(itertools.chain(*a)) }
-statement[list]: a=compound_stmt { [a] } | a=simple_stmt { a }
+statements[list]: a=statement+ { list(itertools.chain(*a)) }
+statement[list]: a=compound_stmt { [a] } | a=simple_stmts { a }
 statement_newline[list]:
     | a=compound_stmt NEWLINE { [a] }
     | simple_stmt
@@ -649,6 +649,7 @@ atom:
     | &'{' (dict | set | dictcomp | setcomp)
     | '...' { ast.Ellipsis() }
 
+# XXX need a much more complex rule here to handle prefixes
 strings[ast.Str] (memo): a=STRING+ { ast.Str(s="".join(a)) }
 list[ast.List]:
     | '[' a=[star_named_expressions] ']' { ast.List(elts=a or [], ctx=Load) }
