@@ -58,7 +58,7 @@ class Parser(Parser):
         """
         level = 0
         for t in tokens:
-            if t.type == token.DOT:
+            if t.string == ".":
                 level += 1
             else:
                 level += 3
@@ -128,7 +128,7 @@ class Parser(Parser):
 
 start: file
 
-file[ast.Module]: a=[statements] ENDMARKER { ast.Module(body=a, type_ignores=[]) }
+file[ast.Module]: a=[statements] ENDMARKER { ast.Module(body=a or [], type_ignores=[]) }
 interactive[ast.Interactive]: a=statement_newline { ast.Interactive(body=a) }
 eval[ast.Expression]: a=expressions NEWLINE* ENDMARKER { ast.Expression(body=a) }
 func_type[ast.FunctionType]: '(' a=[type_expressions] ')' '->' b=expression NEWLINE* ENDMARKER { ast.FunctionType(argtypes=a, returns=b) }
@@ -247,12 +247,12 @@ del_stmt[ast.Delete]:
 import_stmt[ast.Import]: import_name | import_from
 import_name[ast.Import]: 'import' a=dotted_as_names { ast.Import(names=a) }
 # note below: the ('.' | '...') is necessary because '...' is tokenized as ELLIPSIS
-import_from[ast.Import]:
+import_from[ast.ImportFrom]:
     | 'from' a=('.' | '...')* b=dotted_name 'import' c=import_from_targets {
-        ast.Import(module=b, names=c, level=self.extract_import_level(a))
+        ast.ImportFrom(module=b, names=c, level=self.extract_import_level(a))
      }
     | 'from' a=('.' | '...')+ 'import' b=import_from_targets {
-        ast.Import(names=b, level=self.extract_import_level(a))
+        ast.ImportFrom(names=b, level=self.extract_import_level(a))
      }
 import_from_targets[List[ast.alias]]:
     | '(' a=import_from_as_names [','] ')' { a }
@@ -262,10 +262,10 @@ import_from_targets[List[ast.alias]]:
 import_from_as_names[List[ast.alias]]:
     | a=','.import_from_as_name+ { a }
 import_from_as_name[ast.alias]:
-    | a=NAME b=['as' z=NAME { z }] { ast.alias(name=a.string, asname=b) }
+    | a=NAME b=['as' z=NAME { z.string }] { ast.alias(name=a.string, asname=b) }
 dotted_as_names[List[ast.alias]]: a=','.dotted_as_name+ { a }
 dotted_as_name[ast.alias]:
-    | a=dotted_name b=['as' z=NAME { z }] { ast.alias(name=a, asname=b) }
+    | a=dotted_name b=['as' z=NAME { z.string }] { ast.alias(name=a, asname=b) }
 dotted_name[str]:
     | a=dotted_name '.' b=NAME { a + "." + b.string }
     | a=NAME { a.string }
@@ -638,7 +638,7 @@ slice:
     | a=[expression] ':' b=[expression] c=[':' d=[expression] { d }] { ast.Slice(lower=a, upper=b, step=c) }
     | a=expression { a }
 atom:
-    | a=NAME { ast.Name(id=a.string) }
+    | a=NAME { ast.Name(id=a.string, ctx=Load) }
     | 'True' { ast.NameConstant(True) }
     | 'False' { ast.NameConstant(False) }
     | 'None' { ast.NameConstant(None) }
