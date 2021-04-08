@@ -5,7 +5,7 @@ import token
 import tokenize
 import traceback
 from abc import abstractmethod
-from typing import Any, Callable, Dict, Optional, Tuple, Type, TypeVar, cast
+from typing import Any, Callable, ClassVar, Dict, Optional, Tuple, Type, TypeVar, cast
 
 from pegen.tokenizer import Mark, Tokenizer, exact_token_types
 
@@ -155,6 +155,10 @@ def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Option
 class Parser:
     """Parsing base class."""
 
+    KEYWORDS: ClassVar[Tuple[str, ...]]
+
+    SOFT_KEYWORDS: ClassVar[Tuple[str, ...]]
+
     def __init__(self, tokenizer: Tokenizer, *, verbose: bool = False):
         self._tokenizer = tokenizer
         self._verbose = verbose
@@ -175,7 +179,7 @@ class Parser:
     @memoize
     def name(self) -> Optional[tokenize.TokenInfo]:
         tok = self._tokenizer.peek()
-        if tok.type == token.NAME:
+        if tok.type == token.NAME and tok.string not in self.KEYWORDS:
             return self._tokenizer.getnext()
         return None
 

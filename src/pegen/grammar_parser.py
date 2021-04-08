@@ -40,6 +40,10 @@ from pegen.grammar import (
 
 
 class GeneratedParser(Parser):
+
+    KEYWORDS = ()
+    SOFT_KEYWORDS = ()
+
     @memoize
     def start(self) -> Optional[Grammar]:
         # start: grammar $
