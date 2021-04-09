@@ -44,11 +44,31 @@ class Parser(Parser):
         return ""
 
     def set_expr_context(self, node, context):
-        """Set the context (Load, Store, Del) of an ast node.
-
-        """
+        """Set the context (Load, Store, Del) of an ast node."""
         node.ctx = context
         return node
+
+    def generate_ast_for_string(self, tokens):
+        """Generate AST nodes for strings."""
+        err_msg = ''
+        try:
+            m = ast.parse('(' + ' '.join([t.string for t in tokens]) + ')')
+        except SyntaxError as e:
+            err_msg = e.args[0]
+            # Identify the line at which the error occurred to get a more
+            # accurate line number
+            for t in tokens:
+                try:
+                    m = ast.parse(t.string)
+                except SyntaxError:
+                    break
+
+        # Avoid getting a triple nesting in the error report that does not
+        # bring anything relevant to the traceback.
+        if err_msg:
+            return self.raise_syntax_error(err_msg, t)
+
+        return m.body[0].value
 
     def extract_import_level(self, tokens: List[tokenize.TokenInfo]) -> int:
         """Extract the relative import level from the tokens preceding the module name.
@@ -87,8 +107,8 @@ class Parser(Parser):
         pos_only: Optional[List[Tuple[ast.arg, None]]],
         pos_only_with_default: List[Tuple[ast.arg, Any]],
         param_no_default: Optional[List[Tuple[ast.arg, None]]],
-        param_default: List[Tuple[ast.arg, Any]],
-        after_star: Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast.arg]]
+        param_default: Optional[List[Tuple[ast.arg, Any]]],
+        after_star: Optional[Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast.arg]]]
     ) -> ast.arguments:
         """Build a function definition arguments."""
         if sys.version_info < (3, 9) and (pos_only or pos_only_with_default):
@@ -108,11 +128,14 @@ class Parser(Parser):
         )
 
         pos_only = pos_only or pos_only_with_default
+
         # Because we need to combine pos only with and without default even
         # the version with no default is a tuple
         pos_only = [p for p, _ in pos_only]
-        params = param_no_default or param_with_default
-        params = [p for p, _ in params]
+        params = param_no_default or ([p for p, _ in param_default] if param_default else [])
+
+        # If after_star is None, make a default tuple
+        after_star = after_star or (None, [], None)
 
         return ast.arguments(
             posonlyargs=pos_only,
@@ -339,11 +362,17 @@ raise_stmt[ast.Raise]:
 
 function_def[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
     | d=decorators f=function_def_raw { self.set_decorators(f, d) }
-    | function_def_raw
+    | f=function_def_raw {self.set_decorators(f, [])}
 
 function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
     | 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] ':' tc=[func_type_comment] b=block {
-        ast.FunctionDef(name=n.string, args=params, returns=a, body=b, type_comment=tc)
+        ast.FunctionDef(
+            name=n.string,
+            args=params or self.make_arguments(None, [], None, [], None),
+            returns=a,
+            body=b,
+            type_comment=tc
+        )
      }
     | ASYNC 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] ':' tc=[func_type_comment] b=block {
        self.check_version(
@@ -373,7 +402,7 @@ parameters[ast.arguments]:
     | a=param_with_default+ b=[star_etc] {
         self.make_arguments(None, [], None, a, b)
      }
-    | a=star_etc { self.make_arguments(None, [], None, [], a) }
+    | a=star_etc { self.make_arguments(None, [], None, None, a) }
 
 # Some duplication here because we can't write (',' | &')'),
 # which is because we don't support empty alternatives (yet).
@@ -649,8 +678,7 @@ atom:
     | &'{' (dict | set | dictcomp | setcomp)
     | '...' { ast.Ellipsis() }
 
-# XXX need a much more complex rule here to handle prefixes
-strings[ast.Str] (memo): a=STRING+ { ast.Str(s="".join(a)) }
+strings[ast.Str] (memo): a=STRING+ { self.generate_ast_for_string(a) }
 list[ast.List]:
     | '[' a=[star_named_expressions] ']' { ast.List(elts=a or [], ctx=Load) }
 listcomp[ast.ListComp]:
