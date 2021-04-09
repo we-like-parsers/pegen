@@ -209,10 +209,10 @@ assignment:
             (3, 6),
             "Variable annotation syntax is",
             ast.AnnAssign(
-                target=ast.Name(value=a.string, ctx=Store),
+                target=ast.Name(id=a.string, ctx=Store),
                 annotation=b,
                 value=c,
-                simple=True,
+                simple=1,
             )
         ) }
     | a=('(' b=single_target ')' { b } | single_subscript_attribute_target) ':' b=expression c=['=' d=annotated_rhs { d }] {
@@ -223,7 +223,7 @@ assignment:
                 target=a,
                 annotation=b,
                 value=c,
-                simple=False,
+                simple=0,
             )
         )
      }
@@ -295,20 +295,20 @@ dotted_name[str]:
 
 if_stmt[ast.If]:
     | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c) }
-    | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=[c] if c else []) }
+    | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=c or []) }
 elif_stmt[List[ast.If]]:
     | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b)] + c }
-    | 'elif' a=named_expression ':' b=block c=[else_block] { [ast.If(test=a, body=b, orelse=[c] if c else [])] }
+    | 'elif' a=named_expression ':' b=block c=[else_block] { [ast.If(test=a, body=b, orelse=c or [])] }
 else_block[list]: 'else' ':' b=block { b }
 
 while_stmt[ast.While]:
     | 'while' a=named_expression ':' b=block c=[else_block] {
-        ast.While(test=a, body=b, orelse=[c] if c else [])
+        ast.While(test=a, body=b, orelse=c or [])
      }
 
 for_stmt[Union[ast.For, ast.AsyncFor]]:
     | 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
-        ast.For(target=t, iter=ex, body=b, orelse=[el] if el else [], type_comment=tc) }
+        ast.For(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc) }
     | ASYNC 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
         self.check_version(
             (3, 5),
@@ -343,13 +343,13 @@ with_item[ast.withitem]:
     | e=expression { ast.withitem(context_expr=e, optional_vars=None) }
 
 try_stmt[ast.Try]:
-    | 'try' ':' b=block f=finally_block { ast.Try(body=b, finalbody=f) }
+    | 'try' ':' b=block f=finally_block { ast.Try(body=b, handlers=[], orelse=[], finalbody=f) }
     | 'try' ':' b=block ex=except_block+ el=[else_block] f=[finally_block] {
         ast.Try(body=b, handlers=ex, orelse=el, finalbody=f)
      }
 except_block[ast.ExceptHandler]:
-    | 'except' e=expression t=['as' z=NAME { z }] ':' b=block {
-        ast.ExceptHandler(type=e, name=t.string, body=block) }
+    | 'except' e=expression t=['as' z=NAME { z.string }] ':' b=block {
+        ast.ExceptHandler(type=e, name=t, body=b) }
     | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b) }
 finally_block[list]: 'finally' ':' a=block { a }
 
@@ -453,8 +453,8 @@ decorators:
     | a=('@' f=dec_maybe_call NEWLINE { f })+ { a }
     | a=('@' f=named_expression NEWLINE { f })+ { a }
 dec_maybe_call:
-    | dn=dec_primary args=[('(' b=arguments ')') { b }] {
-        ast.Call(func=dn, args=args[0], keywords=args[1]) if args else dn
+    | dn=dec_primary b=['(' z=arguments ')' { z }] {
+        ast.Call(func=dn, args=b[0], keywords=b[1]) if b else dn
      }
 dec_primary:
     | a=dec_primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load) }
@@ -470,6 +470,7 @@ class_def_raw[ast.ClassDef]:
             bases=b[0] if b else [],
             keywords=b[1] if b else [],
             body=c,
+            decorator_list=[],
         )
      }
 
@@ -653,8 +654,8 @@ primary:
     | a=primary '(' b=[arguments] ')' {
         ast.Call(
             func=a,
-            args=b[0] if b else None,
-            keywords=b[1] if b else None,
+            args=b[0] if b else [],
+            keywords=b[1] if b else [],
         )
      }
     | a=primary '[' b=slices ']' { ast.Subscript(value=a, slice=b, ctx=Load) }
@@ -685,8 +686,8 @@ listcomp[ast.ListComp]:
     | '[' a=named_expression ~ b=for_if_clauses ']' { ast.ListComp(elt=a, generators=b) }
     | invalid_comprehension
 tuple[ast.Tuple]:
-    | '(' a=[y=star_named_expression ',' z=[star_named_expressions] { [y] + z } ] ')' {
-        ast.Tuple(elts=a, ctx=Load)
+    | '(' a=[y=star_named_expression ',' z=[star_named_expressions] { [y] + (z or []) } ] ')' {
+        ast.Tuple(elts=a or [], ctx=Load)
      }
 group:
     | '(' a=(yield_expr | named_expression) ')' { a }
@@ -700,7 +701,7 @@ setcomp[ast.SetComp]:
     | invalid_comprehension
 dict[ast.Dict]:
     | '{' a=[double_starred_kvpairs] '}' {
-        ast.Dict(keys=[kv[0] for kv in a], values=[kv[1] for kv in a])
+        ast.Dict(keys=[kv[0] for kv in (a or [])], values=[kv[1] for kv in (a or [])])
      }
 dictcomp[ast.DictComp]:
     | '{' a=kvpair b=for_if_clauses '}' { ast.DictComp(key=a[0], value=a[1], generators=b) }
@@ -717,11 +718,11 @@ for_if_clause[ast.comprehension]:
         self.check_version(
             (3, 6),
             "Async comprehensions are",
-            ast.comprehension(target=a, iter=b, ifs=c, is_async=True)
+            ast.comprehension(target=a, iter=b, ifs=c, is_async=1)
         )
      }
     | 'for' a=star_targets 'in' ~ b=disjunction c=('if' z=disjunction { z })* {
-       ast.comprehension(target=a, iter=b, ifs=c) }
+       ast.comprehension(target=a, iter=b, ifs=c, is_async=0) }
     | invalid_for_target
 
 yield_expr:
@@ -733,13 +734,13 @@ arguments[Tuple[list, list]] (memo):
     | incorrect_arguments
 args[Tuple[list, list]]:
     | a=','.(starred_expression | named_expression !'=')+ b=[',' k=kwargs {k}] {
-        (a + [e for e in b if isinstance(e, ast.Starred)],
-         [e for e in b if not isinstance(e, ast.Starred)]
+        (a + ([e for e in b if isinstance(e, ast.Starred)] if b else []),
+         ([e for e in b if not isinstance(e, ast.Starred)] if b else [])
         )
      }
     | a=kwargs {
-        ([e for e in b if isinstance(e, ast.Starred)],
-         [e for e in b if not isinstance(e, ast.Starred)])
+        ([e for e in a if isinstance(e, ast.Starred)],
+         [e for e in a if not isinstance(e, ast.Starred)])
     }
 kwargs[list]:
     | a=','.kwarg_or_starred+ ',' b=','.kwarg_or_double_starred+ { a + b }
@@ -753,7 +754,7 @@ kwarg_or_starred:
     | invalid_kwarg
 kwarg_or_double_starred:
     | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b) }
-    | '**' a=expression { ast.keyword(arg=None, value=b) }
+    | '**' a=expression { ast.keyword(arg=None, value=a) }
     | invalid_kwarg
 
 # NOTE: star_targets may contain *bitwise_or, targets may not.
@@ -805,8 +806,8 @@ t_primary:
     | a=t_primary '(' b=[arguments] ')' &t_lookahead {
         ast.Call(
             func=a,
-            args=b[0] if b else None,
-            keywords=b[1] if b else None,
+            args=b[0] if b else [],
+            keywords=b[1] if b else [],
         )
      }
     | a=atom &t_lookahead { a }
