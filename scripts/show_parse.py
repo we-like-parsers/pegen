@@ -49,13 +49,14 @@ parser.add_argument("program", nargs="+", help="program to parse (will be concat
 
 def format_tree(tree: ast.AST, verbose: bool = False) -> str:
     with tempfile.NamedTemporaryFile("w+") as tf:
-        tf.write(ast.dump(tree, include_attributes=verbose))
+        tf.write(ast.dump(tree, include_attributes=verbose, indent=4))
         tf.write("\n")
         tf.flush()
-        # cmd = f"black -q {tf.name}"
-        # sts = os.system(cmd)
-        # if sts:
-        #     raise RuntimeError(f"Command {cmd!r} failed with status 0x{sts:x}")
+        if sys.platform != "win32":
+            cmd = f"black -q {tf.name}"
+            sts = os.system(cmd)
+            if sts:
+                raise RuntimeError(f"Command {cmd!r} failed with status 0x{sts:x}")
         tf.seek(0)
         return tf.read()
 
