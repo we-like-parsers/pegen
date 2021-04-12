@@ -132,7 +132,7 @@ class Parser(Parser):
         # Because we need to combine pos only with and without default even
         # the version with no default is a tuple
         pos_only = [p for p, _ in pos_only]
-        params = param_no_default or ([p for p, _ in param_default] if param_default else [])
+        params = (param_no_default or []) + ([p for p, _ in param_default] if param_default else [])
 
         # If after_star is None, make a default tuple
         after_star = after_star or (None, [], None)
@@ -260,7 +260,7 @@ nonlocal_stmt[ast.Nonlocal]: 'nonlocal' a=','.NAME+ {
 yield_stmt[ast.Expr]: y=yield_expr { ast.Expr(value=y) }
 
 assert_stmt[ast.Assert]: 'assert' a=expression b=[',' z=expression { z }] {
-    ast.Assert(test=a, message=b)
+    ast.Assert(test=a, msg=b)
 }
 
 del_stmt[ast.Delete]:
@@ -294,7 +294,7 @@ dotted_name[str]:
     | a=NAME { a.string }
 
 if_stmt[ast.If]:
-    | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c) }
+    | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c or []) }
     | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=c or []) }
 elif_stmt[List[ast.If]]:
     | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b)] + c }
@@ -335,6 +335,8 @@ with_stmt[Union[ast.With, ast.AsyncWith]]:
            ast.AsyncWith(items=a, body=b, type_comment=tc)
         )
      }
+    | invalid_with_stmt
+
 with_item[ast.withitem]:
     | e=expression 'as' t=star_target &(',' | ')' | ':') {
         ast.withitem(context_expr=e, optional_vars=t)
@@ -345,12 +347,13 @@ with_item[ast.withitem]:
 try_stmt[ast.Try]:
     | 'try' ':' b=block f=finally_block { ast.Try(body=b, handlers=[], orelse=[], finalbody=f) }
     | 'try' ':' b=block ex=except_block+ el=[else_block] f=[finally_block] {
-        ast.Try(body=b, handlers=ex, orelse=el, finalbody=f)
+        ast.Try(body=b, handlers=ex, orelse=el or [], finalbody=f or [])
      }
 except_block[ast.ExceptHandler]:
     | 'except' e=expression t=['as' z=NAME { z.string }] ':' b=block {
         ast.ExceptHandler(type=e, name=t, body=b) }
     | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b) }
+    | invalid_except_block
 finally_block[list]: 'finally' ':' a=block { a }
 
 return_stmt[ast.Return]:
@@ -476,7 +479,7 @@ class_def_raw[ast.ClassDef]:
 
 block[list] (memo):
     | NEWLINE INDENT a=statements DEDENT { a }
-    | simple_stmt
+    | simple_stmts
     | invalid_block
 
 expressions_list[list]: a=','.star_expression+ [','] { a }
@@ -649,8 +652,9 @@ await_primary (memo):
     | AWAIT a=primary { self.check_version((3, 5), "Await expressions are", ast.Await(a)) }
     | primary
 primary:
+    | invalid_primary  # must be before 'primay genexp' because of invalid_genexp
     | a=primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load) }
-    | a=primary b=genexp { ast.Call(func=a, args=[b]) }
+    | a=primary b=genexp { ast.Call(func=a, args=[b], keywords=[]) }
     | a=primary '(' b=[arguments] ')' {
         ast.Call(
             func=a,
@@ -802,7 +806,7 @@ target (memo):
 t_primary:
     | a=t_primary '.' b=NAME &t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Load) }
     | a=t_primary '[' b=slices ']' &t_lookahead { ast.Subscript(value=a, slice=b, ctx=Load) }
-    | a=t_primary b=genexp &t_lookahead { ast.Call(func=a, args=[b]) }
+    | a=t_primary b=genexp &t_lookahead { ast.Call(func=a, args=[b], keywords=[]) }
     | a=t_primary '(' b=[arguments] ')' &t_lookahead {
         ast.Call(
             func=a,
@@ -888,6 +892,10 @@ invalid_del_stmt:
         self.raise_syntax_error("cannot delete {self.get_expr_name(a)}", a) }
 invalid_block:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
+invalid_primary:
+    | primary a='{' {
+        self.raise_syntax_error("invalid synta", a)
+     }
 invalid_comprehension:
     | ('[' | '(' | '{') a=starred_expression for_if_clauses {
         self.raise_syntax_error("iterable unpacking cannot be used in comprehension", a)
@@ -934,3 +942,14 @@ invalid_import_from_targets:
     | import_from_as_names ',' {
         self.raise_syntax_error("trailing comma not allowed without surrounding parentheses")
      }
+
+invalid_with_stmt:
+    | [ASYNC] 'with' ','.(expression ['as' star_target])+ &&':'
+    | [ASYNC] 'with' '(' ','.(expressions ['as' star_target])+ ','? ')' &&':'
+
+invalid_except_block:
+    | 'except' a=expression ',' expressions ['as' NAME ] ':' {
+        self.raise_syntax_error("exception group must be parenthesized", a)
+     }
+    | 'except' expression ['as' NAME ] &&':'
+    | 'except' &&':'

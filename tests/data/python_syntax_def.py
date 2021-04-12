@@ -1,19 +1,51 @@
-lambda: 1
+def f():
+    pass
 
-lambda x: x
+def f() -> None:
+    pass
 
-lambda x=1: x
+def f(a):
+    pass
 
-lambda x, y: x + y
+def f(a: int) -> Tuple[int, ...]:
+    pass
 
-lambda x, /, y: x + y
+def f(a: int = 1) -> Tuple[int, ...]:
+    pass
 
-lambda x, *, y: x + y
+def f(a, b: int):
+    pass
 
-lambda *, x: x
+def f(a: bool, b: int = 1):
+    pass
 
-lambda *x: x
+def f(a, /, b):
+    pass
 
-lambda **x: x
+def f(a, /, b=1):
+    pass
 
-lambda x, **y: y
+def f(a, *, b):
+    pass
+
+def f(a, *, b=1):
+    pass
+
+def f(*, b):
+    pass
+
+def f(*, b = 1):
+    pass
+
+def f(*args):
+    pass
+
+def f(**kwargs):
+    pass
+
+def f(a, **kwargs):
+    pass
+
+def f(a=1, **kwargs):
+    pass
+
