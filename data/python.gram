@@ -292,7 +292,7 @@ if_stmt[ast.If]:
     | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c or []) }
     | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=c or []) }
 elif_stmt[List[ast.If]]:
-    | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b)] + c }
+    | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b, orelse=c)] }
     | 'elif' a=named_expression ':' b=block c=[else_block] { [ast.If(test=a, body=b, orelse=c or [])] }
 else_block[list]: 'else' ':' b=block { b }
 

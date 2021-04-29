@@ -29,6 +29,13 @@ elif b:
 else:
     pass
 
+if a:
+    pass
+elif b:
+    pass
+elif c:
+    pass
+
 while s:
     pass
 

@@ -130,3 +130,6 @@ dmypy.json
 
 # Pycharm stuff
 .idea
+
+# Downloaded test data
+data/pypi
