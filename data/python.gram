@@ -30,10 +30,6 @@ class Parser(Parser):
                 f"{{error_msg}} is only supported in Python {{min_version}} and above."
             )
 
-    def raise_syntax_error(self, msg, node=None) -> None:
-        """Raise a syntax error with a specific message."""
-        raise SyntaxError(msg, )  # FIXME add those after msg (filename, lineno, offset, text))
-
     def raise_indentation_error(self, msg) -> None:
         """Raise an indentation error."""
         raise IndentationError(msg)
@@ -66,7 +62,7 @@ class Parser(Parser):
         # Avoid getting a triple nesting in the error report that does not
         # bring anything relevant to the traceback.
         if err_msg:
-            return self.raise_syntax_error(err_msg, t)
+            return self.make_syntax_error(err_msg)
 
         return m.body[0].value
 
@@ -112,9 +108,8 @@ class Parser(Parser):
     ) -> ast.arguments:
         """Build a function definition arguments."""
         if sys.version_info < (3, 9) and (pos_only or pos_only_with_default):
-            self.raise_syntax_error(
-                "Positional only arguments are only supported in Python 3.9+",
-                pos_only[-1] if pos_only else pos_only_with_default[-1])
+            self.make_syntax_error(
+                "Positional only arguments are only supported in Python 3.9+")
 
         defaults = (
             [d for _, d in pos_only_with_default if d is not None]
@@ -345,8 +340,8 @@ with_item[ast.withitem]:
     | e=expression { ast.withitem(context_expr=e, optional_vars=None) }
 
 try_stmt[ast.Try]:
-    | 'try' ':' b=block f=finally_block { ast.Try(body=b, handlers=[], orelse=[], finalbody=f) }
-    | 'try' ':' b=block ex=except_block+ el=[else_block] f=[finally_block] {
+    | 'try' &&':' b=block f=finally_block { ast.Try(body=b, handlers=[], orelse=[], finalbody=f) }
+    | 'try' &&':' b=block ex=except_block+ el=[else_block] f=[finally_block] {
         ast.Try(body=b, handlers=ex, orelse=el or [], finalbody=f or [])
      }
 except_block[ast.ExceptHandler]:
@@ -368,7 +363,7 @@ function_def[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
     | f=function_def_raw {self.set_decorators(f, [])}
 
 function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
-    | 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] ':' tc=[func_type_comment] b=block {
+    | 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
         ast.FunctionDef(
             name=n.string,
             args=params or self.make_arguments(None, [], None, [], None),
@@ -377,7 +372,7 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
             type_comment=tc
         )
      }
-    | ASYNC 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] ':' tc=[func_type_comment] b=block {
+    | ASYNC 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
        self.check_version(
             (3, 5),
             "Async functions are",
@@ -467,7 +462,7 @@ class_def[ast.ClassDef]:
     | a=decorators b=class_def_raw { self.set_decorators(b, a) }
     | class_def_raw
 class_def_raw[ast.ClassDef]:
-    | 'class' a=NAME b=['(' z=[arguments] ')' { z }] ':' c=block {
+    | 'class' a=NAME b=['(' z=[arguments] ')' { z }] &&':' c=block {
         ast.ClassDef(
             a.string,
             bases=b[0] if b else [],
@@ -687,7 +682,7 @@ strings[ast.Str] (memo): a=STRING+ { self.generate_ast_for_string(a) }
 list[ast.List]:
     | '[' a=[star_named_expressions] ']' { ast.List(elts=a or [], ctx=Load) }
 listcomp[ast.ListComp]:
-    | '[' a=named_expression ~ b=for_if_clauses ']' { ast.ListComp(elt=a, generators=b) }
+    | '[' a=named_expression b=for_if_clauses ']' { ast.ListComp(elt=a, generators=b) }
     | invalid_comprehension
 tuple[ast.Tuple]:
     | '(' a=[y=star_named_expression ',' z=[star_named_expressions] { [y] + (z or []) } ] ')' {
@@ -697,11 +692,11 @@ group:
     | '(' a=(yield_expr | named_expression) ')' { a }
     | invalid_group
 genexp[ast.GeneratorExp]:
-    | '(' a=expression ~ b=for_if_clauses ')' { ast.GeneratorExp(elt=a, generators=b) }
+    | '(' a=named_expression b=for_if_clauses ')' { ast.GeneratorExp(elt=a, generators=b) }
     | invalid_comprehension
-set[ast.Set]: '{' a=expressions_list '}' { ast.Set(elts=a) }
+set[ast.Set]: '{' a=star_named_expressions '}' { ast.Set(elts=a) }
 setcomp[ast.SetComp]:
-    | '{' a=expression ~ b=for_if_clauses '}' { ast.SetComp(elt=a, generators=b) }
+    | '{' a=named_expression b=for_if_clauses '}' { ast.SetComp(elt=a, generators=b) }
     | invalid_comprehension
 dict[ast.Dict]:
     | '{' a=[double_starred_kvpairs] '}' {
@@ -735,7 +730,7 @@ yield_expr:
 
 arguments[Tuple[list, list]] (memo):
     | a=args [','] &')' { a }
-    | incorrect_arguments
+    | invalid_arguments
 args[Tuple[list, list]]:
     | a=','.(starred_expression | named_expression !'=')+ b=[',' k=kwargs {k}] {
         (a + ([e for e in b if isinstance(e, ast.Starred)] if b else []),
@@ -765,19 +760,26 @@ kwarg_or_double_starred:
 star_targets:
     | a=star_target !',' { a }
     | a=star_target b=(',' c=star_target { c })* [','] {
-        ast.Tuple(elts=[a] + b, ctx=Store) }
-star_targets_seq: a=','.star_target+ [','] { a }
+        ast.Tuple(elts=[a] + b, ctx=Store)
+     }
+star_targets_list_seq[list]: a=','.star_target+ [','] { a }
+star_targets_tuple_seq[list]:
+    | a=star_target b=(',' c=star_target { c })+ [','] { [a] + b }
+    | a=star_target ',' { [a] }
 star_target (memo):
     | '*' a=(!'*' star_target) {
-        ast.Starred(value=self.set_expr_context(a, Store), ctx=Store) }
+        ast.Starred(value=self.set_expr_context(a, Store), ctx=Store)
+     }
+    | target_with_star_atom
+target_with_star_atom (memo):
     | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Store) }
     | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Store) }
     | star_atom
 star_atom:
     | a=NAME { ast.Name(id=a.string, ctx=Store) }
-    | '(' a=star_target ')' { self.set_expr_context(a, Store) }
-    | '(' a=[star_targets_seq] ')' { ast.Tuple(elts=a, ctx=Store) }
-    | '[' a=[star_targets_seq] ']' {  ast.List(elts=a, ctx=Store) }
+    | '(' a=target_with_star_atom ')' { self.set_expr_context(a, Store) }
+    | '(' a=[star_targets_tuple_seq] ')' { ast.Tuple(elts=a, ctx=Store) }
+    | '[' a=[star_targets_list_seq] ']' {  ast.List(elts=a, ctx=Store) }
 
 single_target:
     | single_subscript_attribute_target
@@ -824,63 +826,58 @@ t_atom:
 
 
 # From here on, there are rules for invalid syntax with specialised error messages
-incorrect_arguments:
+invalid_arguments:
     | args ',' '*' {
-        self.raise_syntax_error(
+        self.make_syntax_error(
             "iterable argument unpacking follows keyword argument unpacking"
         )
      }
     | a=expression for_if_clauses ',' [args | expression for_if_clauses] {
-        self.raise_syntax_error("Generator expression must be parenthesized", a)
+        self.make_syntax_error("Generator expression must be parenthesized")
      }
     | a=args for_if_clauses {
-        self.raise_syntax_error("Generator expression must be parenthesized", a[-1])
+        self.make_syntax_error("Generator expression must be parenthesized")
      }
     | args ',' a=expression for_if_clauses {
-        self.raise_syntax_error("Generator expression must be parenthesized", a) }
+        self.make_syntax_error("Generator expression must be parenthesized") }
     | a=args ',' args {
-        self.raise_syntax_error(
+        self.make_syntax_error(
             "positional argument follows keyword argument unpacking"
             if isinstance(args[1][-1], ast.Starred) else
             "positional argument follows keyword argument",
-            a
         )
      }
 invalid_kwarg:
-    | a=expression '=' {
-        self.raise_syntax_error(
+    | expression a='=' {
+        self.make_syntax_error(
             "expression cannot contain assignment, perhaps you meant \"==\"?",
-            a,
         )
      }
 invalid_named_expression:
     | a=expression ':=' expression {
-        self.raise_syntax_error(
+        self.make_syntax_error(
             f"cannot use assignment expressions with {self.get_expr_name(a)}",
-            a,
         )
      }
 invalid_assignment:
     | a=invalid_ann_assign_target ':' expression {
-        self.raise_syntax_error(
+        self.make_syntax_error(
             "only single target (not {self.get_expr_name(a)}) can be annotated",
-            a,
         )
      }
     | a=star_named_expression ',' star_named_expressions* ':' expression {
-        self.raise_syntax_error("only single target (not tuple) can be annotated", a) }
+        self.make_syntax_error("only single target (not tuple) can be annotated") }
     | a=expression ':' expression {
-        self.raise_syntax_error("illegal target for annotation", a) }
+        self.make_syntax_error("illegal target for annotation") }
     | (star_targets '=')* a=star_expressions '=' {
-        self.raise_syntax_error("cannot assign to {self.get_expr_name(a)}", a)
+        self.make_syntax_error("cannot assign to {self.get_expr_name(a)}")
      }
     | (star_targets '=')* a=yield_expr '=' {
-        self.raise_syntax_error( "assignment to yield expression not possible", a)
+        self.make_syntax_error( "assignment to yield expression not possible")
      }
     | a=star_expressions augassign (yield_expr | star_expressions) {
-        self.raise_syntax_error(
+        self.make_syntax_error(
             "'{self.get_expr_name(a)' is an illegal expression for augmented assignment",
-            a,
         )
      }
 invalid_ann_assign_target:
@@ -889,58 +886,58 @@ invalid_ann_assign_target:
     | '(' a=invalid_ann_assign_target ')' { a }
 invalid_del_stmt:
     | 'del' a=star_expressions {
-        self.raise_syntax_error("cannot delete {self.get_expr_name(a)}", a) }
+        self.make_syntax_error("cannot delete {self.get_expr_name(a)}") }
 invalid_block:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
 invalid_primary:
     | primary a='{' {
-        self.raise_syntax_error("invalid synta", a)
+        self.make_syntax_error("invalid syntax")
      }
 invalid_comprehension:
     | ('[' | '(' | '{') a=starred_expression for_if_clauses {
-        self.raise_syntax_error("iterable unpacking cannot be used in comprehension", a)
+        self.make_syntax_error("iterable unpacking cannot be used in comprehension")
      }
 invalid_dict_comprehension:
     | '{' a='**' bitwise_or for_if_clauses '}' {
-        self.raise_syntax_error("dict unpacking cannot be used in dict comprehension", a)
+        self.make_syntax_error("dict unpacking cannot be used in dict comprehension")
      }
 invalid_parameters:
     | param_no_default* (slash_with_default | param_with_default+) param_no_default {
-        self.raise_syntax_error("non-default argument follows default argument")
+        self.make_syntax_error("non-default argument follows default argument")
      }
 invalid_lambda_parameters:
     | lambda_param_no_default* (lambda_slash_with_default | lambda_param_with_default+) lambda_param_no_default {
-        self.raise_syntax_error("non-default argument follows default argument")
+        self.make_syntax_error("non-default argument follows default argument")
      }
 invalid_star_etc:
     | '*' (')' | ',' (')' | '**')) {
-        self.raise_syntax_error("named arguments must follow bare *")
+        self.make_syntax_error("named arguments must follow bare *")
      }
-    | '*' ',' TYPE_COMMENT { self.raise_syntax_error("bare * has associated type comment") }
+    | '*' ',' TYPE_COMMENT { self.make_syntax_error("bare * has associated type comment") }
 invalid_lambda_star_etc:
     | '*' (':' | ',' (':' | '**')) {
-        self.raise_syntax_error("named arguments must follow bare *")
+        self.make_syntax_error("named arguments must follow bare *")
      }
 invalid_double_type_comments:
     | TYPE_COMMENT NEWLINE TYPE_COMMENT NEWLINE INDENT {
-        self.raise_syntax_error("Cannot have two type comments on def") }
+        self.make_syntax_error("Cannot have two type comments on def") }
 invalid_with_item:
     | expression 'as' a=expression {
-        self.raise_syntax_error("cannot assign to {self.get_expr_name(a)}", a)
+        self.make_syntax_error("cannot assign to {self.get_expr_name(a)}")
      }
 
 invalid_for_target:
     | ASYNC? 'for' a=star_expressions {
-        self.raise_syntax_error("cannot assign to {self.get_expr_name(a)}", a)
+        self.make_syntax_error("cannot assign to {self.get_expr_name(a)}")
      }
 
 invalid_group:
     | '(' a=starred_expression ')' {
-        self.raise_syntax_error("can't use starred expression here", a)
+        self.make_syntax_error("can't use starred expression here")
      }
 invalid_import_from_targets:
     | import_from_as_names ',' {
-        self.raise_syntax_error("trailing comma not allowed without surrounding parentheses")
+        self.make_syntax_error("trailing comma not allowed without surrounding parentheses")
      }
 
 invalid_with_stmt:
@@ -949,7 +946,7 @@ invalid_with_stmt:
 
 invalid_except_block:
     | 'except' a=expression ',' expressions ['as' NAME ] ':' {
-        self.raise_syntax_error("exception group must be parenthesized", a)
+        self.make_syntax_error("exception group must be parenthesized")
      }
     | 'except' expression ['as' NAME ] &&':'
     | 'except' &&':'
