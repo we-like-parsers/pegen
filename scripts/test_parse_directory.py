@@ -13,7 +13,7 @@ from typing import List, Optional, Any
 
 sys.path.insert(0, os.getcwd())
 from pegen.build import build_parser
-from tests.utils import print_memstats, generate_parser, run_parser
+from tests.utils import print_memstats, generate_parser
 from scripts import show_parse
 
 SUCCESS = "\033[92m"
@@ -86,9 +86,16 @@ def compare_trees(
     include_attributes: bool = False,
 ) -> int:
     with open(file) as f:
-        expected_tree = ast.parse(f.read())
+        try:
+            expected_tree = ast.parse(f.read())
+        except Exception:
+            print(f"CPython parser failed on file {file}")
+            return 0
 
     expected_text = ast.dump(expected_tree, include_attributes=include_attributes)
+    if actual_tree is None:
+        print(f"Pegen generated parser failed to produce any AST for file {file}")
+        return 1
     actual_text = ast.dump(actual_tree, include_attributes=include_attributes)
     if actual_text == expected_text:
         if verbose:
@@ -153,7 +160,7 @@ def parse_directory(
         print("A grammar file was not provided - attempting to use existing file...\n")
         try:
             sys.path.insert(0, sys.path.insert(0, os.path.join(os.getcwd(), "data")))
-            from python_parser_py import GeneratedParser
+            from python_parser import GeneratedParser
         except:
             print(
                 "An existing parser was not found. Please run `make` or specify a grammar file with the `-g` flag.",
@@ -171,6 +178,7 @@ def parse_directory(
                 tokenizer = Tokenizer(tokengen, verbose=False)
                 parser = GeneratedParser(tokenizer, verbose=verbose)
                 return parser.start()
+
     except:
         print(
             "An existing parser was not found. Please run `make` or specify a grammar file with the `-g` flag.",
