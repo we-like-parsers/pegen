@@ -189,11 +189,11 @@ simple_stmt (memo):
     | &'global' global_stmt
     | &'nonlocal' nonlocal_stmt
 compound_stmt:
-    | &('def' | '@' | ASYNC) function_def
+    | &('def' | '@' | 'async') function_def
     | &'if' if_stmt
     | &('class' | '@') class_def
-    | &('with' | ASYNC) with_stmt
-    | &('for' | ASYNC) for_stmt
+    | &('with' | 'async') with_stmt
+    | &('for' | 'async') for_stmt
     | &'try' try_stmt
     | &'while' while_stmt
 
@@ -304,11 +304,11 @@ while_stmt[ast.While]:
 for_stmt[Union[ast.For, ast.AsyncFor]]:
     | 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
         ast.For(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc) }
-    | ASYNC 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
+    | 'async' 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
         self.check_version(
             (3, 5),
             "Async for loops are",
-            ast.AsyncFor(target=t, iter=ex, body=b, orelse=[el], type_comment=tc)) }
+            ast.AsyncFor(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc)) }
     | invalid_for_target
 
 with_stmt[Union[ast.With, ast.AsyncWith]]:
@@ -316,14 +316,14 @@ with_stmt[Union[ast.With, ast.AsyncWith]]:
         ast.With(items=a, body=b) }
     | 'with' a=','.with_item+ ':' tc=[TYPE_COMMENT] b=block {
         ast.With(items=a, body=b) }
-    | ASYNC 'with' '(' a=','.with_item+ ','? ')' ':' b=block {
+    | 'async' 'with' '(' a=','.with_item+ ','? ')' ':' b=block {
        self.check_version(
            (3, 5),
            "Async with statements are",
            ast.AsyncWith(items=a, body=b)
         )
      }
-    | ASYNC 'with' a=','.with_item+ ':' tc=[TYPE_COMMENT] b=block {
+    | 'async' 'with' a=','.with_item+ ':' tc=[TYPE_COMMENT] b=block {
        self.check_version(
            (3, 5),
            "Async with statements are",
@@ -372,12 +372,19 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
             type_comment=tc
         )
      }
-    | ASYNC 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
+    | 'async' 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
        self.check_version(
             (3, 5),
             "Async functions are",
-            ast.AsyncFunctionDef(name=n.string, args=params, returns=a, body=b, type_comment=tc)
-        ) }
+            ast.AsyncFunctionDef(
+                name=n.string,
+                args=params or self.make_arguments(None, [], None, [], None),
+                returns=a,
+                body=b,
+                type_comment=tc
+            )
+        )
+     }
 func_type_comment:
     | NEWLINE t=TYPE_COMMENT &(NEWLINE INDENT) { t.string }  # Must be followed by indented block
     | invalid_double_type_comments
@@ -447,16 +454,7 @@ param: a=NAME b=annotation? { ast.arg(arg=a.string, annotation=b) }
 annotation: ':' a=expression { a }
 default: '=' a=expression { a }
 
-decorators:
-    | a=('@' f=dec_maybe_call NEWLINE { f })+ { a }
-    | a=('@' f=named_expression NEWLINE { f })+ { a }
-dec_maybe_call:
-    | dn=dec_primary b=['(' z=arguments ')' { z }] {
-        ast.Call(func=dn, args=b[0], keywords=b[1]) if b else dn
-     }
-dec_primary:
-    | a=dec_primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load) }
-    | a=NAME { ast.Name(id=a.string, ctx=Load) }
+decorators: a=('@' f=named_expression NEWLINE { f })+ { a }
 
 class_def[ast.ClassDef]:
     | a=decorators b=class_def_raw { self.set_decorators(b, a) }
@@ -644,7 +642,7 @@ power:
     | a=await_primary '**' b=factor { ast.BinOp(left=a, op=ast.Pow(), right=b) }
     | await_primary
 await_primary (memo):
-    | AWAIT a=primary { self.check_version((3, 5), "Await expressions are", ast.Await(a)) }
+    | 'await' a=primary { self.check_version((3, 5), "Await expressions are", ast.Await(a)) }
     | primary
 primary:
     | invalid_primary  # must be before 'primay genexp' because of invalid_genexp
@@ -713,7 +711,7 @@ kvpair[tuple]: a=expression ':' b=expression { (a, b) }
 for_if_clauses[List[ast.comprehension]]:
     | a=for_if_clause+ { a }
 for_if_clause[ast.comprehension]:
-    | ASYNC 'for' a=star_targets 'in' ~ b=disjunction c=('if' z=disjunction { z })* {
+    | 'async' 'for' a=star_targets 'in' ~ b=disjunction c=('if' z=disjunction { z })* {
         self.check_version(
             (3, 6),
             "Async comprehensions are",
@@ -927,7 +925,7 @@ invalid_with_item:
      }
 
 invalid_for_target:
-    | ASYNC? 'for' a=star_expressions {
+    | 'async'? 'for' a=star_expressions {
         self.make_syntax_error("cannot assign to {self.get_expr_name(a)}")
      }
 
@@ -941,8 +939,8 @@ invalid_import_from_targets:
      }
 
 invalid_with_stmt:
-    | [ASYNC] 'with' ','.(expression ['as' star_target])+ &&':'
-    | [ASYNC] 'with' '(' ','.(expressions ['as' star_target])+ ','? ')' &&':'
+    | ['async'] 'with' ','.(expression ['as' star_target])+ &&':'
+    | ['async'] 'with' '(' ','.(expressions ['as' star_target])+ ','? ')' &&':'
 
 invalid_except_block:
     | 'except' a=expression ',' expressions ['as' NAME ] ':' {
