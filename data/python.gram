@@ -454,7 +454,20 @@ param: a=NAME b=annotation? { ast.arg(arg=a.string, annotation=b) }
 annotation: ':' a=expression { a }
 default: '=' a=expression { a }
 
-decorators: a=('@' f=named_expression NEWLINE { f })+ { a }
+decorators: decorator+
+decorator:
+    | a=('@' f=dec_maybe_call NEWLINE { f }) { a }
+    | a=('@' f=named_expression NEWLINE { f }) {
+        self.check_version((3, 9), "Generic decorator are",  a)
+     }
+dec_maybe_call:
+    | dn=dec_primary '(' z=arguments ')' {
+        ast.Call(func=dn, args=z[0], keywords=z[1])
+     }
+    | dec_primary
+dec_primary:
+    | a=dec_primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load) }
+    | a=NAME { ast.Name(id=a.string, ctx=Load) }
 
 class_def[ast.ClassDef]:
     | a=decorators b=class_def_raw { self.set_decorators(b, a) }
