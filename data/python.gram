@@ -1,5 +1,9 @@
 # PEG grammar for Python
 
+# XXX improve error handling reporting
+# XXX implement get_expr_name
+# XXX implement ensure real, ensure imag
+
 # The subheader is formatted to include the filename, we must hence use double {}
 # when we need teh python code to do some formatting.
 @subheader'''
@@ -43,6 +47,12 @@ class Parser(Parser):
         """Set the context (Load, Store, Del) of an ast node."""
         node.ctx = context
         return node
+
+    def ensure_real(self, node):
+        pass # XXX
+
+    def ensure_imaginary(self, node):
+        pass # XXX
 
     def generate_ast_for_string(self, tokens):
         """Generate AST nodes for strings."""
@@ -350,6 +360,192 @@ except_block[ast.ExceptHandler]:
     | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b) }
     | invalid_except_block
 finally_block[list]: 'finally' ':' a=block { a }
+
+match_stmt[ast.Match]:
+    | "match" subject=subject_expr ':' NEWLINE INDENT cases=case_block+ DEDENT {
+        self.check_version(
+            (3, 10),
+            "Pattern matching is",
+            ast.Match(subject=subject, cases=cases)
+        )
+     }
+    | invalid_match_stmt
+subject_expr:
+    | value=star_named_expression ',' values=star_named_expressions? {
+        ast.Tuple(expr=[value] + values, context=Load)
+     }
+    | named_expression
+case_block[ast.match_case]:
+    | invalid_case_block
+    | "case" pattern=patterns guard=guard? ':' body=block {
+        ast.match_case(pattern=pattern, guard=guard, body=body)
+     }
+guard: 'if' guard=named_expression { guard }
+
+patterns:
+    | patterns=open_sequence_pattern {
+        ast.MatchSequence(patterns=patterns)
+     }
+    | pattern
+pattern:
+    | as_pattern
+    | or_pattern
+as_pattern[ast.MatchAs]:
+    | pattern=or_pattern 'as' target=pattern_capture_target {
+        ast.MatchAs(pattern=pattern, name=target.id) }
+or_pattern[ast.MatchOr]:
+    | patterns='|'.closed_pattern+ {
+        ast.MatchOr(patterns=patterns) if len(patterns) == 1 else patterns[0]
+     }
+closed_pattern:
+    | literal_pattern
+    | capture_pattern
+    | wildcard_pattern
+    | value_pattern
+    | group_pattern
+    | sequence_pattern
+    | mapping_pattern
+    | class_pattern
+
+# Literal patterns are used for equality and identity constraints
+literal_pattern:
+    | value=signed_number !('+' | '-') { ast.MatchValue(value=value) }
+    | value=complex_number { ast.MatchValue(value=value) }
+    | value=strings { ast.MatchValue(value=value) }
+    | 'None' { ast.MatchSingleton(value=None) }
+    | 'True' { ast.MatchSingleton(value=True) }
+    | 'False' { ast.MatchSingleton(value=False) }
+
+# Literal expressions are used to restrict permitted mapping pattern keys
+literal_expr:
+    | signed_number !('+' | '-')
+    | complex_number
+    | strings
+    | 'None' { ast.Constant(value=None) }
+    | 'True' { ast.Constant(value=True) }
+    | 'False' { ast.Constant(value=False) }
+
+complex_number:
+    | real=signed_real_number '+' imag=imaginary_number {
+        ast.BinOp(left=real, op=ast.Add(), right=imag)
+     }
+    | real=signed_real_number '-' imag=imaginary_number  {
+        ast.BinOp(left=signed_real_number, op=ast.Add(), right=imaginary_number)
+     }
+
+signed_number:
+    | NUMBER { ast.Constant(value=ast.literal_eval(a.string)) }
+    | '-' number=NUMBER {
+        ast.UnaryOp(
+            op=ast.USub(),
+            operand=ast.Constant(value=ast.literal_eval(a.string))
+        )
+     }
+
+signed_real_number:
+    | real_number
+    | '-' real=real_number { ast.UnaryOp(op=ast.USub(), operand=real) }
+
+real_number[ast.Constant]:
+    | real=NUMBER { self.ensure_real(real) }
+
+imaginary_number[ast.Constant]:
+    | imag=NUMBER { self.ensure_imaginary(imag) }
+
+capture_pattern:
+    | target=pattern_capture_target {
+        ast.MatchAS(pattern=None, target=target.id)
+     }
+
+pattern_capture_target[ast.Name]:
+    | !"_" name=NAME !('.' | '(' | '=') {
+        ast.Name(id=name.string, ctx=Store)
+     }
+
+wildcard_pattern[ast.MatchAs]:
+    | "_" { ast.MatchAs(pattern=None, target=None) }
+
+value_pattern[ast.MatchValue]:
+    | attr=attr !('.' | '(' | '=') { ast.MatchValue(value=attr) }
+attr[expr_ty]:
+    | value=name_or_attr '.' attr=NAME {
+        ast.Attribute(value=value, attr=attr.string, ctx=Load) }
+name_or_attr:
+    | attr
+    | name=NAME { ast.Name(id=name.string, ctx=Load) }
+
+group_pattern:
+    | '(' pattern=pattern ')' { pattern }
+
+sequence_pattern[ast.MatchSequence]:
+    | '[' patterns=maybe_sequence_pattern? ']' { ast.MatchSequence(patterns=patterns) }
+    | '(' patterns=open_sequence_pattern? ')' { ast.MatchSequence(patterns=patterns) }
+open_sequence_pattern:
+    | pattern=maybe_star_pattern ',' patterns=maybe_sequence_pattern? {
+        [pattern] + patterns }
+maybe_sequence_pattern:
+    | patterns=','.maybe_star_pattern+ ','? { patterns }
+maybe_star_pattern:
+    | star_pattern
+    | pattern
+star_pattern:
+    | '*' target=pattern_capture_target { ast.MatchStar(target=target.id) }
+    | '*' wildcard_pattern { ast.MatchStar(target=None) }
+
+mapping_pattern:
+    | '{' '}' { ast.MatchMapping(keys=None, pattern=None, rest=None) }
+    | '{' rest=double_star_pattern ','? '}' {
+        ast.MatchMapping(keys=None, patterns=None, rest=rest.id) }
+    | '{' items=items_pattern ',' rest=double_star_pattern ','? '}' {
+        ast.MatchMapping(
+            keys=[k for k,_ in items_pattern],
+            patterns=[p for _, p in items_pattern],
+            rest=rest.id,
+        )
+     }
+    | '{' items=items_pattern ','? '}' {
+        ast.MatchMapping(
+            keys=[k for k,_ in items_pattern],
+            patterns=[p for _, p in items_pattern],
+            rest=None,
+        )
+     }
+items_pattern:
+    | ','.key_value_pattern+
+key_value_pattern:
+    | key=(literal_expr | attr) ':' pattern=pattern { (key, pattern) }
+double_star_pattern:
+    | '**' target=pattern_capture_target { target }
+
+class_pattern:
+    | cls=name_or_attr '(' ')' {
+        ast.MatchClass(cls=cls, patterns=None, kwd_attrs=None, kwd_patterns=None)
+     }
+    | cls=name_or_attr '(' patterns=positional_patterns ','? ')' {
+        ast.MatchClass(cls=cls, patterns=patterns, kwd_attrs=None, kwd_patterns=None)
+     }
+    | cls=name_or_attr '(' keywords=keyword_patterns ','? ')' {
+        ast.MatchClass(
+            cls=cls,
+            patterns=None,
+            kwd_attrs=[k for k, _ in keyword_patterns],
+            kwd_patterns=[p for _, p in keyword_patterns],
+        )
+     }
+    | cls=name_or_attr '(' patterns=positional_patterns ',' keywords=keyword_patterns ','? ')' {
+        _PyAST_MatchClass(
+            cls=cls,
+            patterns=patterns,
+            kwd_attrs=[k for k, _ in keyword_patterns],
+            kwd_patterns=[p for _, p in keyword_patterns],
+        )
+     }
+positional_patterns:
+    | args=','.pattern+ { args }
+keyword_patterns:
+    | ','.keyword_pattern+
+keyword_pattern:
+    | arg=NAME '=' value=pattern { (arg.id, value) }
 
 return_stmt[ast.Return]:
     | 'return' a=[star_expressions] { ast.Return(value=a) }
@@ -679,15 +875,15 @@ slice:
     | a=expression { a }
 atom:
     | a=NAME { ast.Name(id=a.string, ctx=Load) }
-    | 'True' { ast.NameConstant(True) }
-    | 'False' { ast.NameConstant(False) }
-    | 'None' { ast.NameConstant(None) }
+    | 'True' { ast.Constant(value=True) }
+    | 'False' { ast.Constant(value=False) }
+    | 'None' { ast.Constant(value=None) }
     | &STRING strings
-    | a=NUMBER { ast.Num(n=ast.literal_eval(a.string)) }
+    | a=NUMBER { ast.Constant(value=ast.literal_eval(a.string)) }
     | &'(' (tuple | group | genexp)
     | &'[' (list | listcomp)
     | &'{' (dict | set | dictcomp | setcomp)
-    | '...' { ast.Ellipsis() }
+    | '...' { ast.Constant(value=Ellipsis) }
 
 strings[ast.Str] (memo): a=STRING+ { self.generate_ast_for_string(a) }
 list[ast.List]:
@@ -864,16 +1060,30 @@ invalid_kwarg:
             "expression cannot contain assignment, perhaps you meant \"==\"?",
         )
      }
+invalid_expression:
+    # !(NAME STRING) is not matched so we don't show this error with some invalid string prefixes like: kf"dsfsdf"
+    # Soft keywords need to also be ignored because they can be parsed as NAME NAME
+    | !(NAME STRING | SOFT_KEYWORD) a=disjunction b=expression {
+        RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, b, "invalid syntax. Perhaps you forgot a comma?") }  # XXX
 invalid_named_expression:
     | a=expression ':=' expression {
         self.make_syntax_error(
             f"cannot use assignment expressions with {self.get_expr_name(a)}",
         )
      }
+    | a=NAME '=' b=bitwise_or !('='|':='|',') {
+        RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, b, "invalid syntax. Maybe you meant '==' or ':=' instead of '='?")
+     }
+    | !(list|tuple|genexp|'True'|'None'|'False') a=bitwise_or b='=' bitwise_or !('='|':='|',') {
+        self.make_syntax_error(
+            f"cannot assign to {self.get_expr_name(a)} here. Maybe you meant '==' instead of '='?"
+        )
+     }
+
 invalid_assignment:
     | a=invalid_ann_assign_target ':' expression {
         self.make_syntax_error(
-            "only single target (not {self.get_expr_name(a)}) can be annotated",
+            f"only single target (not {self.get_expr_name(a)}) can be annotated",
         )
      }
     | a=star_named_expression ',' star_named_expressions* ':' expression {
@@ -908,6 +1118,11 @@ invalid_comprehension:
     | ('[' | '(' | '{') a=starred_expression for_if_clauses {
         self.make_syntax_error("iterable unpacking cannot be used in comprehension")
      }
+     | ('[' | '{') a=star_named_expression ',' b=star_named_expressions for_if_clauses {
+        RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, PyPegen_last_item(b, expr_ty),
+        "did you forget parentheses around the comprehension target?") }
+    | ('[' | '{') a=star_named_expression b=',' for_if_clauses {
+        RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, b, "did you forget parentheses around the comprehension target?") }
 invalid_dict_comprehension:
     | '{' a='**' bitwise_or for_if_clauses '}' {
         self.make_syntax_error("dict unpacking cannot be used in dict comprehension")
@@ -916,10 +1131,16 @@ invalid_parameters:
     | param_no_default* (slash_with_default | param_with_default+) param_no_default {
         self.make_syntax_error("non-default argument follows default argument")
      }
+invalid_parameters_helper: # This is only there to avoid type errors
+    | a=slash_with_default { [a] }
+    | param_with_default+
 invalid_lambda_parameters:
     | lambda_param_no_default* (lambda_slash_with_default | lambda_param_with_default+) lambda_param_no_default {
         self.make_syntax_error("non-default argument follows default argument")
      }
+invalid_lambda_parameters_helper:
+    | a=lambda_slash_with_default { [a] }
+    | lambda_param_with_default+
 invalid_star_etc:
     | '*' (')' | ',' (')' | '**')) {
         self.make_syntax_error("named arguments must follow bare *")
@@ -954,10 +1175,121 @@ invalid_import_from_targets:
 invalid_with_stmt:
     | ['async'] 'with' ','.(expression ['as' star_target])+ &&':'
     | ['async'] 'with' '(' ','.(expressions ['as' star_target])+ ','? ')' &&':'
-
-invalid_except_block:
-    | 'except' a=expression ',' expressions ['as' NAME ] ':' {
-        self.make_syntax_error("exception group must be parenthesized")
+invalid_with_stmt_indent:
+    | ['async'] a='with' ','.(expression ['as' star_target])+ ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'with' statement on line {a.lineno}"
+        )
      }
-    | 'except' expression ['as' NAME ] &&':'
-    | 'except' &&':'
+    | ['async'] a='with' '(' ','.(expressions ['as' star_target])+ ','? ')' ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'with' statement on line {a.lineno}"
+        )
+     }
+
+invalid_try_stmt:
+    | a='try' ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'try' statement on line {a.lineno}",
+        )
+     }
+invalid_except_stmt:
+    | 'except' a=expression ',' expressions ['as' NAME ] ':' {
+        RAISE_SYNTAX_ERROR_STARTING_FROM(a, "exception group must be parenthesized") # XXX
+     }
+    | a='except' expression ['as' NAME ] NEWLINE { self.make_syntax_error("expected ':'") }
+    | a='except' NEWLINE { self.make_syntax_error("expected ':'") }
+invalid_finally_stmt:
+    | a='finally' ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'finally' statement on line {a.lineno}"
+        )
+     }
+invalid_except_stmt_indent:
+    | a='except' expression ['as' NAME ] ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'except' statement on line {a.lineno}"
+        )
+     }
+    | a='except' ':' NEWLINE !INDENT {
+        self.make_syntax_error(
+            f"expected an indented block after except statement on line {a.lineno}"
+        )
+     }
+invalid_match_stmt:
+    | "match" subject_expr !':' {
+        self.check_version(
+            (3, 10),
+            "Pattern matching is",
+            self.make_syntax_error("expected ':'")
+        )
+     }
+    | a="match" subject=subject_expr ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'match' statement on line {a.lineno}"
+        )
+     }
+invalid_case_block:
+    | "case" patterns guard? !':' { self.make_syntax_error("expected ':'") }
+    | a="case" patterns guard? ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'case' statement on line {a.lineno}"
+        )
+     }
+invalid_if_stmt:
+    | 'if' named_expression NEWLINE { self.make_syntax_error("expected ':'") }
+    | a='if' a=named_expression ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'if' statement on line {a.lineno}"
+        )
+     }
+invalid_elif_stmt:
+    | 'elif' named_expression NEWLINE { self.make_syntax_error("expected ':'") }
+    | a='elif' named_expression ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'elif' statement on line {a.lineno}"
+        )
+     }
+invalid_else_stmt:
+    | a='else' ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'else' statement on line {a.lineno}"
+        )
+     }
+invalid_while_stmt:
+    | 'while' named_expression NEWLINE { self.make_syntax_error("expected ':'") }
+    | a='while' named_expression ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'while' statement on line {a.lineno}"
+        )
+     }
+invalid_for_stmt:
+    | ['async'] a='for' star_targets 'in' star_expressions ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after 'for' statement on line {a.lineno}"
+        )
+     }
+invalid_def_raw:
+    | ['async'] a='def' NAME '(' [params] ')' ['->' expression] ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after function definition on line {a.lineno}"
+        )
+     }
+invalid_class_def_raw:
+    | a='class' NAME ['('[arguments] ')'] ':' NEWLINE !INDENT {
+        self.raise_indentation_error(
+            f"expected an indented block after class definition on line {a.lineno}}"
+        )
+     }
+
+invalid_double_starred_kvpairs:
+    | ','.double_starred_kvpair+ ',' invalid_kvpair
+    | expression ':' a='*' bitwise_or { RAISE_SYNTAX_ERROR_STARTING_FROM(a, "cannot use a starred expression in a dictionary value") }  # XXX
+    | expression a=':' &('}'|',') { RAISE_SYNTAX_ERROR_KNOWN_LOCATION(a, "expression expected after dictionary key and ':'") }  # XXX
+invalid_kvpair:
+    | a=expression !(':') {
+        RAISE_ERROR_KNOWN_LOCATION(p, PyExc_SyntaxError, a->lineno, a->end_col_offset - 1, a->end_lineno, -1, "':' expected after dictionary key") }  # XXX
+    | expression ':' a='*' bitwise_or { RAISE_SYNTAX_ERROR_STARTING_FROM(a, "cannot use a starred expression in a dictionary value") }  # XXX
+    | expression a=':' {
+        self.make_syntax_error("expression expected after dictionary key and ':'")
+     }
