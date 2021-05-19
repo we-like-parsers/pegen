@@ -1,16 +1,14 @@
 # PEG grammar for Python
 
 # XXX improve error handling reporting
-# XXX implement get_expr_name
-# XXX implement ensure real, ensure imag
 
 # The subheader is formatted to include the filename, we must hence use double {}
-# when we need teh python code to do some formatting.
+# when we need the python code to do some formatting.
 @subheader'''
 import itertools
 import sys
 import token
-from typing import Any, List, Tuple, TypeVar, Union
+from typing import Any, List, Tuple, TypeVar, Union, NoReturn
 
 # Singleton ast nodes, created once for efficiency
 Load = ast.Load()
@@ -20,8 +18,47 @@ Del = ast.Del()
 Node = TypeVar("Node")
 FC = TypeVar("FC", ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
+EXPR_NAME_MAPPING = {
+    ast.Attribute: "attribute",
+    ast.Subscript: "subscript",
+    ast.Starred: "starred",
+    ast.Name: "name",
+    ast.List: "list",
+    ast.Tuple: "tuple",
+    ast.Lambda: "lambda",
+    ast.Call: "function call",
+    ast.BoolOp: "expression",
+    ast.BinOp: "expression",
+    ast.UnaryOp: "expression",
+    ast.GeneratorExp: "generator expression",
+    ast.Yield: "yield expression",
+    ast.YieldFrom: "yield expression",
+    ast.Await: "await expression",
+    ast.ListComp: "list comprehension",
+    ast.SetComp: "set comprehension",
+    ast.DictComp: "dict comprehension",
+    ast.Dict: "dict literal",
+    ast.Set: "set display",
+    ast.JoinedStr: "f-string expression",
+    ast.FormattedValue: "f-string expression",
+    ast.Compare: "comparison",
+    ast.IfExp: "conditional expression",
+    ast.NamedExpr: "named expression",
+}
+
 
 class Parser(Parser):
+
+    #: Name of the source file, used in error reports
+    filename : str
+
+    def __init__(self,
+        tokenizer: Tokenizer, *,
+        verbose: bool = False,
+        filename: str = "<unknown>"
+    ) -> None:
+        super().__init__(tokenizer, verbose=verbose)
+        self.filename = filename
 
     def check_version(self, min_version: Tuple[int, ...], error_msg: str, node: Node) -> Node:
         """Check that the python version is high enough for a rule to apply.
@@ -39,9 +76,24 @@ class Parser(Parser):
         raise IndentationError(msg)
 
     def get_expr_name(self, node) -> str:
-        """"""
+        """Get a descriptive name for an expression."""
         # See https://github.com/python/cpython/blob/master/Parser/pegen.c#L161
-        return ""
+        assert node is not None
+        node_t = type(node)
+        if node_t is ast.Constant:
+            v = node.value
+            if v in (None, True, False, Ellipsis):
+                return str(v)
+            else:
+                return "literal"
+
+        try:
+            return EXPR_NAME_MAPPING[node_t]
+        except KeyError:
+            raise SystemError(
+                f"unexpected expression in assignment {{type(node).__name__}} "
+                f"(line {{node.lineno}})."
+            )
 
     def set_expr_context(self, node, context):
         """Set the context (Load, Store, Del) of an ast node."""
@@ -49,10 +101,14 @@ class Parser(Parser):
         return node
 
     def ensure_real(self, node):
-        pass # XXX
+        if not isinstance(node, ast.Constant) or type(node.value) is not complex:
+            self.make_syntax_error("real number required in complex literal")
+        return node
 
     def ensure_imaginary(self, node):
-        pass # XXX
+         if not isinstance(node, ast.Constant) or type(node.value) is not complex:
+            self.make_syntax_error("imaginary  number required in complex literal")
+        return node
 
     def generate_ast_for_string(self, tokens):
         """Generate AST nodes for strings."""
@@ -176,7 +232,7 @@ statements[list]: a=statement+ { list(itertools.chain(*a)) }
 statement[list]: a=compound_stmt { [a] } | a=simple_stmts { a }
 statement_newline[list]:
     | a=compound_stmt NEWLINE { [a] }
-    | simple_stmt
+    | simple_stmts
     | NEWLINE { [ast.Pass()] }
     | ENDMARKER { None }
 simple_stmts[list]:
@@ -299,20 +355,26 @@ dotted_name[str]:
     | a=NAME { a.string }
 
 if_stmt[ast.If]:
+    | invalid_if_stmt
     | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c or []) }
     | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=c or []) }
 elif_stmt[List[ast.If]]:
+    | invalid_elif_stmt
     | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b, orelse=c)] }
     | 'elif' a=named_expression ':' b=block c=[else_block] { [ast.If(test=a, body=b, orelse=c or [])] }
-else_block[list]: 'else' ':' b=block { b }
+else_block[list]:
+    | invalid_else_stmt
+    | 'else' &&':' b=block { b }
 
 while_stmt[ast.While]:
+    | invalid_while_stmt
     | 'while' a=named_expression ':' b=block c=[else_block] {
         ast.While(test=a, body=b, orelse=c or [])
      }
 
 for_stmt[Union[ast.For, ast.AsyncFor]]:
-    | 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
+    | invalid_for_stmt
+    | 'for' t=star_targets 'in' ~ ex=star_expressions &&':' tc=[TYPE_COMMENT] b=block el=[else_block] {
         ast.For(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc) }
     | 'async' 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
         self.check_version(
@@ -322,6 +384,7 @@ for_stmt[Union[ast.For, ast.AsyncFor]]:
     | invalid_for_target
 
 with_stmt[Union[ast.With, ast.AsyncWith]]:
+    | invalid_with_stmt_indent
     | 'with' '(' a=','.with_item+ ','? ')' ':' b=block {
         ast.With(items=a, body=b) }
     | 'with' a=','.with_item+ ':' tc=[TYPE_COMMENT] b=block {
@@ -350,16 +413,20 @@ with_item[ast.withitem]:
     | e=expression { ast.withitem(context_expr=e, optional_vars=None) }
 
 try_stmt[ast.Try]:
+    | invalid_try_stmt
     | 'try' &&':' b=block f=finally_block { ast.Try(body=b, handlers=[], orelse=[], finalbody=f) }
     | 'try' &&':' b=block ex=except_block+ el=[else_block] f=[finally_block] {
         ast.Try(body=b, handlers=ex, orelse=el or [], finalbody=f or [])
      }
 except_block[ast.ExceptHandler]:
+    | invalid_except_stmt_indent
     | 'except' e=expression t=['as' z=NAME { z.string }] ':' b=block {
         ast.ExceptHandler(type=e, name=t, body=b) }
     | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b) }
     | invalid_except_block
-finally_block[list]: 'finally' ':' a=block { a }
+finally_block[list]:
+    | invalid_finally_stmt
+    | 'finally' &&':' a=block { a }
 
 match_stmt[ast.Match]:
     | "match" subject=subject_expr ':' NEWLINE INDENT cases=case_block+ DEDENT {
@@ -684,7 +751,6 @@ block[list] (memo):
     | simple_stmts
     | invalid_block
 
-expressions_list[list]: a=','.star_expression+ [','] { a }
 star_expressions:
     | a=star_expression b=(',' c=star_expression { c })+ [','] {
         ast.Tuple(elts=[a] + b, ctx=Load) }
@@ -702,8 +768,12 @@ named_expression:
     | a=NAME ':=' ~ b=expression {
         ast.NamedExpr(target=ast.Name(id=a.string, ctx=Store), value=b)
      }
-    | a=expression !':=' { a }
     | invalid_named_expression
+    | a=expression !':=' { a }
+
+direct_named_expression[expr_ty]:
+    | a=NAME ':=' ~ b=expression { ast.NamedExpr(target=ast.Name(id=a.string, ctx=Store), value=b) }
+    | expression !':='
 
 annotated_rhs: yield_expr | star_expressions
 
@@ -713,6 +783,7 @@ expressions:
     | a=expression ',' { ast.Tuple(elts=[a], ctx=Load) }
     | expression
 expression (memo):
+    | invalid_expression
     | a=disjunction 'if' b=disjunction 'else' c=expression {
         ast.IfExp(body=a, test=b, orelse=c)
      }
@@ -872,7 +943,7 @@ slices:
     | a=','.slice+ [','] { ast.Tuple(elts=a, ctx=Load) }
 slice:
     | a=[expression] ':' b=[expression] c=[':' d=[expression] { d }] { ast.Slice(lower=a, upper=b, step=c) }
-    | a=expression { a }
+    | a=named_expression { a }
 atom:
     | a=NAME { ast.Name(id=a.string, ctx=Load) }
     | 'True' { ast.Constant(value=True) }
@@ -899,7 +970,7 @@ group:
     | '(' a=(yield_expr | named_expression) ')' { a }
     | invalid_group
 genexp[ast.GeneratorExp]:
-    | '(' a=named_expression b=for_if_clauses ')' { ast.GeneratorExp(elt=a, generators=b) }
+    | '(' a=direct_named_expression b=for_if_clauses ')' { ast.GeneratorExp(elt=a, generators=b) }
     | invalid_comprehension
 set[ast.Set]: '{' a=star_named_expressions '}' { ast.Set(elts=a) }
 setcomp[ast.SetComp]:
@@ -909,6 +980,7 @@ dict[ast.Dict]:
     | '{' a=[double_starred_kvpairs] '}' {
         ast.Dict(keys=[kv[0] for kv in (a or [])], values=[kv[1] for kv in (a or [])])
      }
+    | '{' invalid_double_starred_kvpairs '}'
 dictcomp[ast.DictComp]:
     | '{' a=kvpair b=for_if_clauses '}' { ast.DictComp(key=a[0], value=a[1], generators=b) }
     | invalid_dict_comprehension
@@ -939,7 +1011,7 @@ arguments[Tuple[list, list]] (memo):
     | a=args [','] &')' { a }
     | invalid_arguments
 args[Tuple[list, list]]:
-    | a=','.(starred_expression | named_expression !'=')+ b=[',' k=kwargs {k}] {
+    | a=','.(starred_expression | direct_named_expression !'=')+ b=[',' k=kwargs {k}] {
         (a + ([e for e in b if isinstance(e, ast.Starred)] if b else []),
          ([e for e in b if not isinstance(e, ast.Starred)] if b else [])
         )
@@ -1034,7 +1106,7 @@ t_atom:
 
 # From here on, there are rules for invalid syntax with specialised error messages
 invalid_arguments:
-    | args ',' '*' {
+    | a=args ',' '*' {
         self.make_syntax_error(
             "iterable argument unpacking follows keyword argument unpacking"
         )
@@ -1045,7 +1117,7 @@ invalid_arguments:
     | a=args for_if_clauses {
         self.make_syntax_error("Generator expression must be parenthesized")
      }
-    | args ',' a=expression for_if_clauses {
+    | args ',' a=expression b=for_if_clauses {
         self.make_syntax_error("Generator expression must be parenthesized") }
     | a=args ',' args {
         self.make_syntax_error(
@@ -1055,7 +1127,7 @@ invalid_arguments:
         )
      }
 invalid_kwarg:
-    | expression a='=' {
+    | !(NAME '=') a=expression b='=' {
         self.make_syntax_error(
             "expression cannot contain assignment, perhaps you meant \"==\"?",
         )
@@ -1128,14 +1200,14 @@ invalid_dict_comprehension:
         self.make_syntax_error("dict unpacking cannot be used in dict comprehension")
      }
 invalid_parameters:
-    | param_no_default* (slash_with_default | param_with_default+) param_no_default {
+    | param_no_default* invalid_parameters_helper param_no_default {
         self.make_syntax_error("non-default argument follows default argument")
      }
 invalid_parameters_helper: # This is only there to avoid type errors
     | a=slash_with_default { [a] }
     | param_with_default+
 invalid_lambda_parameters:
-    | lambda_param_no_default* (lambda_slash_with_default | lambda_param_with_default+) lambda_param_no_default {
+    | lambda_param_no_default* invalid_lambda_parameters_helper lambda_param_no_default {
         self.make_syntax_error("non-default argument follows default argument")
      }
 invalid_lambda_parameters_helper:
@@ -1154,7 +1226,7 @@ invalid_double_type_comments:
     | TYPE_COMMENT NEWLINE TYPE_COMMENT NEWLINE INDENT {
         self.make_syntax_error("Cannot have two type comments on def") }
 invalid_with_item:
-    | expression 'as' a=expression {
+    | expression 'as' a=expression &(',' | ')' | ':') {
         self.make_syntax_error("cannot assign to {self.get_expr_name(a)}")
      }
 
@@ -1165,7 +1237,10 @@ invalid_for_target:
 
 invalid_group:
     | '(' a=starred_expression ')' {
-        self.make_syntax_error("can't use starred expression here")
+        self.make_syntax_error("cannot use starred expression here")
+     }
+    | '(' a='**' expression ')' {
+        self.make_syntax_error("cannot use double starred expression here")
      }
 invalid_import_from_targets:
     | import_from_as_names ',' {
