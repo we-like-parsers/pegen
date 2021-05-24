@@ -1,5 +1,7 @@
+import ast
+import re
 import token
-from typing import IO, Any, Dict, Optional, Text, Tuple
+from typing import IO, Any, Dict, Optional, Set, Text, Tuple
 
 from pegen import grammar
 from pegen.grammar import (
@@ -47,17 +49,26 @@ class PythonCallMakerVisitor(GrammarVisitor):
     def __init__(self, parser_generator: ParserGenerator):
         self.gen = parser_generator
         self.cache: Dict[Any, Any] = {}
+        self.keywords: Set[str] = set()
+        self.soft_keywords: Set[str] = set()
 
     def visit_NameLeaf(self, node: NameLeaf) -> Tuple[Optional[str], str]:
         name = node.value
-        if name in ("NAME", "NUMBER", "STRING", "OP"):
+        if name in ("NAME", "NUMBER", "STRING", "OP", "TYPE_COMMENT"):
             name = name.lower()
             return name, f"self.{name}()"
         if name in ("NEWLINE", "DEDENT", "INDENT", "ENDMARKER", "ASYNC", "AWAIT"):
-            return name.lower(), f"self.expect({name!r})"
+            # Avoid using names that can be Python keywords
+            return "_" + name.lower(), f"self.expect({name!r})"
         return name, f"self.{name}()"
 
     def visit_StringLeaf(self, node: StringLeaf) -> Tuple[str, str]:
+        val = ast.literal_eval(node.value)
+        if re.match(r"[a-zA-Z_]\w*\Z", val):  # This is a keyword
+            if node.value.endswith("'"):
+                self.keywords.add(val)
+            else:
+                self.soft_keywords.add(val)
         return "literal", f"self.expect({node.value})"
 
     def visit_Rhs(self, node: Rhs) -> Tuple[Optional[str], str]:
@@ -137,7 +148,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         tokens: Dict[int, str] = token.tok_name,
     ):
         super().__init__(grammar, tokens, file)
-        self.callmakervisitor = PythonCallMakerVisitor(self)
+        self.callmakervisitor: PythonCallMakerVisitor = PythonCallMakerVisitor(self)
 
     def generate(self, filename: str) -> None:
         header = self.grammar.metas.get("header", MODULE_PREFIX)
@@ -147,6 +158,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         if subheader:
             self.print(subheader)
         cls_name = self.grammar.metas.get("class", "GeneratedParser")
+        self.print("# Keywords and soft keywords are listed at the end of the parser definition.")
         self.print(f"class {cls_name}(Parser):")
         while self.todo:
             for rulename, rule in list(self.todo.items()):
@@ -154,6 +166,12 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 self.print()
                 with self.indent():
                     self.visit(rule)
+
+        self.print()
+        with self.indent():
+            self.print(f"KEYWORDS = {tuple(self.callmakervisitor.keywords)}")
+            self.print(f"SOFT_KEYWORDS = {tuple(self.callmakervisitor.soft_keywords)}")
+
         trailer = self.grammar.metas.get("trailer", MODULE_SUFFIX)
         if trailer is not None:
             self.print(trailer.rstrip("\n"))
@@ -177,7 +195,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print(f"# {node.name}: {rhs}")
             if node.nullable:
                 self.print(f"# nullable={node.nullable}")
-            self.print("mark = self.mark()")
+            self.print("mark = self._mark()")
             if is_loop:
                 self.print("children = []")
             self.visit(rhs, is_loop=is_loop, is_gather=is_gather)
@@ -237,9 +255,9 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                             action = f"[{', '.join(self.local_variable_names)}]"
                 if is_loop:
                     self.print(f"children.append({action})")
-                    self.print(f"mark = self.mark()")
+                    self.print(f"mark = self._mark()")
                 else:
                     self.print(f"return {action}")
-            self.print("self.reset(mark)")
+            self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
             self.print("if cut: return None")  # TODO: Only if needed.

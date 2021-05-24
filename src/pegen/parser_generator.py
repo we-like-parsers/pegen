@@ -107,10 +107,6 @@ class ParserGenerator:
                 self.todo[rulename].collect_todo(self)
             done = set(alltodo)
 
-    def keyword_type(self) -> int:
-        self.keyword_counter += 1
-        return self.keyword_counter
-
     def name_node(self, rhs: Rhs) -> str:
         self.counter += 1
         name = f"_tmp_{self.counter}"  # TODO: Pick a nicer name.
