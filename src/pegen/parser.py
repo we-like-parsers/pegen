@@ -111,7 +111,11 @@ def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Option
 
             while True:
                 self._reset(mark)
-                result = method(self)
+                self.in_recursive_rule += 1
+                try:
+                    result = method(self)
+                finally:
+                    self.in_recursive_rule -= 1
                 endmark = self._mark()
                 depth += 1
                 if verbose:
@@ -164,6 +168,9 @@ class Parser:
         self._verbose = verbose
         self._level = 0
         self._cache: Dict[Tuple[Mark, str, Tuple[Any, ...]], Tuple[Any, Mark]] = {}
+        # Integer tracking wether we are in a left recursive rule or not. Can be useful
+        # for error reporting.
+        self.in_recursive_rule = 0
         # Pass through common tokenizer methods.
         self._mark = self._tokenizer.mark
         self._reset = self._tokenizer.reset
