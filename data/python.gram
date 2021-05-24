@@ -10,6 +10,8 @@ import sys
 import token
 from typing import Any, List, Tuple, TypeVar, Union, NoReturn
 
+from pegen.tokenizer import Tokenizer
+
 # Singleton ast nodes, created once for efficiency
 Load = ast.Load()
 Store = ast.Store()
@@ -235,7 +237,7 @@ statement[list]: a=compound_stmt { [a] } | a=simple_stmts { a }
 statement_newline[list]:
     | a=compound_stmt NEWLINE { [a] }
     | simple_stmts
-    | NEWLINE { [ast.Pass()] }
+    | NEWLINE { [ast.Pass(LOCATIONS)] }
     | ENDMARKER { None }
 simple_stmts[list]:
     | a=simple_stmt !';' NEWLINE { [a] } # Not needed, there for speedup
@@ -244,16 +246,16 @@ simple_stmts[list]:
 # will throw a SyntaxError.
 simple_stmt (memo):
     | assignment
-    | e=star_expressions { ast.Expr(value=e) }
+    | e=star_expressions { ast.Expr(value=e, LOCATIONS) }
     | &'return' return_stmt
     | &('import' | 'from') import_stmt
     | &'raise' raise_stmt
-    | 'pass' { ast.Pass() }
+    | 'pass' { ast.Pass(LOCATIONS) }
     | &'del' del_stmt
     | &'yield' yield_stmt
     | &'assert' assert_stmt
-    | 'break' { ast.Break() }
-    | 'continue' { ast.Continue() }
+    | 'break' { ast.Break(LOCATIONS) }
+    | 'continue' { ast.Continue(LOCATIONS) }
     | &'global' global_stmt
     | &'nonlocal' nonlocal_stmt
 compound_stmt:
@@ -264,6 +266,7 @@ compound_stmt:
     | &('for' | 'async') for_stmt
     | &'try' try_stmt
     | &'while' while_stmt
+    | match_stmt
 
 # NOTE: annotated_rhs may start with 'yield'; yield_expr must start with 'yield'
 assignment:
@@ -276,9 +279,11 @@ assignment:
                 annotation=b,
                 value=c,
                 simple=1,
+                LOCATIONS,
             )
         ) }
-    | a=('(' b=single_target ')' { b } | single_subscript_attribute_target) ':' b=expression c=['=' d=annotated_rhs { d }] {
+    | a=('(' b=single_target ')' { b }
+         | single_subscript_attribute_target) ':' b=expression c=['=' d=annotated_rhs { d }] {
         self.check_version(
             (3, 6),
             "Variable annotation syntax is",
@@ -287,14 +292,15 @@ assignment:
                 annotation=b,
                 value=c,
                 simple=0,
+                LOCATIONS,
             )
         )
      }
     | a=(z=star_targets '=' { z })+ b=(yield_expr | star_expressions) !'=' tc=[TYPE_COMMENT] {
-         ast.Assign(targets=a, value=b, type_comment=tc)
+         ast.Assign(targets=a, value=b, type_comment=tc, LOCATIONS)
      }
     | a=single_target b=augassign ~ c=(yield_expr | star_expressions) {
-        ast.AugAssign(target = a, op=b, value=c)
+        ast.AugAssign(target = a, op=b, value=c, LOCATIONS)
      }
     | invalid_assignment
 
@@ -314,56 +320,57 @@ augassign:
     | '//=' { ast.FloorDiv() }
 
 global_stmt[ast.Global]: 'global' a=','.NAME+ {
-    ast.Global(names=[n.string for n in a])
+    ast.Global(names=[n.string for n in a], LOCATIONS)
 }
 nonlocal_stmt[ast.Nonlocal]: 'nonlocal' a=','.NAME+ {
-    ast.Nonlocal(names=[n.string for n in a])
+    ast.Nonlocal(names=[n.string for n in a], LOCATIONS)
 }
 
-yield_stmt[ast.Expr]: y=yield_expr { ast.Expr(value=y) }
+yield_stmt[ast.Expr]: y=yield_expr { ast.Expr(value=y, LOCATIONS) }
 
 assert_stmt[ast.Assert]: 'assert' a=expression b=[',' z=expression { z }] {
-    ast.Assert(test=a, msg=b)
+    ast.Assert(test=a, msg=b, LOCATIONS)
 }
 
 del_stmt[ast.Delete]:
-    | 'del' a=del_targets &(';' | NEWLINE) { ast.Delete(targets=a) }
+    | 'del' a=del_targets &(';' | NEWLINE) { ast.Delete(targets=a, LOCATIONS) }
     | invalid_del_stmt
 
 import_stmt[ast.Import]: import_name | import_from
-import_name[ast.Import]: 'import' a=dotted_as_names { ast.Import(names=a) }
+import_name[ast.Import]: 'import' a=dotted_as_names { ast.Import(names=a, LOCATIONS) }
 # note below: the ('.' | '...') is necessary because '...' is tokenized as ELLIPSIS
 import_from[ast.ImportFrom]:
     | 'from' a=('.' | '...')* b=dotted_name 'import' c=import_from_targets {
-        ast.ImportFrom(module=b, names=c, level=self.extract_import_level(a))
+        ast.ImportFrom(module=b, names=c, level=self.extract_import_level(a), LOCATIONS)
      }
     | 'from' a=('.' | '...')+ 'import' b=import_from_targets {
-        ast.ImportFrom(names=b, level=self.extract_import_level(a))
+        ast.ImportFrom(names=b, level=self.extract_import_level(a), LOCATIONS)
      }
 import_from_targets[List[ast.alias]]:
     | '(' a=import_from_as_names [','] ')' { a }
     | import_from_as_names !','
-    | '*' { [ast.alias(name="*", asname=None)] }
+    | '*' { [ast.alias(name="*", asname=None, LOCATIONS)] }
     | invalid_import_from_targets
 import_from_as_names[List[ast.alias]]:
     | a=','.import_from_as_name+ { a }
 import_from_as_name[ast.alias]:
-    | a=NAME b=['as' z=NAME { z.string }] { ast.alias(name=a.string, asname=b) }
-dotted_as_names[List[ast.alias]]: a=','.dotted_as_name+ { a }
+    | a=NAME b=['as' z=NAME { z.string }] { ast.alias(name=a.string, asname=b, LOCATIONS) }
+dotted_as_names[List[ast.alias]]:
+    | a=','.dotted_as_name+ { a }
 dotted_as_name[ast.alias]:
-    | a=dotted_name b=['as' z=NAME { z.string }] { ast.alias(name=a, asname=b) }
+    | a=dotted_name b=['as' z=NAME { z.string }] { ast.alias(name=a, asname=b, LOCATIONS) }
 dotted_name[str]:
     | a=dotted_name '.' b=NAME { a + "." + b.string }
     | a=NAME { a.string }
 
 if_stmt[ast.If]:
     | invalid_if_stmt
-    | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c or []) }
-    | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=c or []) }
+    | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c or [], LOCATIONS) }
+    | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=c or [], LOCATIONS) }
 elif_stmt[List[ast.If]]:
     | invalid_elif_stmt
-    | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b, orelse=c)] }
-    | 'elif' a=named_expression ':' b=block c=[else_block] { [ast.If(test=a, body=b, orelse=c or [])] }
+    | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b, orelse=c, LOCATIONS)] }
+    | 'elif' a=named_expression ':' b=block c=[else_block] { [ast.If(test=a, body=b, orelse=c or [], LOCATIONS)] }
 else_block[list]:
     | invalid_else_stmt
     | 'else' &&':' b=block { b }
@@ -371,38 +378,38 @@ else_block[list]:
 while_stmt[ast.While]:
     | invalid_while_stmt
     | 'while' a=named_expression ':' b=block c=[else_block] {
-        ast.While(test=a, body=b, orelse=c or [])
+        ast.While(test=a, body=b, orelse=c or [], LOCATIONS)
      }
 
 for_stmt[Union[ast.For, ast.AsyncFor]]:
     | invalid_for_stmt
     | 'for' t=star_targets 'in' ~ ex=star_expressions &&':' tc=[TYPE_COMMENT] b=block el=[else_block] {
-        ast.For(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc) }
+        ast.For(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc, LOCATIONS) }
     | 'async' 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
         self.check_version(
             (3, 5),
             "Async for loops are",
-            ast.AsyncFor(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc)) }
+            ast.AsyncFor(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc, LOCATIONS)) }
     | invalid_for_target
 
 with_stmt[Union[ast.With, ast.AsyncWith]]:
     | invalid_with_stmt_indent
     | 'with' '(' a=','.with_item+ ','? ')' ':' b=block {
-        ast.With(items=a, body=b) }
+        ast.With(items=a, body=b, LOCATIONS) }
     | 'with' a=','.with_item+ ':' tc=[TYPE_COMMENT] b=block {
-        ast.With(items=a, body=b) }
+        ast.With(items=a, body=b, LOCATIONS) }
     | 'async' 'with' '(' a=','.with_item+ ','? ')' ':' b=block {
        self.check_version(
            (3, 5),
            "Async with statements are",
-           ast.AsyncWith(items=a, body=b)
+           ast.AsyncWith(items=a, body=b, LOCATIONS)
         )
      }
     | 'async' 'with' a=','.with_item+ ':' tc=[TYPE_COMMENT] b=block {
        self.check_version(
            (3, 5),
            "Async with statements are",
-           ast.AsyncWith(items=a, body=b, type_comment=tc)
+           ast.AsyncWith(items=a, body=b, type_comment=tc, LOCATIONS)
         )
      }
     | invalid_with_stmt
@@ -416,35 +423,37 @@ with_item[ast.withitem]:
 
 try_stmt[ast.Try]:
     | invalid_try_stmt
-    | 'try' &&':' b=block f=finally_block { ast.Try(body=b, handlers=[], orelse=[], finalbody=f) }
+    | 'try' &&':' b=block f=finally_block {
+        ast.Try(body=b, handlers=[], orelse=[], finalbody=f, LOCATIONS)
+     }
     | 'try' &&':' b=block ex=except_block+ el=[else_block] f=[finally_block] {
-        ast.Try(body=b, handlers=ex, orelse=el or [], finalbody=f or [])
+        ast.Try(body=b, handlers=ex, orelse=el or [], finalbody=f or [], LOCATIONS)
      }
 except_block[ast.ExceptHandler]:
     | invalid_except_stmt_indent
     | 'except' e=expression t=['as' z=NAME { z.string }] ':' b=block {
-        ast.ExceptHandler(type=e, name=t, body=b) }
-    | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b) }
-    | invalid_except_block
+        ast.ExceptHandler(type=e, name=t, body=b, LOCATIONS) }
+    | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b, LOCATIONS) }
+    | invalid_except_stmt
 finally_block[list]:
     | invalid_finally_stmt
     | 'finally' &&':' a=block { a }
 
-match_stmt[ast.Match]:
+match_stmt["ast.Match"]:
     | "match" subject=subject_expr ':' NEWLINE INDENT cases=case_block+ DEDENT {
         self.check_version(
             (3, 10),
             "Pattern matching is",
-            ast.Match(subject=subject, cases=cases)
+            ast.Match(subject=subject, cases=cases, LOCATIONS)
         )
      }
     | invalid_match_stmt
 subject_expr:
     | value=star_named_expression ',' values=star_named_expressions? {
-        ast.Tuple(expr=[value] + values, context=Load)
+        ast.Tuple(expr=[value] + values, context=Load, LOCATIONS)
      }
     | named_expression
-case_block[ast.match_case]:
+case_block["ast.match_case"]:
     | invalid_case_block
     | "case" pattern=patterns guard=guard? ':' body=block {
         ast.match_case(pattern=pattern, guard=guard, body=body)
@@ -453,18 +462,18 @@ guard: 'if' guard=named_expression { guard }
 
 patterns:
     | patterns=open_sequence_pattern {
-        ast.MatchSequence(patterns=patterns)
+        ast.MatchSequence(patterns=patterns, LOCATIONS)
      }
     | pattern
 pattern:
     | as_pattern
     | or_pattern
-as_pattern[ast.MatchAs]:
+as_pattern["ast.MatchAs"]:
     | pattern=or_pattern 'as' target=pattern_capture_target {
-        ast.MatchAs(pattern=pattern, name=target.id) }
-or_pattern[ast.MatchOr]:
+        ast.MatchAs(pattern=pattern, name=target.id, LOCATIONS) }
+or_pattern["ast.MatchOr"]:
     | patterns='|'.closed_pattern+ {
-        ast.MatchOr(patterns=patterns) if len(patterns) == 1 else patterns[0]
+        ast.MatchOr(patterns=patterns, LOCATIONS) if len(patterns) == 1 else patterns[0]
      }
 closed_pattern:
     | literal_pattern
@@ -478,42 +487,42 @@ closed_pattern:
 
 # Literal patterns are used for equality and identity constraints
 literal_pattern:
-    | value=signed_number !('+' | '-') { ast.MatchValue(value=value) }
-    | value=complex_number { ast.MatchValue(value=value) }
-    | value=strings { ast.MatchValue(value=value) }
-    | 'None' { ast.MatchSingleton(value=None) }
-    | 'True' { ast.MatchSingleton(value=True) }
-    | 'False' { ast.MatchSingleton(value=False) }
+    | value=signed_number !('+' | '-') { ast.MatchValue(value=value, LOCATIONS) }
+    | value=complex_number { ast.MatchValue(value=value, LOCATIONS) }
+    | value=strings { ast.MatchValue(value=value, LOCATIONS) }
+    | 'None' { ast.MatchSingleton(value=None, LOCATIONS) }
+    | 'True' { ast.MatchSingleton(value=True, LOCATIONS) }
+    | 'False' { ast.MatchSingleton(value=False, LOCATIONS) }
 
 # Literal expressions are used to restrict permitted mapping pattern keys
 literal_expr:
     | signed_number !('+' | '-')
     | complex_number
     | strings
-    | 'None' { ast.Constant(value=None) }
-    | 'True' { ast.Constant(value=True) }
-    | 'False' { ast.Constant(value=False) }
+    | 'None' { ast.Constant(value=None, LOCATIONS) }
+    | 'True' { ast.Constant(value=True, LOCATIONS) }
+    | 'False' { ast.Constant(value=False, LOCATIONS) }
 
 complex_number:
     | real=signed_real_number '+' imag=imaginary_number {
-        ast.BinOp(left=real, op=ast.Add(), right=imag)
+        ast.BinOp(left=real, op=ast.Add(), right=imag, LOCATIONS)
      }
     | real=signed_real_number '-' imag=imaginary_number  {
-        ast.BinOp(left=signed_real_number, op=ast.Add(), right=imaginary_number)
+        ast.BinOp(left=signed_real_number, op=ast.Add(), right=imaginary_number, LOCATIONS)
      }
 
 signed_number:
-    | NUMBER { ast.Constant(value=ast.literal_eval(a.string)) }
+    | NUMBER { ast.Constant(value=ast.literal_eval(a.string), LOCATIONS) }
     | '-' number=NUMBER {
         ast.UnaryOp(
             op=ast.USub(),
-            operand=ast.Constant(value=ast.literal_eval(a.string))
+            operand=ast.Constant(value=ast.literal_eval(a.string), LOCATIONS)
         )
      }
 
 signed_real_number:
     | real_number
-    | '-' real=real_number { ast.UnaryOp(op=ast.USub(), operand=real) }
+    | '-' real=real_number { ast.UnaryOp(op=ast.USub(), operand=real, LOCATIONS) }
 
 real_number[ast.Constant]:
     | real=NUMBER { self.ensure_real(real) }
@@ -523,32 +532,33 @@ imaginary_number[ast.Constant]:
 
 capture_pattern:
     | target=pattern_capture_target {
-        ast.MatchAS(pattern=None, target=target.id)
+        ast.MatchAS(pattern=None, target=target.id, LOCATIONS)
      }
 
 pattern_capture_target[ast.Name]:
     | !"_" name=NAME !('.' | '(' | '=') {
-        ast.Name(id=name.string, ctx=Store)
+        ast.Name(id=name.string, ctx=Store, LOCATIONS)
      }
 
-wildcard_pattern[ast.MatchAs]:
-    | "_" { ast.MatchAs(pattern=None, target=None) }
+wildcard_pattern["ast.MatchAs"]:
+    | "_" { ast.MatchAs(pattern=None, target=None, LOCATIONS) }
 
-value_pattern[ast.MatchValue]:
-    | attr=attr !('.' | '(' | '=') { ast.MatchValue(value=attr) }
-attr[expr_ty]:
+value_pattern["ast.MatchValue"]:
+    | attr=attr !('.' | '(' | '=') { ast.MatchValue(value=attr, LOCATIONS) }
+attr[ast.Attribute]:
     | value=name_or_attr '.' attr=NAME {
-        ast.Attribute(value=value, attr=attr.string, ctx=Load) }
+        ast.Attribute(value=value, attr=attr.string, ctx=Load, LOCATIONS)
+     }
 name_or_attr:
     | attr
-    | name=NAME { ast.Name(id=name.string, ctx=Load) }
+    | name=NAME { ast.Name(id=name.string, ctx=Load, LOCATIONS) }
 
 group_pattern:
     | '(' pattern=pattern ')' { pattern }
 
-sequence_pattern[ast.MatchSequence]:
-    | '[' patterns=maybe_sequence_pattern? ']' { ast.MatchSequence(patterns=patterns) }
-    | '(' patterns=open_sequence_pattern? ')' { ast.MatchSequence(patterns=patterns) }
+sequence_pattern["ast.MatchSequence"]:
+    | '[' patterns=maybe_sequence_pattern? ']' { ast.MatchSequence(patterns=patterns, LOCATIONS) }
+    | '(' patterns=open_sequence_pattern? ')' { ast.MatchSequence(patterns=patterns, LOCATIONS) }
 open_sequence_pattern:
     | pattern=maybe_star_pattern ',' patterns=maybe_sequence_pattern? {
         [pattern] + patterns }
@@ -558,18 +568,19 @@ maybe_star_pattern:
     | star_pattern
     | pattern
 star_pattern:
-    | '*' target=pattern_capture_target { ast.MatchStar(target=target.id) }
-    | '*' wildcard_pattern { ast.MatchStar(target=None) }
+    | '*' target=pattern_capture_target { ast.MatchStar(target=target.id, LOCATIONS) }
+    | '*' wildcard_pattern { ast.MatchStar(target=None, LOCATIONS) }
 
 mapping_pattern:
-    | '{' '}' { ast.MatchMapping(keys=None, pattern=None, rest=None) }
+    | '{' '}' { ast.MatchMapping(keys=None, pattern=None, rest=None, LOCATIONS) }
     | '{' rest=double_star_pattern ','? '}' {
-        ast.MatchMapping(keys=None, patterns=None, rest=rest.id) }
+        ast.MatchMapping(keys=None, patterns=None, rest=rest.id, LOCATIONS) }
     | '{' items=items_pattern ',' rest=double_star_pattern ','? '}' {
         ast.MatchMapping(
             keys=[k for k,_ in items_pattern],
             patterns=[p for _, p in items_pattern],
             rest=rest.id,
+            LOCATIONS,
         )
      }
     | '{' items=items_pattern ','? '}' {
@@ -577,6 +588,7 @@ mapping_pattern:
             keys=[k for k,_ in items_pattern],
             patterns=[p for _, p in items_pattern],
             rest=None,
+            LOCATIONS,
         )
      }
 items_pattern:
@@ -586,12 +598,12 @@ key_value_pattern:
 double_star_pattern:
     | '**' target=pattern_capture_target { target }
 
-class_pattern:
+class_pattern["ast.MatchClass"]:
     | cls=name_or_attr '(' ')' {
-        ast.MatchClass(cls=cls, patterns=None, kwd_attrs=None, kwd_patterns=None)
+        ast.MatchClass(cls=cls, patterns=None, kwd_attrs=None, kwd_patterns=None, LOCATIONS)
      }
     | cls=name_or_attr '(' patterns=positional_patterns ','? ')' {
-        ast.MatchClass(cls=cls, patterns=patterns, kwd_attrs=None, kwd_patterns=None)
+        ast.MatchClass(cls=cls, patterns=patterns, kwd_attrs=None, kwd_patterns=None, LOCATIONS)
      }
     | cls=name_or_attr '(' keywords=keyword_patterns ','? ')' {
         ast.MatchClass(
@@ -599,14 +611,16 @@ class_pattern:
             patterns=None,
             kwd_attrs=[k for k, _ in keyword_patterns],
             kwd_patterns=[p for _, p in keyword_patterns],
+            LOCATIONS,
         )
      }
     | cls=name_or_attr '(' patterns=positional_patterns ',' keywords=keyword_patterns ','? ')' {
-        _PyAST_MatchClass(
+        ast.MatchClass(
             cls=cls,
             patterns=patterns,
             kwd_attrs=[k for k, _ in keyword_patterns],
             kwd_patterns=[p for _, p in keyword_patterns],
+            LOCATIONS,
         )
      }
 positional_patterns:
@@ -617,11 +631,11 @@ keyword_pattern:
     | arg=NAME '=' value=pattern { (arg.id, value) }
 
 return_stmt[ast.Return]:
-    | 'return' a=[star_expressions] { ast.Return(value=a) }
+    | 'return' a=[star_expressions] { ast.Return(value=a, LOCATIONS) }
 
 raise_stmt[ast.Raise]:
-    | 'raise' a=expression b=['from' z=expression { z }] { ast.Raise(exc=a, cause=b) }
-    | 'raise' { ast.Raise(exc=None, cause=None) }
+    | 'raise' a=expression b=['from' z=expression { z }] { ast.Raise(exc=a, cause=b, LOCATIONS) }
+    | 'raise' { ast.Raise(exc=None, cause=None, LOCATIONS) }
 
 function_def[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
     | d=decorators f=function_def_raw { self.set_decorators(f, d) }
@@ -634,7 +648,8 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
             args=params or self.make_arguments(None, [], None, [], None),
             returns=a,
             body=b,
-            type_comment=tc
+            type_comment=tc,
+            LOCATIONS,
         )
      }
     | 'async' 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
@@ -646,7 +661,8 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
                 args=params or self.make_arguments(None, [], None, [], None),
                 returns=a,
                 body=b,
-                type_comment=tc
+                type_comment=tc,
+                LOCATIONS,
             )
         )
      }
@@ -714,7 +730,7 @@ param_with_default[Tuple[ast.arg, Any]]:
 param_maybe_default[Tuple[ast.arg, Any]]:
     | a=param c=default? ',' tc=TYPE_COMMENT? { (self.set_arg_type_comment(a, tc), c) }
     | a=param c=default? tc=TYPE_COMMENT? &')' { (self.set_arg_type_comment(a, tc), c) }
-param: a=NAME b=annotation? { ast.arg(arg=a.string, annotation=b) }
+param: a=NAME b=annotation? { ast.arg(arg=a.string, annotation=b, LOCATIONS) }
 
 annotation: ':' a=expression { a }
 default: '=' a=expression { a }
@@ -727,17 +743,18 @@ decorator:
      }
 dec_maybe_call:
     | dn=dec_primary '(' z=arguments ')' {
-        ast.Call(func=dn, args=z[0], keywords=z[1])
+        ast.Call(func=dn, args=z[0], keywords=z[1], LOCATIONS)
      }
     | dec_primary
 dec_primary:
-    | a=dec_primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load) }
-    | a=NAME { ast.Name(id=a.string, ctx=Load) }
+    | a=dec_primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load, LOCATIONS) }
+    | a=NAME { ast.Name(id=a.string, ctx=Load, LOCATIONS) }
 
 class_def[ast.ClassDef]:
     | a=decorators b=class_def_raw { self.set_decorators(b, a) }
     | class_def_raw
 class_def_raw[ast.ClassDef]:
+    | invalid_class_def_raw
     | 'class' a=NAME b=['(' z=[arguments] ')' { z }] &&':' c=block {
         ast.ClassDef(
             a.string,
@@ -745,6 +762,7 @@ class_def_raw[ast.ClassDef]:
             keywords=b[1] if b else [],
             body=c,
             decorator_list=[],
+            LOCATIONS,
         )
      }
 
@@ -755,46 +773,63 @@ block[list] (memo):
 
 star_expressions:
     | a=star_expression b=(',' c=star_expression { c })+ [','] {
-        ast.Tuple(elts=[a] + b, ctx=Load) }
-    | a=star_expression ',' { ast.Tuple(elts=[a], ctx=Load) }
+        ast.Tuple(elts=[a] + b, ctx=Load, LOCATIONS) }
+    | a=star_expression ',' { ast.Tuple(elts=[a], ctx=Load, LOCATIONS) }
     | star_expression
 star_expression (memo):
-    | '*' a=bitwise_or { ast.Starred(value=a, ctx=Load) }
+    | '*' a=bitwise_or { ast.Starred(value=a, ctx=Load, LOCATIONS) }
     | expression
 
 star_named_expressions: a=','.star_named_expression+ [','] { a }
 star_named_expression:
-    | '*' a=bitwise_or { ast.Starred(value=a, ctx=Load) }
+    | '*' a=bitwise_or { ast.Starred(value=a, ctx=Load, LOCATIONS) }
     | named_expression
-named_expression:
+
+
+assignment_expression:
     | a=NAME ':=' ~ b=expression {
-        ast.NamedExpr(target=ast.Name(id=a.string, ctx=Store), value=b)
+        self.check_version(
+            (3, 8),
+            "The ':=' operator is",
+            ast.NamedExpr(
+                target=ast.Name(
+                    id=a.string,
+                    ctx=Store,
+                    lineno=a.lineno,
+                    col_offset=a.col_offset,
+                    end_lineno=a.end_lineno,
+                    end_col_offset=a.end_col_offset
+                ),
+                value=b,
+                LOCATIONS,
+            )
+        )
      }
+
+named_expression:
+    | assignment_expression
     | invalid_named_expression
     | a=expression !':=' { a }
 
-direct_named_expression[expr_ty]:
-    | a=NAME ':=' ~ b=expression { ast.NamedExpr(target=ast.Name(id=a.string, ctx=Store), value=b) }
-    | expression !':='
 
 annotated_rhs: yield_expr | star_expressions
 
 expressions:
     | a=expression b=(',' c=expression { c })+ [','] {
-        ast.Tuple(elts=[a] + b, ctx=Load) }
-    | a=expression ',' { ast.Tuple(elts=[a], ctx=Load) }
+        ast.Tuple(elts=[a] + b, ctx=Load, LOCATIONS) }
+    | a=expression ',' { ast.Tuple(elts=[a], ctx=Load, LOCATIONS) }
     | expression
 expression (memo):
     | invalid_expression
     | a=disjunction 'if' b=disjunction 'else' c=expression {
-        ast.IfExp(body=a, test=b, orelse=c)
+        ast.IfExp(body=a, test=b, orelse=c, LOCATIONS)
      }
     | disjunction
     | lambdef
 
 lambdef:
     | 'lambda' a=[lambda_params] ':' b=expression {
-        ast.Lambda(args=a or self.make_arguments(None, [], None, [], (None, [], None)), body=b)
+        ast.Lambda(args=a or self.make_arguments(None, [], None, [], (None, [], None)), body=b, LOCATIONS)
      }
 
 lambda_params:
@@ -846,20 +881,20 @@ lambda_param_with_default[Tuple[ast.arg, Any]]:
 lambda_param_maybe_default[Tuple[ast.arg, Any]]:
     | a=lambda_param c=default? ',' { (a, c) }
     | a=lambda_param c=default? &':' { (a, c) }
-lambda_param[ast.arg]: a=NAME { ast.arg(arg=a.string, annotation=None) }
+lambda_param[ast.arg]: a=NAME { ast.arg(arg=a.string, annotation=None, LOCATIONS) }
 
 disjunction (memo):
-    | a=conjunction b=('or' c=conjunction { c })+ { ast.BoolOp(op=ast.Or(), values=[a] + b) }
+    | a=conjunction b=('or' c=conjunction { c })+ { ast.BoolOp(op=ast.Or(), values=[a] + b, LOCATIONS) }
     | conjunction
 conjunction (memo):
-    | a=inversion b=('and' c=inversion { c })+ { ast.BoolOp(op=ast.And(), values=[a] + b) }
+    | a=inversion b=('and' c=inversion { c })+ { ast.BoolOp(op=ast.And(), values=[a] + b, LOCATIONS) }
     | inversion
 inversion (memo):
-    | 'not' a=inversion { ast.UnaryOp(op=ast.Not(), operand=a) }
+    | 'not' a=inversion { ast.UnaryOp(op=ast.Not(), operand=a, LOCATIONS) }
     | comparison
 comparison:
     | a=bitwise_or b=compare_op_bitwise_or_pair+ {
-        ast.Compare(left=a, ops=self.get_comparison_ops(b), comparators=self.get_comparators(b))
+        ast.Compare(left=a, ops=self.get_comparison_ops(b), comparators=self.get_comparators(b), LOCATIONS)
      }
     | bitwise_or
 
@@ -889,102 +924,105 @@ isnot_bitwise_or: 'is' 'not' a=bitwise_or { (ast.IsNot(), a) }
 is_bitwise_or: 'is' a=bitwise_or { (ast.Is(), a) }
 
 bitwise_or:
-    | a=bitwise_or '|' b=bitwise_xor { ast.BinOp(left=a, op=ast.BitOr(), right=b) }
+    | a=bitwise_or '|' b=bitwise_xor { ast.BinOp(left=a, op=ast.BitOr(), right=b, LOCATIONS) }
     | bitwise_xor
 bitwise_xor:
-    | a=bitwise_xor '^' b=bitwise_and { ast.BinOp(left=a, op=ast.BitXor(), right=b) }
+    | a=bitwise_xor '^' b=bitwise_and { ast.BinOp(left=a, op=ast.BitXor(), right=b, LOCATIONS) }
     | bitwise_and
 bitwise_and:
-    | a=bitwise_and '&' b=shift_expr { ast.BinOp(left=a, op=ast.BitAnd(), right=b) }
+    | a=bitwise_and '&' b=shift_expr { ast.BinOp(left=a, op=ast.BitAnd(), right=b, LOCATIONS) }
     | shift_expr
 shift_expr:
-    | a=shift_expr '<<' b=sum { ast.BinOp(left=a, op=ast.LShift(), right=b) }
-    | a=shift_expr '>>' b=sum { ast.BinOp(left=a, op=ast.RShift(), right=b) }
+    | a=shift_expr '<<' b=sum { ast.BinOp(left=a, op=ast.LShift(), right=b, LOCATIONS) }
+    | a=shift_expr '>>' b=sum { ast.BinOp(left=a, op=ast.RShift(), right=b, LOCATIONS) }
     | sum
 
 sum:
-    | a=sum '+' b=term { ast.BinOp(left=a, op=ast.Add(), right=b) }
-    | a=sum '-' b=term { ast.BinOp(left=a, op=ast.Sub(), right=b) }
+    | a=sum '+' b=term { ast.BinOp(left=a, op=ast.Add(), right=b, LOCATIONS) }
+    | a=sum '-' b=term { ast.BinOp(left=a, op=ast.Sub(), right=b, LOCATIONS) }
     | term
 term:
-    | a=term '*' b=factor { ast.BinOp(left=a, op=ast.Mult(), right=b) }
-    | a=term '/' b=factor { ast.BinOp(left=a, op=ast.Div(), right=b) }
-    | a=term '//' b=factor { ast.BinOp(left=a, op=ast.FloorDiv(), right=b) }
-    | a=term '%' b=factor { ast.BinOp(left=a, op=ast.Mod(), right=b) }
+    | a=term '*' b=factor { ast.BinOp(left=a, op=ast.Mult(), right=b, LOCATIONS) }
+    | a=term '/' b=factor { ast.BinOp(left=a, op=ast.Div(), right=b, LOCATIONS) }
+    | a=term '//' b=factor { ast.BinOp(left=a, op=ast.FloorDiv(), right=b, LOCATIONS) }
+    | a=term '%' b=factor { ast.BinOp(left=a, op=ast.Mod(), right=b, LOCATIONS) }
     | a=term '@' b=factor {
-        self.check_version((3, 5), "The '@' operator is", ast.BinOp(left=a, op=ast.MatMult(), right=b))
+        self.check_version((3, 5), "The '@' operator is", ast.BinOp(left=a, op=ast.MatMult(), right=b, LOCATIONS))
      }
     | factor
 factor (memo):
-    | '+' a=factor { ast.UnaryOp(op=ast.UAdd(), operand=a) }
-    | '-' a=factor { ast.UnaryOp(op=ast.USub(), operand=a) }
-    | '~' a=factor { ast.UnaryOp(op=ast.Invert(), operand=a) }
+    | '+' a=factor { ast.UnaryOp(op=ast.UAdd(), operand=a, LOCATIONS) }
+    | '-' a=factor { ast.UnaryOp(op=ast.USub(), operand=a, LOCATIONS) }
+    | '~' a=factor { ast.UnaryOp(op=ast.Invert(), operand=a, LOCATIONS) }
     | power
 power:
-    | a=await_primary '**' b=factor { ast.BinOp(left=a, op=ast.Pow(), right=b) }
+    | a=await_primary '**' b=factor { ast.BinOp(left=a, op=ast.Pow(), right=b, LOCATIONS) }
     | await_primary
 await_primary (memo):
-    | 'await' a=primary { self.check_version((3, 5), "Await expressions are", ast.Await(a)) }
+    | 'await' a=primary { self.check_version((3, 5), "Await expressions are", ast.Await(a, LOCATIONS)) }
     | primary
 primary:
     | invalid_primary  # must be before 'primay genexp' because of invalid_genexp
-    | a=primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load) }
-    | a=primary b=genexp { ast.Call(func=a, args=[b], keywords=[]) }
+    | a=primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load, LOCATIONS) }
+    | a=primary b=genexp { ast.Call(func=a, args=[b], keywords=[], LOCATIONS) }
     | a=primary '(' b=[arguments] ')' {
         ast.Call(
             func=a,
             args=b[0] if b else [],
             keywords=b[1] if b else [],
+            LOCATIONS,
         )
      }
-    | a=primary '[' b=slices ']' { ast.Subscript(value=a, slice=b, ctx=Load) }
+    | a=primary '[' b=slices ']' { ast.Subscript(value=a, slice=b, ctx=Load, LOCATIONS) }
     | atom
 
 slices:
     | a=slice !',' { a }
-    | a=','.slice+ [','] { ast.Tuple(elts=a, ctx=Load) }
+    | a=','.slice+ [','] { ast.Tuple(elts=a, ctx=Load, LOCATIONS) }
 slice:
-    | a=[expression] ':' b=[expression] c=[':' d=[expression] { d }] { ast.Slice(lower=a, upper=b, step=c) }
+    | a=[expression] ':' b=[expression] c=[':' d=[expression] { d }] { ast.Slice(lower=a, upper=b, step=c, LOCATIONS) }
     | a=named_expression { a }
 atom:
-    | a=NAME { ast.Name(id=a.string, ctx=Load) }
-    | 'True' { ast.Constant(value=True) }
-    | 'False' { ast.Constant(value=False) }
-    | 'None' { ast.Constant(value=None) }
+    | a=NAME { ast.Name(id=a.string, ctx=Load, LOCATIONS) }
+    | 'True' { ast.Constant(value=True, LOCATIONS) }
+    | 'False' { ast.Constant(value=False, LOCATIONS) }
+    | 'None' { ast.Constant(value=None, LOCATIONS) }
     | &STRING strings
-    | a=NUMBER { ast.Constant(value=ast.literal_eval(a.string)) }
+    | a=NUMBER { ast.Constant(value=ast.literal_eval(a.string), LOCATIONS) }
     | &'(' (tuple | group | genexp)
     | &'[' (list | listcomp)
     | &'{' (dict | set | dictcomp | setcomp)
-    | '...' { ast.Constant(value=Ellipsis) }
+    | '...' { ast.Constant(value=Ellipsis, LOCATIONS) }
 
 strings[ast.Str] (memo): a=STRING+ { self.generate_ast_for_string(a) }
 list[ast.List]:
-    | '[' a=[star_named_expressions] ']' { ast.List(elts=a or [], ctx=Load) }
+    | '[' a=[star_named_expressions] ']' { ast.List(elts=a or [], ctx=Load, LOCATIONS) }
 listcomp[ast.ListComp]:
-    | '[' a=named_expression b=for_if_clauses ']' { ast.ListComp(elt=a, generators=b) }
+    | '[' a=named_expression b=for_if_clauses ']' { ast.ListComp(elt=a, generators=b, LOCATIONS) }
     | invalid_comprehension
 tuple[ast.Tuple]:
     | '(' a=[y=star_named_expression ',' z=[star_named_expressions] { [y] + (z or []) } ] ')' {
-        ast.Tuple(elts=a or [], ctx=Load)
+        ast.Tuple(elts=a or [], ctx=Load, LOCATIONS)
      }
 group:
     | '(' a=(yield_expr | named_expression) ')' { a }
     | invalid_group
 genexp[ast.GeneratorExp]:
-    | '(' a=direct_named_expression b=for_if_clauses ')' { ast.GeneratorExp(elt=a, generators=b) }
+    | '(' a=( assignment_expression | expression !':=') b=for_if_clauses ')' {
+        ast.GeneratorExp(elt=a, generators=b, LOCATIONS)
+     }
     | invalid_comprehension
-set[ast.Set]: '{' a=star_named_expressions '}' { ast.Set(elts=a) }
+set[ast.Set]: '{' a=star_named_expressions '}' { ast.Set(elts=a, LOCATIONS) }
 setcomp[ast.SetComp]:
-    | '{' a=named_expression b=for_if_clauses '}' { ast.SetComp(elt=a, generators=b) }
+    | '{' a=named_expression b=for_if_clauses '}' { ast.SetComp(elt=a, generators=b, LOCATIONS) }
     | invalid_comprehension
 dict[ast.Dict]:
     | '{' a=[double_starred_kvpairs] '}' {
-        ast.Dict(keys=[kv[0] for kv in (a or [])], values=[kv[1] for kv in (a or [])])
+        ast.Dict(keys=[kv[0] for kv in (a or [])], values=[kv[1] for kv in (a or [])], LOCATIONS)
      }
     | '{' invalid_double_starred_kvpairs '}'
 dictcomp[ast.DictComp]:
-    | '{' a=kvpair b=for_if_clauses '}' { ast.DictComp(key=a[0], value=a[1], generators=b) }
+    | '{' a=kvpair b=for_if_clauses '}' { ast.DictComp(key=a[0], value=a[1], generators=b, LOCATIONS) }
     | invalid_dict_comprehension
 double_starred_kvpairs[list]: a=','.double_starred_kvpair+ [','] { a }
 double_starred_kvpair:
@@ -1006,14 +1044,14 @@ for_if_clause[ast.comprehension]:
     | invalid_for_target
 
 yield_expr:
-    | 'yield' 'from' a=expression { ast.YieldFrom(value=a) }
-    | 'yield' a=[star_expressions] { ast.Yield(value=a) }
+    | 'yield' 'from' a=expression { ast.YieldFrom(value=a, LOCATIONS) }
+    | 'yield' a=[star_expressions] { ast.Yield(value=a, LOCATIONS) }
 
 arguments[Tuple[list, list]] (memo):
     | a=args [','] &')' { a }
     | invalid_arguments
 args[Tuple[list, list]]:
-    | a=','.(starred_expression | direct_named_expression !'=')+ b=[',' k=kwargs {k}] {
+    | a=','.(starred_expression | ( assignment_expression | expression !':=') !'=')+ b=[',' k=kwargs {k}] {
         (a + ([e for e in b if isinstance(e, ast.Starred)] if b else []),
          ([e for e in b if not isinstance(e, ast.Starred)] if b else [])
         )
@@ -1022,26 +1060,27 @@ args[Tuple[list, list]]:
         ([e for e in a if isinstance(e, ast.Starred)],
          [e for e in a if not isinstance(e, ast.Starred)])
     }
+
 kwargs[list]:
     | a=','.kwarg_or_starred+ ',' b=','.kwarg_or_double_starred+ { a + b }
     | ','.kwarg_or_starred+
     | ','.kwarg_or_double_starred+
 starred_expression:
-    | '*' a=expression { ast.Starred(value=a, ctx=Load) }
+    | '*' a=expression { ast.Starred(value=a, ctx=Load, LOCATIONS) }
 kwarg_or_starred:
-    | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b) }
+    | invalid_kwarg
+    | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b, LOCATIONS) }
     | a=starred_expression { a }
-    | invalid_kwarg
-kwarg_or_double_starred:
-    | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b) }
-    | '**' a=expression { ast.keyword(arg=None, value=a) }
-    | invalid_kwarg
 
+kwarg_or_double_starred:
+    | invalid_kwarg
+    | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b, LOCATIONS) }
+    | '**' a=expression { ast.keyword(arg=None, value=a, LOCATIONS) }
 # NOTE: star_targets may contain *bitwise_or, targets may not.
 star_targets:
     | a=star_target !',' { a }
     | a=star_target b=(',' c=star_target { c })* [','] {
-        ast.Tuple(elts=[a] + b, ctx=Store)
+        ast.Tuple(elts=[a] + b, ctx=Store, LOCATIONS)
      }
 star_targets_list_seq[list]: a=','.star_target+ [','] { a }
 star_targets_tuple_seq[list]:
@@ -1049,61 +1088,62 @@ star_targets_tuple_seq[list]:
     | a=star_target ',' { [a] }
 star_target (memo):
     | '*' a=(!'*' star_target) {
-        ast.Starred(value=self.set_expr_context(a, Store), ctx=Store)
+        ast.Starred(value=self.set_expr_context(a, Store), ctx=Store, LOCATIONS)
      }
     | target_with_star_atom
 target_with_star_atom (memo):
-    | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Store) }
-    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Store) }
+    | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Store, LOCATIONS) }
+    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Store, LOCATIONS) }
     | star_atom
 star_atom:
-    | a=NAME { ast.Name(id=a.string, ctx=Store) }
+    | a=NAME { ast.Name(id=a.string, ctx=Store, LOCATIONS) }
     | '(' a=target_with_star_atom ')' { self.set_expr_context(a, Store) }
-    | '(' a=[star_targets_tuple_seq] ')' { ast.Tuple(elts=a, ctx=Store) }
-    | '[' a=[star_targets_list_seq] ']' {  ast.List(elts=a, ctx=Store) }
+    | '(' a=[star_targets_tuple_seq] ')' { ast.Tuple(elts=a, ctx=Store, LOCATIONS) }
+    | '[' a=[star_targets_list_seq] ']' {  ast.List(elts=a, ctx=Store, LOCATIONS) }
 
 single_target:
     | single_subscript_attribute_target
-    | a=NAME { ast.Name(id=a.string, ctx=Store) }
+    | a=NAME { ast.Name(id=a.string, ctx=Store, LOCATIONS) }
     | '(' a=single_target ')' { a }
 single_subscript_attribute_target:
-    | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Store) }
-    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Store) }
+    | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Store, LOCATIONS) }
+    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Store, LOCATIONS) }
 
 del_targets: a=','.del_target+ [','] { a }
 del_target (memo):
-    | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Del) }
-    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Del) }
+    | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Del, LOCATIONS) }
+    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Del, LOCATIONS) }
     | del_t_atom
 del_t_atom:
-    | a=NAME { ast.Name(id=a.string, ctx=Del) }
+    | a=NAME { ast.Name(id=a.string, ctx=Del, LOCATIONS) }
     | '(' a=del_target ')' { self.set_expr_context(a, Del) }
-    | '(' a=[del_targets] ')' { ast.Tuple(elts=a, ctx=Del) }
-    | '[' a=[del_targets] ']' { ast.List(elts=a, ctx=Del) }
+    | '(' a=[del_targets] ')' { ast.Tuple(elts=a, ctx=Del, LOCATIONS) }
+    | '[' a=[del_targets] ']' { ast.List(elts=a, ctx=Del, LOCATIONS) }
 
 targets: a=','.target+ [','] { a }
 target (memo):
-    | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Store) }
-    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Store) }
+    | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Store, LOCATIONS) }
+    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Store, LOCATIONS) }
     | t_atom
 t_primary:
-    | a=t_primary '.' b=NAME &t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Load) }
-    | a=t_primary '[' b=slices ']' &t_lookahead { ast.Subscript(value=a, slice=b, ctx=Load) }
-    | a=t_primary b=genexp &t_lookahead { ast.Call(func=a, args=[b], keywords=[]) }
+    | a=t_primary '.' b=NAME &t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Load, LOCATIONS) }
+    | a=t_primary '[' b=slices ']' &t_lookahead { ast.Subscript(value=a, slice=b, ctx=Load, LOCATIONS) }
+    | a=t_primary b=genexp &t_lookahead { ast.Call(func=a, args=[b], keywords=[], LOCATIONS) }
     | a=t_primary '(' b=[arguments] ')' &t_lookahead {
         ast.Call(
             func=a,
             args=b[0] if b else [],
             keywords=b[1] if b else [],
+            LOCATIONS,
         )
      }
     | a=atom &t_lookahead { a }
 t_lookahead: '(' | '[' | '.'
 t_atom:
-    | a=NAME { ast.Name(id=a.string, ctx=Store) }
+    | a=NAME { ast.Name(id=a.string, ctx=Store, LOCATIONS) }
     | '(' a=target ')' { self.set_expr_context(a, Store) }
-    | '(' b=[targets] ')' { ast.Tuple(elts=b, ctx=Store) }
-    | '[' b=[targets] ']' { ast.List(elts=b, ctx=Store) }
+    | '(' b=[targets] ')' { ast.Tuple(elts=b, ctx=Store, LOCATIONS) }
+    | '[' b=[targets] ']' { ast.List(elts=b, ctx=Store, LOCATIONS) }
 
 
 # From here on, there are rules for invalid syntax with specialised error messages
