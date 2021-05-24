@@ -212,6 +212,52 @@ class Parser(Parser):
             kwarg=after_star[2]
         )
 
+    def _raise_syntax_error(
+        self,
+        message: str,
+        start: Optional[Tuple[int, int]] = None,
+        stop: Optional[Tuple[int, int]] = None
+    ) -> NoReturn:
+        if start is None or stop is None:
+            tok = self._tokenizer.diagnose()
+            start = start or tok.start
+            stop = stop or tok.stop
+        if start is None and stop is None:
+            line = tok.line
+        else:
+            line = ""  # XXX more work to grab the sources
+        return SyntaxError(
+            message,
+            (self.filename, start[0], start[1], line, stop[0], stop[1])
+        )
+
+    def raise_syntax_error(self, message: str):
+        self._raise_syntax_error(message)
+
+    def raise_syntax_error_known_location(self, message: str, node) -> NoReturn:
+        """Raise a syntax error that occured at a given AST node."""
+        self._raise_syntax_error(
+            message,
+            (node.lineno, node.col_offset),
+            (node.end_lineno, node.end_col_offset)
+        )
+
+    def raise_syntax_error_known_range(
+        self, message: str, start_node, stop_node
+    ) -> NoReturn:
+        self._raise_syntax_error(
+            message,
+            (start_node.lineno, start_node.col_offset),
+            (stop_node.end_lineno, stop_node.end_col_offset)
+        )
+
+    def raise_syntax_error_starting_from(self, message: str, start_node) -> NoReturn:
+        self._raise_syntax_error(
+            message,
+            (start_node.lineno, start_node.col_offset),
+            None
+        )
+
 '''
 
 start: file
@@ -1149,70 +1195,100 @@ t_atom:
 # From here on, there are rules for invalid syntax with specialised error messages
 invalid_arguments:
     | a=args ',' '*' {
-        self.make_syntax_error(
-            "iterable argument unpacking follows keyword argument unpacking"
+        self.raise_syntax_error_known_location(
+            "iterable argument unpacking follows keyword argument unpacking",
+            a,
         )
      }
-    | a=expression for_if_clauses ',' [args | expression for_if_clauses] {
-        self.make_syntax_error("Generator expression must be parenthesized")
+    | a=expression b=for_if_clauses ',' [args | expression for_if_clauses] {
+        self.raise_syntax_error_known_range(
+            "Generator expression must be parenthesized", a, b[-1].target
+        )
+     }
+    | a=NAME b='=' expression for_if_clauses {
+        self.raise_syntax_error_known_range(
+            "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", a, b
+        )
      }
     | a=args for_if_clauses {
-        self.make_syntax_error("Generator expression must be parenthesized")
+        self.raise_syntax_error_starting_from("Generator expression must be parenthesized", args[-1])
      }
     | args ',' a=expression b=for_if_clauses {
-        self.make_syntax_error("Generator expression must be parenthesized") }
+        self.raise_syntax_error_known_range("Generator expression must be parenthesized", a, b[-1].target) }
     | a=args ',' args {
-        self.make_syntax_error(
+        self.raise_syntax_error(
             "positional argument follows keyword argument unpacking"
             if isinstance(args[1][-1], ast.Starred) else
             "positional argument follows keyword argument",
         )
      }
 invalid_kwarg:
-    | !(NAME '=') a=expression b='=' {
-        self.make_syntax_error(
-            "expression cannot contain assignment, perhaps you meant \"==\"?",
+    | a=NAME b='=' expression for_if_clauses {
+        self.raise_syntax_error_known_range(
+            "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", a, b
         )
      }
+    | !(NAME '=') a=expression b='=' {
+        self.raise_syntax_error_known_range(
+            "expression cannot contain assignment, perhaps you meant \"==\"?", a, b,
+        )
+     }
+
+expression_without_invalid:
+    | a=disjunction 'if' b=disjunction 'else' c=expression { ast.IfExp(b, a, c, LOCATIONS) }
+    | disjunction
+    | lambdef
 invalid_expression:
     # !(NAME STRING) is not matched so we don't show this error with some invalid string prefixes like: kf"dsfsdf"
     # Soft keywords need to also be ignored because they can be parsed as NAME NAME
-    | !(NAME STRING | SOFT_KEYWORD) a=disjunction b=expression {
-        RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, b, "invalid syntax. Perhaps you forgot a comma?") }  # XXX
+    # XXX need to find a way to emulate the SOFT_KEYWORD used in c gramar
+    | !(NAME STRING) a=disjunction b=expression_without_invalid {
+        self.raise_syntax_error_known_range("invalid syntax. Perhaps you forgot a comma?", a, b) }
 invalid_named_expression:
     | a=expression ':=' expression {
-        self.make_syntax_error(
-            f"cannot use assignment expressions with {self.get_expr_name(a)}",
+        self.raise_syntax_error_known_location(
+            f"cannot use assignment expressions with {self.get_expr_name(a)}", a
         )
      }
-    | a=NAME '=' b=bitwise_or !('='|':='|',') {
-        RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, b, "invalid syntax. Maybe you meant '==' or ':=' instead of '='?")
+    # Use in_raw_rule
+    | a=NAME '=' b=bitwise_or !('='|':=') {
+        (
+            None
+            if self.in_recursive_rule else
+            self.raise_syntax_error_known_range(
+                "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", a, b
+            )
+        )
      }
-    | !(list|tuple|genexp|'True'|'None'|'False') a=bitwise_or b='=' bitwise_or !('='|':='|',') {
-        self.make_syntax_error(
-            f"cannot assign to {self.get_expr_name(a)} here. Maybe you meant '==' instead of '='?"
+    | !(list|tuple|genexp|'True'|'None'|'False') a=bitwise_or b='=' bitwise_or !('='|':=') {
+        (
+            None
+            if self.in_recursive_rule else
+            self.raise_syntax_error_known_range(
+                f"cannot assign to {self.get_expr_name(a)} here. Maybe you meant '==' instead of '='?", a, b
+            )
         )
      }
 
 invalid_assignment:
     | a=invalid_ann_assign_target ':' expression {
-        self.make_syntax_error(
-            f"only single target (not {self.get_expr_name(a)}) can be annotated",
+        self.raise_syntax_error_known_location(
+            f"only single target (not {self.get_expr_name(a)}) can be annotated", a
         )
      }
     | a=star_named_expression ',' star_named_expressions* ':' expression {
-        self.make_syntax_error("only single target (not tuple) can be annotated") }
+        self.raise_syntax_error_known_location("only single target (not tuple) can be annotated", a) }
     | a=expression ':' expression {
-        self.make_syntax_error("illegal target for annotation") }
+        self.raise_syntax_error_known_location("illegal target for annotation", a) }
     | (star_targets '=')* a=star_expressions '=' {
-        self.make_syntax_error("cannot assign to {self.get_expr_name(a)}")
+        self.raise_syntax_error_known_location("cannot assign to {self.get_expr_name(a)}", a)
      }
     | (star_targets '=')* a=yield_expr '=' {
-        self.make_syntax_error( "assignment to yield expression not possible")
+        self.raise_syntax_error_known_location( "assignment to yield expression not possible")
      }
     | a=star_expressions augassign (yield_expr | star_expressions) {
-        self.make_syntax_error(
-            "'{self.get_expr_name(a)' is an illegal expression for augmented assignment",
+        self.raise_syntax_error_known_location(
+            "'{self.get_expr_name(a)' is an illegal expression for augmented assignment", a
         )
      }
 invalid_ann_assign_target:
@@ -1221,68 +1297,71 @@ invalid_ann_assign_target:
     | '(' a=invalid_ann_assign_target ')' { a }
 invalid_del_stmt:
     | 'del' a=star_expressions {
-        self.make_syntax_error("cannot delete {self.get_expr_name(a)}") }
+        self.raise_syntax_error_known_location("cannot delete {self.get_expr_name(a)}", a) }
 invalid_block:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
 invalid_primary:
-    | primary a='{' {
-        self.make_syntax_error("invalid syntax")
-     }
+    | primary a='{' { self.raise_syntax_error_known_location("invalid syntax", a) }
 invalid_comprehension:
     | ('[' | '(' | '{') a=starred_expression for_if_clauses {
-        self.make_syntax_error("iterable unpacking cannot be used in comprehension")
+        self.raise_syntax_error_known_location("iterable unpacking cannot be used in comprehension", a)
      }
-     | ('[' | '{') a=star_named_expression ',' b=star_named_expressions for_if_clauses {
-        RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, PyPegen_last_item(b, expr_ty),
-        "did you forget parentheses around the comprehension target?") }
+    | ('[' | '{') a=star_named_expression ',' b=star_named_expressions for_if_clauses {
+        self.raise_syntax_error_known_range(
+            "did you forget parentheses around the comprehension target?", a, b[-1]
+        )
+     }
     | ('[' | '{') a=star_named_expression b=',' for_if_clauses {
-        RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, b, "did you forget parentheses around the comprehension target?") }
+        self.raise_syntax_error_known_range(
+            "did you forget parentheses around the comprehension target?", a, b
+        )
+     }
 invalid_dict_comprehension:
     | '{' a='**' bitwise_or for_if_clauses '}' {
-        self.make_syntax_error("dict unpacking cannot be used in dict comprehension")
+        self.raise_syntax_error_known_location("dict unpacking cannot be used in dict comprehension", a)
      }
 invalid_parameters:
-    | param_no_default* invalid_parameters_helper param_no_default {
-        self.make_syntax_error("non-default argument follows default argument")
+    | param_no_default* invalid_parameters_helper a=param_no_default {
+        self.raise_syntax_error_known_location("non-default argument follows default argument", a)
      }
 invalid_parameters_helper: # This is only there to avoid type errors
     | a=slash_with_default { [a] }
     | param_with_default+
 invalid_lambda_parameters:
-    | lambda_param_no_default* invalid_lambda_parameters_helper lambda_param_no_default {
-        self.make_syntax_error("non-default argument follows default argument")
+    | lambda_param_no_default* invalid_lambda_parameters_helper a=lambda_param_no_default {
+        self.raise_syntax_error_known_location("non-default argument follows default argument", a)
      }
 invalid_lambda_parameters_helper:
     | a=lambda_slash_with_default { [a] }
     | lambda_param_with_default+
 invalid_star_etc:
-    | '*' (')' | ',' (')' | '**')) {
-        self.make_syntax_error("named arguments must follow bare *")
+    | a='*' (')' | ',' (')' | '**')) {
+        self.raise_syntax_error_known_location("named arguments must follow bare *", a)
      }
-    | '*' ',' TYPE_COMMENT { self.make_syntax_error("bare * has associated type comment") }
+    | '*' ',' TYPE_COMMENT { self.raise_syntax_error("bare * has associated type comment") }
 invalid_lambda_star_etc:
     | '*' (':' | ',' (':' | '**')) {
-        self.make_syntax_error("named arguments must follow bare *")
+        self.raise_syntax_error("named arguments must follow bare *")
      }
 invalid_double_type_comments:
     | TYPE_COMMENT NEWLINE TYPE_COMMENT NEWLINE INDENT {
-        self.make_syntax_error("Cannot have two type comments on def") }
+        self.raise_syntax_error("Cannot have two type comments on def") }
 invalid_with_item:
     | expression 'as' a=expression &(',' | ')' | ':') {
-        self.make_syntax_error("cannot assign to {self.get_expr_name(a)}")
+        self.raise_syntax_error_known_location("cannot assign to {self.get_expr_name(a)}", a)
      }
 
 invalid_for_target:
     | 'async'? 'for' a=star_expressions {
-        self.make_syntax_error("cannot assign to {self.get_expr_name(a)}")
+        self.raise_syntax_error_known_location("cannot assign to {self.get_expr_name(a)}", a)
      }
 
 invalid_group:
     | '(' a=starred_expression ')' {
-        self.make_syntax_error("cannot use starred expression here")
+        self.raise_syntax_error_known_location("cannot use starred expression here", a)
      }
     | '(' a='**' expression ')' {
-        self.make_syntax_error("cannot use double starred expression here")
+        self.raise_syntax_error_known_location("cannot use double starred expression here", a)
      }
 invalid_import_from_targets:
     | import_from_as_names ',' {
@@ -1312,10 +1391,10 @@ invalid_try_stmt:
      }
 invalid_except_stmt:
     | 'except' a=expression ',' expressions ['as' NAME ] ':' {
-        RAISE_SYNTAX_ERROR_STARTING_FROM(a, "exception group must be parenthesized") # XXX
+        self.raise_syntax_error_starting_from("exception group must be parenthesized", a)
      }
-    | a='except' expression ['as' NAME ] NEWLINE { self.make_syntax_error("expected ':'") }
-    | a='except' NEWLINE { self.make_syntax_error("expected ':'") }
+    | a='except' expression ['as' NAME ] NEWLINE { self.raise_syntax_error("expected ':'") }
+    | a='except' NEWLINE { self.raise_syntax_error("expected ':'") }
 invalid_finally_stmt:
     | a='finally' ':' NEWLINE !INDENT {
         self.raise_indentation_error(
@@ -1395,18 +1474,29 @@ invalid_def_raw:
 invalid_class_def_raw:
     | a='class' NAME ['('[arguments] ')'] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after class definition on line {a.lineno}}"
+            f"expected an indented block after class definition on line {a.lineno}"
         )
      }
 
 invalid_double_starred_kvpairs:
     | ','.double_starred_kvpair+ ',' invalid_kvpair
-    | expression ':' a='*' bitwise_or { RAISE_SYNTAX_ERROR_STARTING_FROM(a, "cannot use a starred expression in a dictionary value") }  # XXX
-    | expression a=':' &('}'|',') { RAISE_SYNTAX_ERROR_KNOWN_LOCATION(a, "expression expected after dictionary key and ':'") }  # XXX
+    | expression ':' a='*' bitwise_or {
+        self.raise_syntax_error_starting_from("cannot use a starred expression in a dictionary value", a)
+     }
+    | expression a=':' &('}'|',') {
+        self.raise_syntax_error_known_location("expression expected after dictionary key and ':'", a)
+     }
 invalid_kvpair:
     | a=expression !(':') {
-        RAISE_ERROR_KNOWN_LOCATION(p, PyExc_SyntaxError, a->lineno, a->end_col_offset - 1, a->end_lineno, -1, "':' expected after dictionary key") }  # XXX
-    | expression ':' a='*' bitwise_or { RAISE_SYNTAX_ERROR_STARTING_FROM(a, "cannot use a starred expression in a dictionary value") }  # XXX
+        self._raise_syntax_error(
+            "':' expected after dictionary key",
+            (a.lineno, a.end_col_offset - 1),
+            (a.lineno, a.end_lineno, -1)
+        )
+     }
+    | expression ':' a='*' bitwise_or {
+        self.raise_syntax_error_starting_from("cannot use a starred expression in a dictionary value", a)
+     }
     | expression a=':' {
-        self.make_syntax_error("expression expected after dictionary key and ':'")
+        self.raise_syntax_error_known_location("expression expected after dictionary key and ':'", a)
      }
