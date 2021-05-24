@@ -55,16 +55,18 @@ class Parser(Parser):
     def __init__(self,
         tokenizer: Tokenizer, *,
         verbose: bool = False,
-        filename: str = "<unknown>"
+        filename: str = "<unknown>",
+        py_version: Optional[tuple] = None,
     ) -> None:
         super().__init__(tokenizer, verbose=verbose)
         self.filename = filename
+        self.py_version = py_version or sys.version_info
 
     def check_version(self, min_version: Tuple[int, ...], error_msg: str, node: Node) -> Node:
         """Check that the python version is high enough for a rule to apply.
 
         """
-        if sys.version_info >= min_version:
+        if self.py_version >= min_version:
             return node
         else:
             raise SyntaxError(
@@ -106,7 +108,7 @@ class Parser(Parser):
         return node
 
     def ensure_imaginary(self, node):
-         if not isinstance(node, ast.Constant) or type(node.value) is not complex:
+        if not isinstance(node, ast.Constant) or type(node.value) is not complex:
             self.make_syntax_error("imaginary  number required in complex literal")
         return node
 
