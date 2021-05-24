@@ -65,7 +65,7 @@ class PythonCallMakerVisitor(GrammarVisitor):
     def visit_StringLeaf(self, node: StringLeaf) -> Tuple[str, str]:
         val = ast.literal_eval(node.value)
         if re.match(r"[a-zA-Z_]\w*\Z", val):  # This is a keyword
-            if node.value.endswith("'") and node.value not in self.keywords:
+            if node.value.endswith("'"):
                 self.keywords.add(val)
             else:
                 self.soft_keywords.add(val)
