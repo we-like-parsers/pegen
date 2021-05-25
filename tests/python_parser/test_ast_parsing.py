@@ -1,6 +1,7 @@
 """Test pure Python parser against cpython parser."""
 import ast
 import difflib
+import io
 import sys
 import tokenize
 from pathlib import Path
@@ -41,16 +42,19 @@ def test_parser(python_parser_cls, filename):
     path = Path(__file__).parent / "data" / filename
     with open(path) as f:
         source = f.read()
-    original = ast.parse(source, str(path))
 
-    with open(path) as f:
-        tokengen = tokenize.generate_tokens(f.readline)
+    for part in source.split("\n\n\n"):
+        original = ast.parse(part)
+        temp = io.StringIO(part)
+        tokengen = tokenize.generate_tokens(temp.readline)
         tokenizer = Tokenizer(tokengen, verbose=False)
-        pp_ast = python_parser_cls(tokenizer, filename=str(path)).file()
+        pp_ast = python_parser_cls(tokenizer).file()
 
-    with_attr = True
-    o = ast.dump(original, include_attributes=with_attr, indent="  ")
-    p = ast.dump(pp_ast, include_attributes=with_attr, indent="  ")
-    diff = "\n".join(difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen"))
-    print(diff)
-    assert not diff
+        with_attr = True
+        o = ast.dump(original, include_attributes=with_attr, indent="  ")
+        p = ast.dump(pp_ast, include_attributes=with_attr, indent="  ")
+        diff = "\n".join(
+            difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen")
+        )
+        print(diff)
+        assert not diff

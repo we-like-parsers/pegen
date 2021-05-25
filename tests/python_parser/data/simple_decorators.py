@@ -12,6 +12,7 @@ def f():
 def f():
     pass
 
+
 @d
 class A:
     pass

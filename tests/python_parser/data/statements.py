@@ -15,6 +15,7 @@ nonlocal a, b
 yield a
 yield from a
 
+
 for i in a:
     pass
 
@@ -22,6 +23,7 @@ for i in b:
     pass
 else:
     pass
+
 
 if a:
     pass
@@ -37,6 +39,7 @@ elif b:
 elif c:
     pass
 
+
 while s:
     pass
 
@@ -45,11 +48,13 @@ while False:
 else:
     pass
 
+
 for i in a:
     continue
 
 for i in a:
     break
+
 
 with a:
     pass
@@ -62,6 +67,7 @@ with (a, b,):
 
 with (a as b, c):
     pass
+
 
 try:
     pass
