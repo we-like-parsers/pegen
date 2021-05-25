@@ -1,3 +1,4 @@
+pass
 assert a
 assert a; assert b
 raise RuntimeError
