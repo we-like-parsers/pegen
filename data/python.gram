@@ -104,15 +104,17 @@ class Parser(Parser):
         node.ctx = context
         return node
 
-    def ensure_real(self, node):
-        if not isinstance(node, ast.Constant) or type(node.value) is not complex:
+    def ensure_real(self, number_str: str):
+        number = ast.literal_eval(number_str)
+        if number is not complex:
             self.make_syntax_error("real number required in complex literal")
-        return node
+        return number
 
-    def ensure_imaginary(self, node):
-        if not isinstance(node, ast.Constant) or type(node.value) is not complex:
+    def ensure_imaginary(self, number_str: str):
+        number = ast.literal_eval(number_str)
+        if number is not complex:
             self.make_syntax_error("imaginary  number required in complex literal")
-        return node
+        return number
 
     def generate_ast_for_string(self, tokens):
         """Generate AST nodes for strings."""
@@ -496,7 +498,7 @@ match_stmt["ast.Match"]:
     | invalid_match_stmt
 subject_expr:
     | value=star_named_expression ',' values=star_named_expressions? {
-        ast.Tuple(expr=[value] + values, context=Load, LOCATIONS)
+        ast.Tuple(elts=[value] + (values or []), ctx=Load, LOCATIONS)
      }
     | named_expression
 case_block["ast.match_case"]:
@@ -516,10 +518,11 @@ pattern:
     | or_pattern
 as_pattern["ast.MatchAs"]:
     | pattern=or_pattern 'as' target=pattern_capture_target {
-        ast.MatchAs(pattern=pattern, name=target.id, LOCATIONS) }
+        ast.MatchAs(pattern=pattern, name=target, LOCATIONS)
+     }
 or_pattern["ast.MatchOr"]:
     | patterns='|'.closed_pattern+ {
-        ast.MatchOr(patterns=patterns, LOCATIONS) if len(patterns) == 1 else patterns[0]
+        ast.MatchOr(patterns=patterns, LOCATIONS) if len(patterns) > 1 else patterns[0]
      }
 closed_pattern:
     | literal_pattern
@@ -554,12 +557,12 @@ complex_number:
         ast.BinOp(left=real, op=ast.Add(), right=imag, LOCATIONS)
      }
     | real=signed_real_number '-' imag=imaginary_number  {
-        ast.BinOp(left=signed_real_number, op=ast.Add(), right=imaginary_number, LOCATIONS)
+        ast.BinOp(left=real, op=ast.Sub(), right=imag, LOCATIONS)
      }
 
 signed_number:
-    | NUMBER { ast.Constant(value=ast.literal_eval(a.string), LOCATIONS) }
-    | '-' number=NUMBER {
+    | a=NUMBER { ast.Constant(value=ast.literal_eval(a.string), LOCATIONS) }
+    | '-' a=NUMBER {
         ast.UnaryOp(
             op=ast.USub(),
             operand=ast.Constant(value=ast.literal_eval(a.string), LOCATIONS)
@@ -571,20 +574,18 @@ signed_real_number:
     | '-' real=real_number { ast.UnaryOp(op=ast.USub(), operand=real, LOCATIONS) }
 
 real_number[ast.Constant]:
-    | real=NUMBER { self.ensure_real(real) }
+    | real=NUMBER { ast.Constant(value=self.ensure_real(real.string), LOCATIONS) }
 
 imaginary_number[ast.Constant]:
-    | imag=NUMBER { self.ensure_imaginary(imag) }
+    | imag=NUMBER { ast.Constant(value=self.ensure_imaginary(imag.string), LOCATIONS) }
 
 capture_pattern:
     | target=pattern_capture_target {
-        ast.MatchAS(pattern=None, target=target.id, LOCATIONS)
+        ast.MatchAs(pattern=None, name=target, LOCATIONS)
      }
 
-pattern_capture_target[ast.Name]:
-    | !"_" name=NAME !('.' | '(' | '=') {
-        ast.Name(id=name.string, ctx=Store, LOCATIONS)
-     }
+pattern_capture_target[str]:
+    | !"_" name=NAME !('.' | '(' | '=') { name.string }
 
 wildcard_pattern["ast.MatchAs"]:
     | "_" { ast.MatchAs(pattern=None, target=None, LOCATIONS) }
@@ -603,36 +604,37 @@ group_pattern:
     | '(' pattern=pattern ')' { pattern }
 
 sequence_pattern["ast.MatchSequence"]:
-    | '[' patterns=maybe_sequence_pattern? ']' { ast.MatchSequence(patterns=patterns, LOCATIONS) }
-    | '(' patterns=open_sequence_pattern? ')' { ast.MatchSequence(patterns=patterns, LOCATIONS) }
+    | '[' patterns=maybe_sequence_pattern? ']' { ast.MatchSequence(patterns=patterns or [], LOCATIONS) }
+    | '(' patterns=open_sequence_pattern? ')' { ast.MatchSequence(patterns=patterns or [], LOCATIONS) }
 open_sequence_pattern:
     | pattern=maybe_star_pattern ',' patterns=maybe_sequence_pattern? {
-        [pattern] + patterns }
+        [pattern] + (patterns or [])
+     }
 maybe_sequence_pattern:
     | patterns=','.maybe_star_pattern+ ','? { patterns }
 maybe_star_pattern:
     | star_pattern
     | pattern
 star_pattern:
-    | '*' target=pattern_capture_target { ast.MatchStar(target=target.id, LOCATIONS) }
+    | '*' target=pattern_capture_target { ast.MatchStar(name=target, LOCATIONS) }
     | '*' wildcard_pattern { ast.MatchStar(target=None, LOCATIONS) }
 
 mapping_pattern:
-    | '{' '}' { ast.MatchMapping(keys=None, pattern=None, rest=None, LOCATIONS) }
+    | '{' '}' { ast.MatchMapping(keys=[], patterns=[], rest=None, LOCATIONS) }
     | '{' rest=double_star_pattern ','? '}' {
-        ast.MatchMapping(keys=None, patterns=None, rest=rest.id, LOCATIONS) }
+        ast.MatchMapping(keys=[], patterns=[], rest=rest, LOCATIONS) }
     | '{' items=items_pattern ',' rest=double_star_pattern ','? '}' {
         ast.MatchMapping(
-            keys=[k for k,_ in items_pattern],
-            patterns=[p for _, p in items_pattern],
-            rest=rest.id,
+            keys=[k for k,_ in items],
+            patterns=[p for _, p in items],
+            rest=rest,
             LOCATIONS,
         )
      }
     | '{' items=items_pattern ','? '}' {
         ast.MatchMapping(
-            keys=[k for k,_ in items_pattern],
-            patterns=[p for _, p in items_pattern],
+            keys=[k for k,_ in items],
+            patterns=[p for _, p in items],
             rest=None,
             LOCATIONS,
         )
@@ -646,17 +648,17 @@ double_star_pattern:
 
 class_pattern["ast.MatchClass"]:
     | cls=name_or_attr '(' ')' {
-        ast.MatchClass(cls=cls, patterns=None, kwd_attrs=None, kwd_patterns=None, LOCATIONS)
+        ast.MatchClass(cls=cls, patterns=[], kwd_attrs=[], kwd_patterns=[], LOCATIONS)
      }
     | cls=name_or_attr '(' patterns=positional_patterns ','? ')' {
-        ast.MatchClass(cls=cls, patterns=patterns, kwd_attrs=None, kwd_patterns=None, LOCATIONS)
+        ast.MatchClass(cls=cls, patterns=patterns, kwd_attrs=[], kwd_patterns=[], LOCATIONS)
      }
     | cls=name_or_attr '(' keywords=keyword_patterns ','? ')' {
         ast.MatchClass(
             cls=cls,
-            patterns=None,
-            kwd_attrs=[k for k, _ in keyword_patterns],
-            kwd_patterns=[p for _, p in keyword_patterns],
+            patterns=[],
+            kwd_attrs=[k for k, _ in keywords],
+            kwd_patterns=[p for _, p in keywords],
             LOCATIONS,
         )
      }
@@ -664,8 +666,8 @@ class_pattern["ast.MatchClass"]:
         ast.MatchClass(
             cls=cls,
             patterns=patterns,
-            kwd_attrs=[k for k, _ in keyword_patterns],
-            kwd_patterns=[p for _, p in keyword_patterns],
+            kwd_attrs=[k for k, _ in keywords],
+            kwd_patterns=[p for _, p in keywords],
             LOCATIONS,
         )
      }
@@ -674,7 +676,7 @@ positional_patterns:
 keyword_patterns:
     | ','.keyword_pattern+
 keyword_pattern:
-    | arg=NAME '=' value=pattern { (arg.id, value) }
+    | arg=NAME '=' value=pattern { (arg.string, value) }
 
 return_stmt[ast.Return]:
     | 'return' a=[star_expressions] { ast.Return(value=a, LOCATIONS) }
@@ -1218,7 +1220,7 @@ invalid_arguments:
     | a=args ',' args {
         self.raise_syntax_error(
             "positional argument follows keyword argument unpacking"
-            if isinstance(args[1][-1], ast.Starred) else
+            if isinstance(a[1][-1], ast.Starred) else
             "positional argument follows keyword argument",
         )
      }
@@ -1235,15 +1237,16 @@ invalid_kwarg:
      }
 
 expression_without_invalid:
-    | a=disjunction 'if' b=disjunction 'else' c=expression { ast.IfExp(b, a, c, LOCATIONS) }
+    | a=disjunction 'if' b=disjunction 'else' c=expression { ast.IfExp(body=b, test=a, orelse=c, LOCATIONS) }
     | disjunction
     | lambdef
 invalid_expression:
     # !(NAME STRING) is not matched so we don't show this error with some invalid string prefixes like: kf"dsfsdf"
     # Soft keywords need to also be ignored because they can be parsed as NAME NAME
     # XXX need to find a way to emulate the SOFT_KEYWORD used in c gramar
-    | !(NAME STRING) a=disjunction b=expression_without_invalid {
-        self.raise_syntax_error_known_range("invalid syntax. Perhaps you forgot a comma?", a, b) }
+    | !(NAME STRING | "match") a=disjunction b=expression_without_invalid {
+        self.raise_syntax_error_known_range("invalid syntax. Perhaps you forgot a comma?", a, b)
+     }
 invalid_named_expression:
     | a=expression ':=' expression {
         self.raise_syntax_error_known_location(

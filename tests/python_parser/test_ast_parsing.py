@@ -56,5 +56,7 @@ def test_parser(python_parser_cls, filename):
         diff = "\n".join(
             difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen")
         )
-        print(diff)
+        if (diff):
+            print(part)
+            print(diff)
         assert not diff
