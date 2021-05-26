@@ -119,8 +119,22 @@ class Parser(Parser):
     def generate_ast_for_string(self, tokens):
         """Generate AST nodes for strings."""
         err_msg = ''
+        line = 1
+        col_offset = 0
+        source = ''
+        for t in tokens:
+            n_line = t.start[0] - line
+            if n_line:
+                col_offset = 0
+            source += """\n""" * n_line + ' ' * (t.start[1] - col_offset) + t.string
+            line, col_offset = t.end
+        if source[0] == ' ':
+            source = '(' + source[1:]
+        else:
+            source = '(' + source
+        source += ')'
         try:
-            m = ast.parse('(' + ' '.join([t.string for t in tokens]) + ')')
+            m = ast.parse(source)
         except SyntaxError as e:
             err_msg = e.args[0]
             # Identify the line at which the error occurred to get a more
@@ -134,7 +148,7 @@ class Parser(Parser):
         # Avoid getting a triple nesting in the error report that does not
         # bring anything relevant to the traceback.
         if err_msg:
-            return self.make_syntax_error(err_msg)
+            raise self.make_syntax_error(err_msg)
 
         return m.body[0].value
 
@@ -565,7 +579,14 @@ signed_number:
     | '-' a=NUMBER {
         ast.UnaryOp(
             op=ast.USub(),
-            operand=ast.Constant(value=ast.literal_eval(a.string), LOCATIONS)
+            operand=ast.Constant(
+                value=ast.literal_eval(a.string),
+                lineno=a.start[0],
+                col_offset=a.start[1],
+                end_lineno=a.end[0],
+                end_col_offset=a.end[1]
+            ),
+            LOCATIONS,
         )
      }
 
@@ -1502,4 +1523,5 @@ invalid_kvpair:
      }
     | expression a=':' {
         self.raise_syntax_error_known_location("expression expected after dictionary key and ':'", a)
-     }
+     }  # XXX a is not a node
+ 
