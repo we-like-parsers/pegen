@@ -247,32 +247,49 @@ class Parser(Parser):
             (self.filename, start[0], start[1], line, stop[0], stop[1])
         )
 
-    def raise_syntax_error(self, message: str):
+    def raise_syntax_error(self, message: str) -> NoReturn:
         self._raise_syntax_error(message)
 
     def raise_syntax_error_known_location(self, message: str, node) -> NoReturn:
         """Raise a syntax error that occured at a given AST node."""
-        self._raise_syntax_error(
-            message,
-            (node.lineno, node.col_offset),
-            (node.end_lineno, node.end_col_offset)
-        )
+        if isinstance(node, tokenize.TokenInfo):
+            start = node.start
+            end = node.end
+        else:
+            start = node.lineno, node.col_offset
+            end = node.end_lineno, node.end_col_offset
+
+        self._raise_syntax_error(message, start, end)
 
     def raise_syntax_error_known_range(
-        self, message: str, start_node, stop_node
+        self,
+        message: str,
+        start_node: Union[ast.AST, tokenize.TokenInfo],
+        stop_node: Union[ast.AST, tokenize.TokenInfo]
     ) -> NoReturn:
-        self._raise_syntax_error(
-            message,
-            (start_node.lineno, start_node.col_offset),
-            (stop_node.end_lineno, stop_node.end_col_offset)
-        )
+        if isinstance(start_node, tokenize.TokenInfo):
+            start = node.start
+        else:
+            start = node.lineno, node.col_offset
 
-    def raise_syntax_error_starting_from(self, message: str, start_node) -> NoReturn:
-        self._raise_syntax_error(
-            message,
-            (start_node.lineno, start_node.col_offset),
-            None
-        )
+        if isinstance(stop_node, tokenize.TokenInfo):
+            end = node.end
+        else:
+            end = stop_node.end_lineno, stop_node.end_col_offset
+
+        self._raise_syntax_error(message, start, end)
+
+    def raise_syntax_error_starting_from(
+        self,
+        message: str,
+        start_node: Union[ast.AST, tokenize.TokenInfo]
+    ) -> NoReturn:
+        if isinstance(start_node, tokenize.TokenInfo):
+            start = node.start
+        else:
+            start = node.lineno, node.col_offset
+
+        self._raise_syntax_error(message, start, None)
 
 '''
 
@@ -1216,7 +1233,7 @@ t_atom:
 
 
 # From here on, there are rules for invalid syntax with specialised error messages
-invalid_arguments:
+invalid_arguments[NoReturn]:
     | a=args ',' '*' {
         self.raise_syntax_error_known_location(
             "iterable argument unpacking follows keyword argument unpacking",
@@ -1245,7 +1262,7 @@ invalid_arguments:
             "positional argument follows keyword argument",
         )
      }
-invalid_kwarg:
+invalid_kwarg[NoReturn]:
     | a=NAME b='=' expression for_if_clauses {
         self.raise_syntax_error_known_range(
             "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", a, b
@@ -1257,18 +1274,18 @@ invalid_kwarg:
         )
      }
 
-expression_without_invalid:
+expression_without_invalid[ast.AST]:
     | a=disjunction 'if' b=disjunction 'else' c=expression { ast.IfExp(body=b, test=a, orelse=c, LOCATIONS) }
     | disjunction
     | lambdef
-invalid_expression:
+invalid_expression[NoReturn]:
     # !(NAME STRING) is not matched so we don't show this error with some invalid string prefixes like: kf"dsfsdf"
     # Soft keywords need to also be ignored because they can be parsed as NAME NAME
     # XXX need to find a way to emulate the SOFT_KEYWORD used in c gramar
     | !(NAME STRING | "match") a=disjunction b=expression_without_invalid {
         self.raise_syntax_error_known_range("invalid syntax. Perhaps you forgot a comma?", a, b)
      }
-invalid_named_expression:
+invalid_named_expression[Optional[NoReturn]]:
     | a=expression ':=' expression {
         self.raise_syntax_error_known_location(
             f"cannot use assignment expressions with {self.get_expr_name(a)}", a
@@ -1294,7 +1311,7 @@ invalid_named_expression:
         )
      }
 
-invalid_assignment:
+invalid_assignment[NoReturn]:
     | a=invalid_ann_assign_target ':' expression {
         self.raise_syntax_error_known_location(
             f"only single target (not {self.get_expr_name(a)}) can be annotated", a
@@ -1315,18 +1332,19 @@ invalid_assignment:
             "'{self.get_expr_name(a)' is an illegal expression for augmented assignment", a
         )
      }
-invalid_ann_assign_target:
+invalid_ann_assign_target[ast.AST]:
     | list
     | tuple
     | '(' a=invalid_ann_assign_target ')' { a }
-invalid_del_stmt:
+invalid_del_stmt[NoReturn]:
     | 'del' a=star_expressions {
-        self.raise_syntax_error_known_location("cannot delete {self.get_expr_name(a)}", a) }
-invalid_block:
+        self.raise_syntax_error_known_location("cannot delete {self.get_expr_name(a)}", a)
+     }
+invalid_block[NoReturn]:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
-invalid_primary:
+invalid_primary[NoReturn]:
     | primary a='{' { self.raise_syntax_error_known_location("invalid syntax", a) }
-invalid_comprehension:
+invalid_comprehension[NoReturn]:
     | ('[' | '(' | '{') a=starred_expression for_if_clauses {
         self.raise_syntax_error_known_location("iterable unpacking cannot be used in comprehension", a)
      }
@@ -1340,54 +1358,54 @@ invalid_comprehension:
             "did you forget parentheses around the comprehension target?", a, b
         )
      }
-invalid_dict_comprehension:
+invalid_dict_comprehension[NoReturn]:
     | '{' a='**' bitwise_or for_if_clauses '}' {
         self.raise_syntax_error_known_location("dict unpacking cannot be used in dict comprehension", a)
      }
-invalid_parameters:
+invalid_parameters[NoReturn]:
     | param_no_default* invalid_parameters_helper a=param_no_default {
         self.raise_syntax_error_known_location("non-default argument follows default argument", a)
      }
 invalid_parameters_helper: # This is only there to avoid type errors
     | a=slash_with_default { [a] }
     | param_with_default+
-invalid_lambda_parameters:
+invalid_lambda_parameters[NoReturn]:
     | lambda_param_no_default* invalid_lambda_parameters_helper a=lambda_param_no_default {
         self.raise_syntax_error_known_location("non-default argument follows default argument", a)
      }
-invalid_lambda_parameters_helper:
+invalid_lambda_parameters_helper[NoReturn]:
     | a=lambda_slash_with_default { [a] }
     | lambda_param_with_default+
-invalid_star_etc:
+invalid_star_etc[NoReturn]:
     | a='*' (')' | ',' (')' | '**')) {
         self.raise_syntax_error_known_location("named arguments must follow bare *", a)
      }
     | '*' ',' TYPE_COMMENT { self.raise_syntax_error("bare * has associated type comment") }
-invalid_lambda_star_etc:
+invalid_lambda_star_etc[NoReturn]:
     | '*' (':' | ',' (':' | '**')) {
         self.raise_syntax_error("named arguments must follow bare *")
      }
-invalid_double_type_comments:
+invalid_double_type_comments[NoReturn]:
     | TYPE_COMMENT NEWLINE TYPE_COMMENT NEWLINE INDENT {
         self.raise_syntax_error("Cannot have two type comments on def") }
-invalid_with_item:
+invalid_with_item[NoReturn]:
     | expression 'as' a=expression &(',' | ')' | ':') {
         self.raise_syntax_error_known_location("cannot assign to {self.get_expr_name(a)}", a)
      }
 
-invalid_for_target:
+invalid_for_target[NoReturn]:
     | 'async'? 'for' a=star_expressions {
         self.raise_syntax_error_known_location("cannot assign to {self.get_expr_name(a)}", a)
      }
 
-invalid_group:
+invalid_group[NoReturn]:
     | '(' a=starred_expression ')' {
         self.raise_syntax_error_known_location("cannot use starred expression here", a)
      }
     | '(' a='**' expression ')' {
         self.raise_syntax_error_known_location("cannot use double starred expression here", a)
      }
-invalid_import_from_targets:
+invalid_import_from_targets[NoReturn]:
     | import_from_as_names ',' {
         self.make_syntax_error("trailing comma not allowed without surrounding parentheses")
      }
@@ -1395,7 +1413,7 @@ invalid_import_from_targets:
 invalid_with_stmt:
     | ['async'] 'with' ','.(expression ['as' star_target])+ &&':'
     | ['async'] 'with' '(' ','.(expressions ['as' star_target])+ ','? ')' &&':'
-invalid_with_stmt_indent:
+invalid_with_stmt_indent[NoReturn]:
     | ['async'] a='with' ','.(expression ['as' star_target])+ ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'with' statement on line {a.lineno}"
@@ -1407,25 +1425,25 @@ invalid_with_stmt_indent:
         )
      }
 
-invalid_try_stmt:
+invalid_try_stmt[NoReturn]:
     | a='try' ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'try' statement on line {a.lineno}",
         )
      }
-invalid_except_stmt:
+invalid_except_stmt[NoReturn]:
     | 'except' a=expression ',' expressions ['as' NAME ] ':' {
         self.raise_syntax_error_starting_from("exception group must be parenthesized", a)
      }
     | a='except' expression ['as' NAME ] NEWLINE { self.raise_syntax_error("expected ':'") }
     | a='except' NEWLINE { self.raise_syntax_error("expected ':'") }
-invalid_finally_stmt:
+invalid_finally_stmt[NoReturn]:
     | a='finally' ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'finally' statement on line {a.lineno}"
         )
      }
-invalid_except_stmt_indent:
+invalid_except_stmt_indent[NoReturn]:
     | a='except' expression ['as' NAME ] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'except' statement on line {a.lineno}"
@@ -1436,7 +1454,7 @@ invalid_except_stmt_indent:
             f"expected an indented block after except statement on line {a.lineno}"
         )
      }
-invalid_match_stmt:
+invalid_match_stmt[NoReturn]:
     | "match" subject_expr !':' {
         self.check_version(
             (3, 10),
@@ -1445,64 +1463,68 @@ invalid_match_stmt:
         )
      }
     | a="match" subject=subject_expr ':' NEWLINE !INDENT {
-        self.raise_indentation_error(
-            f"expected an indented block after 'match' statement on line {a.lineno}"
+        self.check_version(
+            (3, 10),
+            "Pattern matching is",
+            self.raise_indentation_error(
+                f"expected an indented block after 'match' statement on line {a.start[0]}"
+            )
         )
      }
-invalid_case_block:
+invalid_case_block[NoReturn]:
     | "case" patterns guard? !':' { self.make_syntax_error("expected ':'") }
     | a="case" patterns guard? ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'case' statement on line {a.lineno}"
         )
      }
-invalid_if_stmt:
+invalid_if_stmt[NoReturn]:
     | 'if' named_expression NEWLINE { self.make_syntax_error("expected ':'") }
     | a='if' a=named_expression ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'if' statement on line {a.lineno}"
         )
      }
-invalid_elif_stmt:
+invalid_elif_stmt[NoReturn]:
     | 'elif' named_expression NEWLINE { self.make_syntax_error("expected ':'") }
     | a='elif' named_expression ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'elif' statement on line {a.lineno}"
         )
      }
-invalid_else_stmt:
+invalid_else_stmt[NoReturn]:
     | a='else' ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'else' statement on line {a.lineno}"
         )
      }
-invalid_while_stmt:
+invalid_while_stmt[NoReturn]:
     | 'while' named_expression NEWLINE { self.make_syntax_error("expected ':'") }
     | a='while' named_expression ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'while' statement on line {a.lineno}"
         )
      }
-invalid_for_stmt:
+invalid_for_stmt[NoReturn]:
     | ['async'] a='for' star_targets 'in' star_expressions ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'for' statement on line {a.lineno}"
         )
      }
-invalid_def_raw:
+invalid_def_raw[NoReturn]:
     | ['async'] a='def' NAME '(' [params] ')' ['->' expression] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after function definition on line {a.lineno}"
         )
      }
-invalid_class_def_raw:
+invalid_class_def_raw[NoReturn]:
     | a='class' NAME ['('[arguments] ')'] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after class definition on line {a.lineno}"
         )
      }
 
-invalid_double_starred_kvpairs:
+invalid_double_starred_kvpairs[NoReturn]:
     | ','.double_starred_kvpair+ ',' invalid_kvpair
     | expression ':' a='*' bitwise_or {
         self.raise_syntax_error_starting_from("cannot use a starred expression in a dictionary value", a)
@@ -1510,7 +1532,7 @@ invalid_double_starred_kvpairs:
     | expression a=':' &('}'|',') {
         self.raise_syntax_error_known_location("expression expected after dictionary key and ':'", a)
      }
-invalid_kvpair:
+invalid_kvpair[NoReturn]:
     | a=expression !(':') {
         self._raise_syntax_error(
             "':' expected after dictionary key",
