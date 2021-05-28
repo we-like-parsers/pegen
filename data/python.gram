@@ -1,9 +1,5 @@
 # PEG grammar for Python
 
-# XXX improve error handling reporting
-
-# The subheader is formatted to include the filename, we must hence use double {}
-# when we need the python code to do some formatting.
 @subheader'''
 import itertools
 import sys
@@ -62,7 +58,7 @@ class Parser(Parser):
     ) -> None:
         super().__init__(tokenizer, verbose=verbose)
         self.filename = filename
-        self.py_version = py_version or sys.version_info
+        self.py_version = min(py_version, sys.version_info) if py_version else sys.version_info
 
     def check_version(self, min_version: Tuple[int, ...], error_msg: str, node: Node) -> Node:
         """Check that the python version is high enough for a rule to apply.
@@ -72,7 +68,7 @@ class Parser(Parser):
             return node
         else:
             raise SyntaxError(
-                f"{{error_msg}} is only supported in Python {{min_version}} and above."
+                f"{error_msg} is only supported in Python {min_version} and above."
             )
 
     def raise_indentation_error(self, msg) -> None:
@@ -95,8 +91,8 @@ class Parser(Parser):
             return EXPR_NAME_MAPPING[node_t]
         except KeyError:
             raise SystemError(
-                f"unexpected expression in assignment {{type(node).__name__}} "
-                f"(line {{node.lineno}})."
+                f"unexpected expression in assignment {type(node).__name__} "
+                f"(line {node.lineno})."
             )
 
     def set_expr_context(self, node, context):
@@ -518,20 +514,23 @@ finally_block[list]:
     | invalid_finally_stmt
     | 'finally' &&':' a=block { a }
 
+# We cannot do version here since the production will occur after any other production
+# which will fail since the ast module does not have the right nodes.
 match_stmt["ast.Match"]:
     | "match" subject=subject_expr ':' NEWLINE INDENT cases=case_block+ DEDENT {
+        ast.Match(subject=subject, cases=cases, LOCATIONS)
+     }
+    | invalid_match_stmt
+# Version checking here allows to avoid tracking down every single possible production
+subject_expr:
+    | value=star_named_expression ',' values=star_named_expressions? {
         self.check_version(
             (3, 10),
             "Pattern matching is",
-            ast.Match(subject=subject, cases=cases, LOCATIONS)
+            ast.Tuple(elts=[value] + (values or []), ctx=Load, LOCATIONS)
         )
      }
-    | invalid_match_stmt
-subject_expr:
-    | value=star_named_expression ',' values=star_named_expressions? {
-        ast.Tuple(elts=[value] + (values or []), ctx=Load, LOCATIONS)
-     }
-    | named_expression
+    | e=named_expression { self.check_version((3, 10), "Pattern matching is", e)}
 case_block["ast.match_case"]:
     | invalid_case_block
     | "case" pattern=patterns guard=guard? ':' body=block {
@@ -763,10 +762,16 @@ params:
 
 parameters[ast.arguments]:
     | a=slash_no_default b=param_no_default* c=param_with_default* d=[star_etc] {
-        self.make_arguments(a, [], b, c, d)
+        self.check_version(
+            (3, 8), "Positional only arguments are", self.make_arguments(a, [], b, c, d)
+        )
      }
     | a=slash_with_default b=param_with_default* c=[star_etc] {
-        self.make_arguments(None, a, None, b, c)
+        self.check_version(
+            (3, 8),
+            "Positional only arguments are",
+            self.make_arguments(None, a, None, b, c),
+        )
      }
     | a=param_no_default+ b=param_with_default* c=[star_etc] {
         self.make_arguments(None, [], a, b, c)
@@ -1545,5 +1550,4 @@ invalid_kvpair[NoReturn]:
      }
     | expression a=':' {
         self.raise_syntax_error_known_location("expression expected after dictionary key and ':'", a)
-     }  # XXX a is not a node
- 
+     }
