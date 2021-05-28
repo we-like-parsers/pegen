@@ -53,7 +53,6 @@ class ParserGenerator:
         self.first_graph, self.first_sccs = compute_left_recursives(self.rules)
         self.todo = self.rules.copy()  # Rules to generate
         self.counter = 0  # For name_rule()/name_loop()
-        self.keyword_counter = 499  # For keyword_type()
         self.all_rules: Dict[str, Rule] = {}  # Rules + temporal rules
         self._local_variable_stack: List[List[str]] = []
 
