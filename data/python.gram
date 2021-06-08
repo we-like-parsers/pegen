@@ -228,19 +228,22 @@ class Parser(Parser):
         self,
         message: str,
         start: Optional[Tuple[int, int]] = None,
-        stop: Optional[Tuple[int, int]] = None
+        end: Optional[Tuple[int, int]] = None
     ) -> NoReturn:
-        if start is None or stop is None:
+        if start is None or end is None:
             tok = self._tokenizer.diagnose()
             start = start or tok.start
-            stop = stop or tok.stop
-        if start is None and stop is None:
+            end = end or tok.end
+
+        if start is None and end is None:
             line = tok.line
         else:
+            # End is used only to get the proper text
             line = ""  # XXX more work to grab the sources
-        return SyntaxError(
+
+        raise SyntaxError(
             message,
-            (self.filename, start[0], start[1], line, stop[0], stop[1])
+            (self.filename, start[0], start[1], line)
         )
 
     def raise_syntax_error(self, message: str) -> NoReturn:
@@ -261,17 +264,17 @@ class Parser(Parser):
         self,
         message: str,
         start_node: Union[ast.AST, tokenize.TokenInfo],
-        stop_node: Union[ast.AST, tokenize.TokenInfo]
+        end_node: Union[ast.AST, tokenize.TokenInfo]
     ) -> NoReturn:
         if isinstance(start_node, tokenize.TokenInfo):
-            start = node.start
+            start = start_node.start
         else:
-            start = node.lineno, node.col_offset
+            start = start_node.lineno, start_node.col_offset
 
-        if isinstance(stop_node, tokenize.TokenInfo):
-            end = node.end
+        if isinstance(end_node, tokenize.TokenInfo):
+            end = end_node.end
         else:
-            end = stop_node.end_lineno, stop_node.end_col_offset
+            end = end_node.end_lineno, end_node.end_col_offset
 
         self._raise_syntax_error(message, start, end)
 
@@ -281,9 +284,9 @@ class Parser(Parser):
         start_node: Union[ast.AST, tokenize.TokenInfo]
     ) -> NoReturn:
         if isinstance(start_node, tokenize.TokenInfo):
-            start = node.start
+            start = start_node.start
         else:
-            start = node.lineno, node.col_offset
+            start = start_node.lineno, start_node.col_offset
 
         self._raise_syntax_error(message, start, None)
 
@@ -727,6 +730,7 @@ function_def[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
     | f=function_def_raw {self.set_decorators(f, [])}
 
 function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
+    | invalid_def_raw
     | 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
         ast.FunctionDef(
             name=n.string,
@@ -1242,7 +1246,7 @@ invalid_arguments[NoReturn]:
     | a=args ',' '*' {
         self.raise_syntax_error_known_location(
             "iterable argument unpacking follows keyword argument unpacking",
-            a,
+            a[1][-1] if a[1] else a[0][-1],
         )
      }
     | a=expression b=for_if_clauses ',' [args | expression for_if_clauses] {
@@ -1256,14 +1260,22 @@ invalid_arguments[NoReturn]:
         )
      }
     | a=args for_if_clauses {
-        self.raise_syntax_error_starting_from("Generator expression must be parenthesized", args[-1])
+        self.raise_syntax_error_starting_from(
+            "Generator expression must be parenthesized",
+            a[1][-1] if a[1] else a[0][-1]
+        )
      }
     | args ',' a=expression b=for_if_clauses {
-        self.raise_syntax_error_known_range("Generator expression must be parenthesized", a, b[-1].target) }
+        self.raise_syntax_error_known_range(
+            "Generator expression must be parenthesized",
+            a,
+            b[-1].target,
+        )
+     }
     | a=args ',' args {
         self.raise_syntax_error(
             "positional argument follows keyword argument unpacking"
-            if isinstance(a[1][-1], ast.Starred) else
+            if a[1][-1].arg is None else
             "positional argument follows keyword argument",
         )
      }
@@ -1327,14 +1339,14 @@ invalid_assignment[NoReturn]:
     | a=expression ':' expression {
         self.raise_syntax_error_known_location("illegal target for annotation", a) }
     | (star_targets '=')* a=star_expressions '=' {
-        self.raise_syntax_error_known_location("cannot assign to {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_known_location(f"cannot assign to {self.get_expr_name(a)}", a)
      }
     | (star_targets '=')* a=yield_expr '=' {
-        self.raise_syntax_error_known_location( "assignment to yield expression not possible")
+        self.raise_syntax_error_known_location("assignment to yield expression not possible", a)
      }
     | a=star_expressions augassign (yield_expr | star_expressions) {
         self.raise_syntax_error_known_location(
-            "'{self.get_expr_name(a)' is an illegal expression for augmented assignment", a
+            f"{self.get_expr_name(a)} is an illegal expression for augmented assignment", a
         )
      }
 invalid_ann_assign_target[ast.AST]:
@@ -1343,7 +1355,7 @@ invalid_ann_assign_target[ast.AST]:
     | '(' a=invalid_ann_assign_target ')' { a }
 invalid_del_stmt[NoReturn]:
     | 'del' a=star_expressions {
-        self.raise_syntax_error_known_location("cannot delete {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_known_location(f"cannot delete {self.get_expr_name(a)}", a)
      }
 invalid_block[NoReturn]:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
@@ -1392,7 +1404,8 @@ invalid_lambda_star_etc[NoReturn]:
      }
 invalid_double_type_comments[NoReturn]:
     | TYPE_COMMENT NEWLINE TYPE_COMMENT NEWLINE INDENT {
-        self.raise_syntax_error("Cannot have two type comments on def") }
+        self.raise_syntax_error("Cannot have two type comments on def")
+     }
 invalid_with_item[NoReturn]:
     | expression 'as' a=expression &(',' | ')' | ':') {
         self.raise_syntax_error_known_location("cannot assign to {self.get_expr_name(a)}", a)
@@ -1435,6 +1448,9 @@ invalid_try_stmt[NoReturn]:
         self.raise_indentation_error(
             f"expected an indented block after 'try' statement on line {a.lineno}",
         )
+     }
+    | 'try' ':' block !('except' | 'finally') {
+        self.raise_syntax_error("expected 'except' or 'finally' block")
      }
 invalid_except_stmt[NoReturn]:
     | 'except' a=expression ',' expressions ['as' NAME ] ':' {
@@ -1523,7 +1539,7 @@ invalid_def_raw[NoReturn]:
         )
      }
 invalid_class_def_raw[NoReturn]:
-    | a='class' NAME ['('[arguments] ')'] ':' NEWLINE !INDENT {
+    | a='class' NAME ['(' [arguments] ')'] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after class definition on line {a.lineno}"
         )
@@ -1541,8 +1557,8 @@ invalid_kvpair[NoReturn]:
     | a=expression !(':') {
         self._raise_syntax_error(
             "':' expected after dictionary key",
-            (a.lineno, a.end_col_offset - 1),
-            (a.lineno, a.end_lineno, -1)
+            (a.lineno, a.col_offset - 1),
+            (a.end_lineno, a.end_col_offset, -1)
         )
      }
     | expression ':' a='*' bitwise_or {
