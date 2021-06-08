@@ -229,6 +229,7 @@ def test_invalid_with_stmt(python_parser_cls, source, message):
             IndentationError,
             "expected an indented block after 'try' statement on line 1",
         ),
+        ("try\n\tpass", SyntaxError, "expected ':''"),
         ("try:\n\tpass\na = 1", SyntaxError, "expected 'except' or 'finally' block"),
     ],
 )
