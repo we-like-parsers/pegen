@@ -249,6 +249,8 @@ class Parser(Parser):
     def raise_syntax_error(self, message: str) -> NoReturn:
         self._raise_syntax_error(message)
 
+    make_syntax_error = raise_syntax_error
+
     def raise_syntax_error_known_location(self, message: str, node) -> NoReturn:
         """Raise a syntax error that occured at a given AST node."""
         if isinstance(node, tokenize.TokenInfo):
