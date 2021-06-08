@@ -6,7 +6,7 @@ import sys
 import textwrap
 import token
 import tokenize
-from typing import IO, Any, Dict, Final, Type, cast
+from typing import IO, Any, Dict, Final, Optional, Type, cast
 
 from pegen.build import build_parser
 from pegen.grammar import Grammar
@@ -22,7 +22,7 @@ NON_EXACT_TOKENS = {
 }
 
 
-def generate_parser(grammar: Grammar) -> Type[Parser]:
+def generate_parser(grammar: Grammar, parser_path: Optional[str] = None) -> Type[Parser]:
     # Generate a parser.
     out = io.StringIO()
     genr = PythonParserGenerator(grammar, out)
@@ -30,7 +30,8 @@ def generate_parser(grammar: Grammar) -> Type[Parser]:
 
     # Load the generated parser class.
     ns: Dict[str, Any] = {}
-    with open("xxx.py", "w") as f:
+    parser_path = parser_path or "xxx.py"
+    with open(parser_path, "w") as f:
         f.write(out.getvalue())
     exec(out.getvalue(), ns)
     return ns["GeneratedParser"]
