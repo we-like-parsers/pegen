@@ -12,13 +12,32 @@ a &= b
 a @= b
 a <<= b
 a >>= b
+
+(a) += 1
+a[1] += 1
+a.b += 1
+a.b.c += 1
+f(i for i in range(2)).a += 1
+f().a += 1
+
+(a) = 1
+a.b = 1
+a.b.c = 1
+a.b.c.d = 1
 a[b] = c
+a[b][c] = 1
+a.b[c] = 1
 a[1:] = b
 a[:1] = b
 a[1:10:2] = b
 
 
 a: int = b
+a: int = yield
+a.b: int
+a.b: int = 1
+a[b]: int = 1
+a[b]: int = 1
 a = 1
 a = 1.0
 a = ""
@@ -47,7 +66,10 @@ d = {1: 2, 3: 4}
 a = True
 b = False
 c = None
+d = *a, (*b, c)
+d = *a, (*b, *c)
 
+f = (a := 1)
 
 a, b = c
 a, *b = c

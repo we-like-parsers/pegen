@@ -1,5 +1,7 @@
 # PEG grammar for Python
 
+@class PythonParser
+
 @subheader'''
 import itertools
 import sys
@@ -144,7 +146,7 @@ class Parser(Parser):
         # Avoid getting a triple nesting in the error report that does not
         # bring anything relevant to the traceback.
         if err_msg:
-            raise self.make_syntax_error(err_msg)
+            raise self.raise_syntax_error_known_location(err_msg, t)
 
         return m.body[0].value
 
@@ -189,10 +191,6 @@ class Parser(Parser):
         after_star: Optional[Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast.arg]]]
     ) -> ast.arguments:
         """Build a function definition arguments."""
-        if sys.version_info < (3, 9) and (pos_only or pos_only_with_default):
-            self.make_syntax_error(
-                "Positional only arguments are only supported in Python 3.9+")
-
         defaults = (
             [d for _, d in pos_only_with_default if d is not None]
             if pos_only_with_default else
@@ -230,12 +228,13 @@ class Parser(Parser):
         start: Optional[Tuple[int, int]] = None,
         end: Optional[Tuple[int, int]] = None
     ) -> NoReturn:
+        line_from_token = start is None and end is None
         if start is None or end is None:
             tok = self._tokenizer.diagnose()
             start = start or tok.start
             end = end or tok.end
 
-        if start is None and end is None:
+        if line_from_token:
             line = tok.line
         else:
             # End is used only to get the proper text
@@ -382,7 +381,7 @@ assignment:
     | a=single_target b=augassign ~ c=(yield_expr | star_expressions) {
         ast.AugAssign(target = a, op=b, value=c, LOCATIONS)
      }
-    | invalid_assignment
+    | invalid_assignment { UNREACHABLE }
 
 augassign:
     | '+=' { ast.Add() }
@@ -414,7 +413,7 @@ assert_stmt[ast.Assert]: 'assert' a=expression b=[',' z=expression { z }] {
 
 del_stmt[ast.Delete]:
     | 'del' a=del_targets &(';' | NEWLINE) { ast.Delete(targets=a, LOCATIONS) }
-    | invalid_del_stmt
+    | invalid_del_stmt { UNREACHABLE }
 
 import_stmt[ast.Import]: import_name | import_from
 import_name[ast.Import]: 'import' a=dotted_as_names { ast.Import(names=a, LOCATIONS) }
@@ -430,7 +429,7 @@ import_from_targets[List[ast.alias]]:
     | '(' a=import_from_as_names [','] ')' { a }
     | import_from_as_names !','
     | '*' { [ast.alias(name="*", asname=None, LOCATIONS)] }
-    | invalid_import_from_targets
+    | invalid_import_from_targets { UNREACHABLE }
 import_from_as_names[List[ast.alias]]:
     | a=','.import_from_as_name+ { a }
 import_from_as_name[ast.alias]:
@@ -444,11 +443,11 @@ dotted_name[str]:
     | a=NAME { a.string }
 
 if_stmt[ast.If]:
-    | invalid_if_stmt
+    | invalid_if_stmt { UNREACHABLE }
     | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c or [], LOCATIONS) }
     | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=c or [], LOCATIONS) }
 elif_stmt[List[ast.If]]:
-    | invalid_elif_stmt
+    | invalid_elif_stmt { UNREACHABLE }
     | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b, orelse=c, LOCATIONS)] }
     | 'elif' a=named_expression ':' b=block c=[else_block] { [ast.If(test=a, body=b, orelse=c or [], LOCATIONS)] }
 else_block[list]:
@@ -456,13 +455,13 @@ else_block[list]:
     | 'else' &&':' b=block { b }
 
 while_stmt[ast.While]:
-    | invalid_while_stmt
+    | invalid_while_stmt { UNREACHABLE }
     | 'while' a=named_expression ':' b=block c=[else_block] {
         ast.While(test=a, body=b, orelse=c or [], LOCATIONS)
      }
 
 for_stmt[Union[ast.For, ast.AsyncFor]]:
-    | invalid_for_stmt
+    | invalid_for_stmt { UNREACHABLE }
     | 'for' t=star_targets 'in' ~ ex=star_expressions &&':' tc=[TYPE_COMMENT] b=block el=[else_block] {
         ast.For(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc, LOCATIONS) }
     | 'async' 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
@@ -470,10 +469,10 @@ for_stmt[Union[ast.For, ast.AsyncFor]]:
             (3, 5),
             "Async for loops are",
             ast.AsyncFor(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc, LOCATIONS)) }
-    | invalid_for_target
+    | invalid_for_target { UNREACHABLE }
 
 with_stmt[Union[ast.With, ast.AsyncWith]]:
-    | invalid_with_stmt_indent
+    | invalid_with_stmt_indent { UNREACHABLE }
     | 'with' '(' a=','.with_item+ ','? ')' ':' b=block {
         ast.With(items=a, body=b, LOCATIONS) }
     | 'with' a=','.with_item+ ':' tc=[TYPE_COMMENT] b=block {
@@ -492,17 +491,17 @@ with_stmt[Union[ast.With, ast.AsyncWith]]:
            ast.AsyncWith(items=a, body=b, type_comment=tc, LOCATIONS)
         )
      }
-    | invalid_with_stmt
+    | invalid_with_stmt { UNREACHABLE }
 
 with_item[ast.withitem]:
     | e=expression 'as' t=star_target &(',' | ')' | ':') {
         ast.withitem(context_expr=e, optional_vars=t)
      }
-    | invalid_with_item
+    | invalid_with_item { UNREACHABLE }
     | e=expression { ast.withitem(context_expr=e, optional_vars=None) }
 
 try_stmt[ast.Try]:
-    | invalid_try_stmt
+    | invalid_try_stmt { UNREACHABLE }
     | 'try' &&':' b=block f=finally_block {
         ast.Try(body=b, handlers=[], orelse=[], finalbody=f, LOCATIONS)
      }
@@ -510,13 +509,13 @@ try_stmt[ast.Try]:
         ast.Try(body=b, handlers=ex, orelse=el or [], finalbody=f or [], LOCATIONS)
      }
 except_block[ast.ExceptHandler]:
-    | invalid_except_stmt_indent
+    | invalid_except_stmt_indent { UNREACHABLE }
     | 'except' e=expression t=['as' z=NAME { z.string }] ':' b=block {
         ast.ExceptHandler(type=e, name=t, body=b, LOCATIONS) }
     | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b, LOCATIONS) }
-    | invalid_except_stmt
+    | invalid_except_stmt { UNREACHABLE }
 finally_block[list]:
-    | invalid_finally_stmt
+    | invalid_finally_stmt { UNREACHABLE }
     | 'finally' &&':' a=block { a }
 
 # We cannot do version here since the production will occur after any other production
@@ -525,7 +524,7 @@ match_stmt["ast.Match"]:
     | "match" subject=subject_expr ':' NEWLINE INDENT cases=case_block+ DEDENT {
         ast.Match(subject=subject, cases=cases, LOCATIONS)
      }
-    | invalid_match_stmt
+    | invalid_match_stmt { UNREACHABLE }
 # Version checking here allows to avoid tracking down every single possible production
 subject_expr:
     | value=star_named_expression ',' values=star_named_expressions? {
@@ -537,7 +536,7 @@ subject_expr:
      }
     | e=named_expression { self.check_version((3, 10), "Pattern matching is", e)}
 case_block["ast.match_case"]:
-    | invalid_case_block
+    | invalid_case_block { UNREACHABLE }
     | "case" pattern=patterns guard=guard? ':' body=block {
         ast.match_case(pattern=pattern, guard=guard, body=body)
      }
@@ -732,7 +731,7 @@ function_def[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
     | f=function_def_raw {self.set_decorators(f, [])}
 
 function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
-    | invalid_def_raw
+    | invalid_def_raw { UNREACHABLE }
     | 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
         ast.FunctionDef(
             name=n.string,
@@ -759,11 +758,11 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
      }
 func_type_comment:
     | NEWLINE t=TYPE_COMMENT &(NEWLINE INDENT) { t.string }  # Must be followed by indented block
-    | invalid_double_type_comments
+    | invalid_double_type_comments { UNREACHABLE }
     | TYPE_COMMENT
 
 params:
-    | invalid_parameters
+    | invalid_parameters { UNREACHABLE }
     | parameters
 
 parameters[ast.arguments]:
@@ -795,14 +794,14 @@ slash_no_default[List[Tuple[ast.arg, None]]]:
     | a=param_no_default+ '/' ',' { [(p, None) for p in a] }
     | a=param_no_default+ '/' &')' { [(p, None) for p in a] }
 slash_with_default[List[Tuple[ast.arg, Any]]]:
-    | a=param_no_default* b=param_with_default+ '/' ',' { a + b }
-    | a=param_no_default* b=param_with_default+ '/' &')' { a + b }
+    | a=param_no_default* b=param_with_default+ '/' ',' { ([(p, None) for p in a] if a else []) + b }
+    | a=param_no_default* b=param_with_default+ '/' &')' { ([(p, None) for p in a] if a else []) + b }
 
 star_etc[Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast.arg]]]:
     | '*' a=param_no_default b=param_maybe_default* c=[kwds] { (a, b, c) }
     | '*' ',' b=param_maybe_default+ c=[kwds] { (None, b, c) }
     | a=kwds { (None, [], a) }
-    | invalid_star_etc
+    | invalid_star_etc { UNREACHABLE }
 
 kwds: '**' a=param_no_default { a }
 
@@ -851,7 +850,7 @@ class_def[ast.ClassDef]:
     | a=decorators b=class_def_raw { self.set_decorators(b, a) }
     | class_def_raw
 class_def_raw[ast.ClassDef]:
-    | invalid_class_def_raw
+    | invalid_class_def_raw { UNREACHABLE }
     | 'class' a=NAME b=['(' z=[arguments] ')' { z }] &&':' c=block {
         ast.ClassDef(
             a.string,
@@ -866,7 +865,7 @@ class_def_raw[ast.ClassDef]:
 block[list] (memo):
     | NEWLINE INDENT a=statements DEDENT { a }
     | simple_stmts
-    | invalid_block
+    | invalid_block { UNREACHABLE }
 
 star_expressions:
     | a=star_expression b=(',' c=star_expression { c })+ [','] {
@@ -905,7 +904,7 @@ assignment_expression:
 
 named_expression:
     | assignment_expression
-    | invalid_named_expression
+    | invalid_named_expression { UNREACHABLE }
     | a=expression !':=' { a }
 
 
@@ -917,7 +916,7 @@ expressions:
     | a=expression ',' { ast.Tuple(elts=[a], ctx=Load, LOCATIONS) }
     | expression
 expression (memo):
-    | invalid_expression
+    | invalid_expression { UNREACHABLE }
     | a=disjunction 'if' b=disjunction 'else' c=expression {
         ast.IfExp(body=a, test=b, orelse=c, LOCATIONS)
      }
@@ -930,7 +929,7 @@ lambdef:
      }
 
 lambda_params:
-    | invalid_lambda_parameters
+    | invalid_lambda_parameters { UNREACHABLE }
     | lambda_parameters
 
 # lambda_parameters etc. duplicates parameters but without annotations
@@ -956,8 +955,8 @@ lambda_slash_no_default[List[Tuple[ast.arg, None]]]:
     | a=lambda_param_no_default+ '/' ',' { [(p, None) for p in a] }
     | a=lambda_param_no_default+ '/' &':' { [(p, None) for p in a] }
 lambda_slash_with_default[List[Tuple[ast.arg, Any]]]:
-    | a=lambda_param_no_default* b=lambda_param_with_default+ '/' ',' { a + b }
-    | a=lambda_param_no_default* b=lambda_param_with_default+ '/' &':' { a + b }
+    | a=lambda_param_no_default* b=lambda_param_with_default+ '/' ',' { ([(p, None) for p in a] if a else []) + b }
+    | a=lambda_param_no_default* b=lambda_param_with_default+ '/' &':' { ([(p, None) for p in a] if a else []) + b }
 
 lambda_star_etc[Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast.arg]]]:
     | '*' a=lambda_param_no_default b=lambda_param_maybe_default* c=[lambda_kwds] {
@@ -965,7 +964,7 @@ lambda_star_etc[Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast
     | '*' ',' b=lambda_param_maybe_default+ c=[lambda_kwds] {
         (None, b, c) }
     | a=lambda_kwds { (None, [], a) }
-    | invalid_lambda_star_etc
+    | invalid_lambda_star_etc { UNREACHABLE }
 
 lambda_kwds[ast.arg]: '**' a=lambda_param_no_default { a }
 
@@ -1059,7 +1058,7 @@ await_primary (memo):
     | 'await' a=primary { self.check_version((3, 5), "Await expressions are", ast.Await(a, LOCATIONS)) }
     | primary
 primary:
-    | invalid_primary  # must be before 'primay genexp' because of invalid_genexp
+    | invalid_primary { UNREACHABLE } # must be before 'primay genexp' because of invalid_genexp
     | a=primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load, LOCATIONS) }
     | a=primary b=genexp { ast.Call(func=a, args=[b], keywords=[], LOCATIONS) }
     | a=primary '(' b=[arguments] ')' {
@@ -1096,31 +1095,31 @@ list[ast.List]:
     | '[' a=[star_named_expressions] ']' { ast.List(elts=a or [], ctx=Load, LOCATIONS) }
 listcomp[ast.ListComp]:
     | '[' a=named_expression b=for_if_clauses ']' { ast.ListComp(elt=a, generators=b, LOCATIONS) }
-    | invalid_comprehension
+    | invalid_comprehension { UNREACHABLE }
 tuple[ast.Tuple]:
     | '(' a=[y=star_named_expression ',' z=[star_named_expressions] { [y] + (z or []) } ] ')' {
         ast.Tuple(elts=a or [], ctx=Load, LOCATIONS)
      }
 group:
     | '(' a=(yield_expr | named_expression) ')' { a }
-    | invalid_group
+    | invalid_group { UNREACHABLE }
 genexp[ast.GeneratorExp]:
     | '(' a=( assignment_expression | expression !':=') b=for_if_clauses ')' {
         ast.GeneratorExp(elt=a, generators=b, LOCATIONS)
      }
-    | invalid_comprehension
+    | invalid_comprehension { UNREACHABLE }
 set[ast.Set]: '{' a=star_named_expressions '}' { ast.Set(elts=a, LOCATIONS) }
 setcomp[ast.SetComp]:
     | '{' a=named_expression b=for_if_clauses '}' { ast.SetComp(elt=a, generators=b, LOCATIONS) }
-    | invalid_comprehension
+    | invalid_comprehension { UNREACHABLE }
 dict[ast.Dict]:
     | '{' a=[double_starred_kvpairs] '}' {
         ast.Dict(keys=[kv[0] for kv in (a or [])], values=[kv[1] for kv in (a or [])], LOCATIONS)
      }
-    | '{' invalid_double_starred_kvpairs '}'
+    | '{' invalid_double_starred_kvpairs '}' { UNREACHABLE }
 dictcomp[ast.DictComp]:
     | '{' a=kvpair b=for_if_clauses '}' { ast.DictComp(key=a[0], value=a[1], generators=b, LOCATIONS) }
-    | invalid_dict_comprehension
+    | invalid_dict_comprehension { UNREACHABLE }
 double_starred_kvpairs[list]: a=','.double_starred_kvpair+ [','] { a }
 double_starred_kvpair:
     | '**' a=bitwise_or { (None, a) }
@@ -1138,7 +1137,7 @@ for_if_clause[ast.comprehension]:
      }
     | 'for' a=star_targets 'in' ~ b=disjunction c=('if' z=disjunction { z })* {
        ast.comprehension(target=a, iter=b, ifs=c, is_async=0) }
-    | invalid_for_target
+    | invalid_for_target { UNREACHABLE }
 
 yield_expr:
     | 'yield' 'from' a=expression { ast.YieldFrom(value=a, LOCATIONS) }
@@ -1146,7 +1145,7 @@ yield_expr:
 
 arguments[Tuple[list, list]] (memo):
     | a=args [','] &')' { a }
-    | invalid_arguments
+    | invalid_arguments { UNREACHABLE }
 args[Tuple[list, list]]:
     | a=','.(starred_expression | ( assignment_expression | expression !':=') !'=')+ b=[',' k=kwargs {k}] {
         (a + ([e for e in b if isinstance(e, ast.Starred)] if b else []),
@@ -1165,13 +1164,13 @@ kwargs[list]:
 starred_expression:
     | '*' a=expression { ast.Starred(value=a, ctx=Load, LOCATIONS) }
 kwarg_or_starred:
-    | invalid_kwarg
+    | invalid_kwarg { UNREACHABLE }
     | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b, LOCATIONS) }
     | a=starred_expression { a }
 
 kwarg_or_double_starred:
-    | invalid_kwarg
-    | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b, LOCATIONS) }
+    | invalid_kwarg { UNREACHABLE }
+    | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b, LOCATIONS) }   # XXX Unreachable
     | '**' a=expression { ast.keyword(arg=None, value=a, LOCATIONS) }
 # NOTE: star_targets may contain *bitwise_or, targets may not.
 star_targets:
@@ -1217,11 +1216,7 @@ del_t_atom:
     | '(' a=[del_targets] ')' { ast.Tuple(elts=a, ctx=Del, LOCATIONS) }
     | '[' a=[del_targets] ']' { ast.List(elts=a, ctx=Del, LOCATIONS) }
 
-targets: a=','.target+ [','] { a }
-target (memo):
-    | a=t_primary '.' b=NAME !t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Store, LOCATIONS) }
-    | a=t_primary '[' b=slices ']' !t_lookahead { ast.Subscript(value=a, slice=b, ctx=Store, LOCATIONS) }
-    | t_atom
+
 t_primary:
     | a=t_primary '.' b=NAME &t_lookahead { ast.Attribute(value=a, attr=b.string, ctx=Load, LOCATIONS) }
     | a=t_primary '[' b=slices ']' &t_lookahead { ast.Subscript(value=a, slice=b, ctx=Load, LOCATIONS) }
@@ -1236,11 +1231,6 @@ t_primary:
      }
     | a=atom &t_lookahead { a }
 t_lookahead: '(' | '[' | '.'
-t_atom:
-    | a=NAME { ast.Name(id=a.string, ctx=Store, LOCATIONS) }
-    | '(' a=target ')' { self.set_expr_context(a, Store) }
-    | '(' b=[targets] ')' { ast.Tuple(elts=b, ctx=Store, LOCATIONS) }
-    | '[' b=[targets] ']' { ast.List(elts=b, ctx=Store, LOCATIONS) }
 
 
 # From here on, there are rules for invalid syntax with specialised error messages
@@ -1300,8 +1290,7 @@ expression_without_invalid[ast.AST]:
 invalid_expression[NoReturn]:
     # !(NAME STRING) is not matched so we don't show this error with some invalid string prefixes like: kf"dsfsdf"
     # Soft keywords need to also be ignored because they can be parsed as NAME NAME
-    # XXX need to find a way to emulate the SOFT_KEYWORD used in c gramar
-    | !(NAME STRING | "match") a=disjunction b=expression_without_invalid {
+    | !(NAME STRING | SOFT_KEYWORD) a=disjunction b=expression_without_invalid {
         self.raise_syntax_error_known_range("invalid syntax. Perhaps you forgot a comma?", a, b)
      }
 invalid_named_expression[Optional[NoReturn]]:

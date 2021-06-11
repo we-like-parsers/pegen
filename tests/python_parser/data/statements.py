@@ -1,17 +1,31 @@
 pass
+pass;
+
 assert a
 assert a; assert b
+
 raise RuntimeError
 raise RuntimeError from e
+
 return
 return 1
+return 1,
 return *a
+
 del a
+del (a)
 del a, b,
+del a[:]
+del a.b
+del (a,)
+del (a, b)
+del [a, b]
+
 global a
 global a, b
 nonlocal a
 nonlocal a, b
+
 yield a
 yield from a
 
@@ -19,11 +33,33 @@ yield from a
 for i in a:
     pass
 
+for i, in a:
+    pass
+
+for (i,) in a:
+    pass
+
+for (i,), in a:
+    pass
+
+for i, *j in a:
+    pass
+
+for i, (a, *b) in a:
+    pass
+
 for i in b:
     pass
 else:
     pass
 
+
+if a: b=1;
+
+if a:
+    pass
+else:
+    pass
 
 if a:
     pass
@@ -71,6 +107,14 @@ with (a as b, c):
 
 try:
     pass
+finally:
+    pass
+
+
+try:
+    pass
+except:
+    raise
 finally:
     pass
 

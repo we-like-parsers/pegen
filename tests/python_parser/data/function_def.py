@@ -26,7 +26,23 @@ def f(a: bool, b: int = 1):
     pass
 
 
+def f(a, /):
+    pass
+
+
+def f(a=1, /):
+    pass
+
+
+def f(a, b=1, /):
+    pass
+
+
 def f(a, /, b):
+    pass
+
+
+def f(a, c=2, /, b=5):
     pass
 
 
@@ -50,6 +66,10 @@ def f(*, b=1):
     pass
 
 
+def f(b=1, *c):
+    pass
+
+
 def f(*args):
     pass
 
@@ -63,4 +83,16 @@ def f(a, **kwargs):
 
 
 def f(a=1, **kwargs):
+    pass
+
+
+def f(*, a=1, **kwargs):
+    pass
+
+
+def f(*a, **b):
+    pass
+
+
+def f(a, /, b, *, v=1, **d):
     pass

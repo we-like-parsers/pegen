@@ -16,8 +16,15 @@ def parse_invalid_syntax(python_parser_cls, source, exc_cls, message):
     with pytest.raises(exc_cls) as e:
         pp.file()
 
-    print(e.exconly())
-    assert message in e.exconly()
+    print(str(e.exconly()))
+    assert message in str(e.exconly())
+
+
+@pytest.mark.parametrize(
+    "source, message", [("f'a = { 1 + }'", "line 1"), ("(\n\t'b'\n\tf'a = { 1 + }'\n)", "line 3")]
+)
+def test_syntax_error_in_str(python_parser_cls, source, message):
+    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
 
 
 @pytest.mark.parametrize(
@@ -43,6 +50,12 @@ def test_invalid_call_arguments(python_parser_cls, source, message):
 @pytest.mark.parametrize(
     "source, message",
     [
+        ("'a' = 1", "cannot assign to literal"),
+        ("1 = 1", "cannot assign to 1 here. Maybe you meant "),
+        ("True = 1", "cannot assign to True"),
+        ("False = 1", "cannot assign to False"),
+        ("... = 1", "cannot assign to Ellipsis"),
+        ("None = 1", "cannot assign to None"),
         ("(a, b) : int = (1, 2)", "only single target (not tuple) can be annotated"),
         ("[a, b] : int = [1, 2]", "only single target (not list) can be annotated"),
         ("([a, b]) : int = (1, 2)", "only single target (not list) can be annotated"),
@@ -53,6 +66,7 @@ def test_invalid_call_arguments(python_parser_cls, source, message):
         ("yield a = 1", "assignment to yield expression not possible"),
         ("a = yield b = 1", "assignment to yield expression not possible"),
         ("a + 1 += 1", "expression is an illegal expression for augmented assignment"),
+        ("a + 1 += yield", "expression is an illegal expression for augmented assignment"),
         (
             "[i for i in range(2)] += 1",
             "list comprehension is an illegal expression for augmented assignment",
@@ -203,22 +217,25 @@ def test_invalid_star_etc(python_parser_cls, source):
 #     )
 
 
-# XXX I am not clear about what error the invalid case unrelated to indent should be tested
 @pytest.mark.parametrize(
-    "source, message",
+    "source, exception, message",
     [
         (
             "with open(a) as f, b as d:\npass",
+            IndentationError,
             "expected an indented block after 'with' statement on line 1",
         ),
         (
             "\nasync with (open(a) as f, b as d):\npass",
+            IndentationError,
             "expected an indented block after 'with' statement on line 2",
         ),
+        ("with open(a) as f, b as d\npass", SyntaxError, "expected ':'"),
+        ("\nasync with (open(a) as f, b as d)\npass", SyntaxError, "expected ':'"),
     ],
 )
-def test_invalid_with_stmt(python_parser_cls, source, message):
-    parse_invalid_syntax(python_parser_cls, source, IndentationError, message)
+def test_invalid_with_stmt(python_parser_cls, source, exception, message):
+    parse_invalid_syntax(python_parser_cls, source, exception, message)
 
 
 @pytest.mark.parametrize(
@@ -229,7 +246,7 @@ def test_invalid_with_stmt(python_parser_cls, source, message):
             IndentationError,
             "expected an indented block after 'try' statement on line 1",
         ),
-        ("try\n\tpass", SyntaxError, "expected ':''"),
+        ("try\n\tpass", SyntaxError, "expected ':'"),
         ("try:\n\tpass\na = 1", SyntaxError, "expected 'except' or 'finally' block"),
     ],
 )
@@ -451,9 +468,11 @@ def test_invalid_class_stmt(python_parser_cls, source, exception, message):
     "source, exception, message",
     [
         ("{a: 1, b}", SyntaxError, "':' expected after dictionary key"),
+        ("{a: 1, c: 2, b}", SyntaxError, "':' expected after dictionary key"),
         ("{a: 1, b:}", SyntaxError, "expression expected after dictionary key and ':'"),
         ("{c: 1, a: *b}", SyntaxError, "cannot use a starred expression in a dictionary value"),
         ("{b:}", SyntaxError, "expression expected after dictionary key and ':'"),
+        ("{b:, c}", SyntaxError, "expression expected after dictionary key and ':'"),
         ("{a: *b}", SyntaxError, "cannot use a starred expression in a dictionary value"),
     ],
 )

@@ -17,5 +17,10 @@ async def f():
 
 
 async def f():
+    async with (open(f) as p, a):
+        pass
+
+
+async def f():
     a = [i async for i in range(10)]
     return a
