@@ -13,6 +13,4 @@ f(c, *a, x, **b)
 f(c, a=1, **b)
 f(a := 1)
 f(**b, a=1)
-f((i for i in range(10)))
-
-# f(i for i in range(10))
+f(i for i in range(10))

@@ -48,7 +48,7 @@ def test_parser(python_parser_cls, filename):
         temp = io.StringIO(part)
         tokengen = tokenize.generate_tokens(temp.readline)
         tokenizer = Tokenizer(tokengen, verbose=False)
-        pp_ast = python_parser_cls(tokenizer).file()
+        pp_ast = python_parser_cls(tokenizer).parse("file")
 
         with_attr = True
         o = ast.dump(original, include_attributes=with_attr, indent="  ")
@@ -56,7 +56,7 @@ def test_parser(python_parser_cls, filename):
         diff = "\n".join(
             difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen")
         )
-        if (diff):
+        if diff:
             print(part)
             print(diff)
         assert not diff

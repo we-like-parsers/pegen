@@ -20,7 +20,7 @@ def test_mat_mult(python_parser_cls, source):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 4))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
 
     assert "The '@' operator is" in e.exconly()
 

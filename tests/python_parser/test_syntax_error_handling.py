@@ -14,7 +14,7 @@ def parse_invalid_syntax(python_parser_cls, source, exc_cls, message):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer)
     with pytest.raises(exc_cls) as e:
-        pp.file()
+        pp.parse("file")
 
     print(str(e.exconly()))
     assert message in str(e.exconly())
@@ -34,7 +34,6 @@ def test_syntax_error_in_str(python_parser_cls, source, message):
         # ("f(a=1, *b)", "iterable argument unpacking follows keyword argument unpacking"),
         ("f(a for a in b, c)", "Generator expression must be parenthesized"),
         # ("f(a=1+1)", "invalid syntax. Maybe you meant '==' or ':=' instead of '='?"),
-        ("f(b for b in c)", "Generator expression must be parenthesized"),
         ("f(a, b for b in c)", "Generator expression must be parenthesized"),
         ("f(**a, b)", "positional argument follows keyword argument unpacking"),
         ("f(a=1, b)", "positional argument follows keyword argument"),
@@ -51,7 +50,7 @@ def test_invalid_call_arguments(python_parser_cls, source, message):
     "source, message",
     [
         ("'a' = 1", "cannot assign to literal"),
-        ("1 = 1", "cannot assign to 1 here. Maybe you meant "),
+        ("1 = 1", "cannot assign to 1"),
         ("True = 1", "cannot assign to True"),
         ("False = 1", "cannot assign to False"),
         ("... = 1", "cannot assign to Ellipsis"),
@@ -85,16 +84,6 @@ def test_invalid_assignments(python_parser_cls, source, message):
     ],
 )
 def test_invalid_del_statements(python_parser_cls, source, message):
-    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
-
-
-@pytest.mark.parametrize("source, message", [("a {", "invalid syntax"), ("\n\na {", "line 3")])
-def test_invalid_primary(python_parser_cls, source, message):
-    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
-
-
-@pytest.mark.parametrize("source, message", [("a {", "invalid syntax"), ("\n\na {", "line 3")])
-def test_invalid_primary(python_parser_cls, source, message):
     parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
 
 
