@@ -295,7 +295,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                             action = f"{self.local_variable_names[0]}"
                         else:
                             action = f"[{', '.join(self.local_variable_names)}]"
-                elif "LOCATIONS" in node.action:
+                elif "LOCATIONS" in action:
                     self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
                     self.print("end_lineno, end_col_offset = tok.end")
                     action = action.replace("LOCATIONS", self.location_formatting)
