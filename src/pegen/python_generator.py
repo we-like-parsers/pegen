@@ -222,8 +222,10 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.visit(alt, is_loop=is_loop, is_gather=is_gather)
 
     def visit_Alt(self, node: Alt, is_loop: bool, is_gather: bool) -> None:
+        has_cut = any(isinstance(item.item, Cut) for item in node.items)
         with self.local_variable_context():
-            self.print("cut = False")  # TODO: Only if needed.
+            if has_cut:
+                self.print("cut = False")
             if is_loop:
                 self.print("while (")
             else:
@@ -260,4 +262,5 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     self.print(f"return {action}")
             self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
-            self.print("if cut: return None")  # TODO: Only if needed.
+            if has_cut:
+                self.print("if cut: return None")
