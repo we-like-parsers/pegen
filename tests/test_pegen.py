@@ -556,3 +556,14 @@ def test_missing_start() -> None:
     """
     with pytest.raises(GrammarError):
         parser_class = make_parser(grammar)
+
+
+def test_soft_keyword() -> None:
+    grammar = """
+    start:
+        | "number" n=NUMBER { eval(n.string) }
+        | !(SOFT_KEYWORD) l=NAME n=NUMBER { f"{l.string} = {n.string}"}
+    """
+    parser_class = make_parser(grammar)
+    assert parse_string("number 1", parser_class, verbose=True) == 1
+    assert parse_string("test 1", parser_class, verbose=True) == "test = 1"
