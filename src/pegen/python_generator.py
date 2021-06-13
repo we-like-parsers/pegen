@@ -7,6 +7,7 @@ from pegen import grammar
 from pegen.grammar import (
     Alt,
     Cut,
+    Forced,
     Gather,
     GrammarVisitor,
     Group,
@@ -140,6 +141,10 @@ class PythonCallMakerVisitor(GrammarVisitor):
 
     def visit_Cut(self, node: Cut) -> Tuple[str, str]:
         return "cut", "True"
+
+    def visit_Forced(self, node: Forced) -> Tuple[str, str]:
+        val = ast.literal_eval(node.node.value)
+        return "literal", f"self.expect_forced({node.node.value})"
 
 
 class PythonParserGenerator(ParserGenerator, GrammarVisitor):
