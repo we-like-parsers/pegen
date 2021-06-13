@@ -240,6 +240,19 @@ match x:
     case []:
         y = 2
 
+x = {0: 0}
+match x:
+    case {None: 1}:
+        y = 0
+    case {True: 1}:
+        y = 0
+    case {False: 1}:
+        y = 0
+    case {1 + 1j: 1}:
+        y = 0
+    case {a.b: 1}:
+        y = 0
+
 
 x = 0
 match x:

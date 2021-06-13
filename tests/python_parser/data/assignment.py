@@ -12,6 +12,7 @@ a &= b
 a @= b
 a <<= b
 a >>= b
+a += yield
 
 (a) += 1
 a[1] += 1
@@ -74,3 +75,4 @@ f = (a := 1)
 a, b = c
 a, *b = c
 a, *b, d = c
+a, *b, d = yield d

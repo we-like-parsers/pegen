@@ -1,7 +1,6 @@
 """"Conftest for pure python parser."""
 from pathlib import Path
 
-import coverage
 import pytest
 
 from pegen.build import build_parser

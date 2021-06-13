@@ -3,6 +3,7 @@ pass;
 
 assert a
 assert a; assert b
+assert a, "eee"
 
 raise RuntimeError
 raise RuntimeError from e
@@ -20,6 +21,7 @@ del a.b
 del (a,)
 del (a, b)
 del [a, b]
+del a;
 
 global a
 global a, b
@@ -46,6 +48,24 @@ for i, *j in a:
     pass
 
 for i, (a, *b) in a:
+    pass
+
+async for i in a:
+    pass
+
+async for i, in a:
+    pass
+
+async for (i,) in a:
+    pass
+
+async for (i,), in a:
+    pass
+
+async for i, *j in a:
+    pass
+
+async for i, (a, *b) in a:
     pass
 
 for i in b:
@@ -95,6 +115,9 @@ for i in a:
 with a:
     pass
 
+with a, b:
+    pass
+
 with a as b:
     pass
 
@@ -102,6 +125,21 @@ with (a, b,):
     pass
 
 with (a as b, c):
+    pass
+
+async with a:
+    pass
+
+async with a, b:
+    pass
+
+async with a as b:
+    pass
+
+async with (a, b,):
+    pass
+
+async with (a as b, c):
     pass
 
 

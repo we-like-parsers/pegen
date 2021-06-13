@@ -22,6 +22,7 @@ a & b
 ["a", "b"]
 {1, 2}
 {a: a.b}
+{**d, a: b}
 
 not b
 a if b else c
@@ -35,3 +36,6 @@ a is not b
 a * (+1)
 a * (-1)
 a * (~1)
+
+(a)
+(yield a)

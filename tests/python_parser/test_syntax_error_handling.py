@@ -28,18 +28,59 @@ def test_syntax_error_in_str(python_parser_cls, source, message):
 
 
 @pytest.mark.parametrize(
+    "source, message", [("\n\na {}", "invalid syntax"), ("\n\na {}", "line 3")]
+)
+def test_invalid_primary(python_parser_cls, source, message):
+    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
+
+
+@pytest.mark.parametrize(
+    "source, message",
+    [
+        ("a 1", "invalid syntax. Perhaps you forgot a comma?"),
+        ("a 1 if b else 2", "invalid syntax. Perhaps you forgot a comma?"),
+        ("a 1ambda: 1", "invalid syntax. Perhaps you forgot a comma?")
+    ]
+)
+def test_invalid_expression(python_parser_cls, source, message):
+    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
+
+
+# Those tests are mostly there to get coverage on exiting rules without matching
+@pytest.mark.parametrize(
+    "source, message",
+    [
+        ("global a, 1", "invalid syntax"),
+        ("nonlocal a, 1", "invalid syntax"),
+        ("yield raise", "invalid syntax"),
+        ("assert raise", "invalid syntax"),
+        ("return def", "invalid syntax"),
+        ("raise def", "invalid syntax"),
+        ("del raise", "invalid syntax"),
+        ("if raise:\n\tpass", "invalid syntax"),
+        ("@raise\ndef f():\n\tpass", "invalid syntax"),
+        ("a: int = raise", "invalid syntax")
+    ]
+)
+def test_invalid_statements(python_parser_cls, source, message):
+    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
+
+
+@pytest.mark.parametrize(
     "source, message",
     [
         # Invalid arguments rules
-        # ("f(a=1, *b)", "iterable argument unpacking follows keyword argument unpacking"),
+        ("f(**a, *b)", "iterable argument unpacking follows keyword argument unpacking"),
         ("f(a for a in b, c)", "Generator expression must be parenthesized"),
-        # ("f(a=1+1)", "invalid syntax. Maybe you meant '==' or ':=' instead of '='?"),
+        ("f(a for a in b, c for c in d)", "Generator expression must be parenthesized"),
+        ("f(a=1 for i in range(10))", "invalid syntax. Maybe you meant '==' or ':=' instead of '='?"),
         ("f(a, b for b in c)", "Generator expression must be parenthesized"),
+        ("f(a, b for b in c, d)", "Generator expression must be parenthesized"),
         ("f(**a, b)", "positional argument follows keyword argument unpacking"),
         ("f(a=1, b)", "positional argument follows keyword argument"),
         # Invalid kwarg rules
-        ("f(a=1, b=c for c in d)", "invalid syntax. Maybe you meant '==' or ':=' instead of '='?"),
-        # ("f(a= 1 + b=2)", 'expression cannot contain assignment, perhaps you meant "=="?'),
+        ("f(b=c for c in d)", "invalid syntax. Maybe you meant '==' or ':=' instead of '='?"),
+        ("f(1 + b=2)", 'expression cannot contain assignment, perhaps you meant "=="?'),
     ],
 )
 def test_invalid_call_arguments(python_parser_cls, source, message):
@@ -70,6 +111,8 @@ def test_invalid_call_arguments(python_parser_cls, source, message):
             "[i for i in range(2)] += 1",
             "list comprehension is an illegal expression for augmented assignment",
         ),
+        ("a += raise", "invalid syntax"),
+
     ],
 )
 def test_invalid_assignments(python_parser_cls, source, message):
@@ -119,6 +162,9 @@ def test_invalid_del_statements(python_parser_cls, source, message):
             "did you forget parentheses around the comprehension target?",
         ),
         ("{**a for a in [{1: 2}]}", "dict unpacking cannot be used in dict comprehension"),
+        # check cuts
+        ("(a for a in raise)", "invalid syntax"),
+        ("(a async for a in raise)", "invalid syntax"),
     ],
 )
 def test_invalid_comprehension(python_parser_cls, source, message):
@@ -130,10 +176,8 @@ def test_invalid_comprehension(python_parser_cls, source, message):
     [
         "def f(a=1, b):\n\tpass",
         "def f(a=1, /, b):\n\tpass",
-        # "def f(a=1, *, b):\n\tpass",
         "lambda x=1, y: x",
         "lambda x=1, /, y: x",
-        # "lambda x=1, *, y: x",
     ],
 )
 def test_invalid_parameters(python_parser_cls, source):
@@ -158,52 +202,60 @@ def test_invalid_star_etc(python_parser_cls, source):
     )
 
 
-# @pytest.mark.parametrize(
-#     "source, message",
-#     [
-#         ("with open(a) as (b,):\n\tpass", "cannot assign to tuple"),
-#         ("with open(a) as [b]:\n\tpass", "cannot assign to list"),
-#         ("with open(a) as {b: 1}]:\n\tpass", "cannot assign to dict"),
-#         ("with open(a) as {b}:\n\tpass", "cannot assign to set"),
-#     ],
-# )
-# def test_invalid_with_item(python_parser_cls, source, message):
-#     parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
+@pytest.mark.parametrize(
+    "source, message",
+    [
+        ("with open(a) as {b: 1}:\n\tpass", "cannot assign to dict"),
+        ("with open(a) as {b}:\n\tpass", "cannot assign to set"),
+        ("with open(a) as 1:\n\tpass", "cannot assign to 1"),
+    ],
+)
+def test_invalid_with_item(python_parser_cls, source, message):
+    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
 
 
-# @pytest.mark.parametrize(
-#     "source, message",
-#     [
-#         ("for [a] in [[1]]:\n\tpass", "cannot assign to list"),
-#         ("async for a := i in [[1]]:\n\tpass", "cannot assign to named expression"),
-#     ],
-# )
-# def test_invalid_for_target(python_parser_cls, source, message):
-#     parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
+@pytest.mark.parametrize(
+    "source, message",
+    [
+        ("for {a} in [[1]]:\n\tpass", "cannot assign to comparison"),
+        ("async for (a := i)", "cannot assign to named expression"),
+    ],
+)
+def test_invalid_for_target(python_parser_cls, source, message):
+    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
 
 
-# @pytest.mark.parametrize(
-#     "source, message",
-#     [
-#         ("a = (*b, 1)", "cannot use starred expression here"),
-#         ("a = (**b, 1)", "cannot use double starred expression here"),
-#     ],
-# )
-# def test_invalid_group(python_parser_cls, source, message):
-#     parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
+@pytest.mark.parametrize(
+    "source, message",
+    [
+        ("a = (1+1 := 2)", "cannot use assignment expressions with expression"),
+        ("a := raise", "invalid syntax"),
+    ],
+)
+def test_named_expression(python_parser_cls, source, message):
+    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
 
 
-# @pytest.mark.parametrize(
-#     "source",
-#     ["import a, b,", "from a import b,"],
-# )
-# def test_invalid_import_from_as_names(python_parser_cls, source):
-#     parse_invalid_syntax(
-#         python_parser_cls,
-#         source,
-#         SyntaxError,
-#         "trailing comma not allowed without surrounding parentheses",
-#     )
+@pytest.mark.parametrize(
+    "source, message",
+    [
+        ("a = (*b)", "cannot use starred expression here"),
+        ("a = (**b)", "cannot use double starred expression here"),
+    ],
+)
+def test_invalid_group(python_parser_cls, source, message):
+    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
+
+
+@pytest.mark.parametrize(
+    "source, message",
+    [
+        ("from a import b,", "trailing comma not allowed without surrounding parentheses"),
+        ("from a import raise", "invalid syntax")
+    ],
+)
+def test_invalid_import_from_as_names(python_parser_cls, source, message):
+    parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
 
 
 @pytest.mark.parametrize(
@@ -247,6 +299,11 @@ def test_invalid_try_stmt(python_parser_cls, source, exception, message):
     "source, exception, message",
     [
         (
+            "try:\n\tpass\nexcept:\npass",
+            IndentationError,
+            "expected an indented block after 'except' statement on line 3",
+        ),
+        (
             "try:\n\tpass\nexcept Exception:\npass",
             IndentationError,
             "expected an indented block after 'except' statement on line 3",
@@ -265,6 +322,16 @@ def test_invalid_try_stmt(python_parser_cls, source, exception, message):
             "try:\n\tpass\nexcept ValueError, IndexError:",
             SyntaxError,
             "exception group must be parenthesized",
+        ),
+        (
+            "try:\n\tpass\nexcept ValueError, IndexError,:",
+            SyntaxError,
+            "exception group must be parenthesized",
+        ),
+        (
+            "try:\n\tpass\nexcept ValueError, IndexError, a=1:",
+            SyntaxError,
+            "invalid syntax",
         ),
         ("try:\n\tpass\nexcept Exception\npass", SyntaxError, "expected ':'"),
         ("try:\n\tpass\nexcept Exception as e\npass", SyntaxError, "expected ':'"),
@@ -318,8 +385,21 @@ def test_invalid_match_stmt(python_parser_cls, source, exception, message):
         (
             "match a:\n\tcase 1:\n\tpass",
             IndentationError,
-            "expected an indented block after 'case' statement on line 1",
+            "expected an indented block after 'case' statement on line 2",
         ),
+    ],
+)
+def test_invalid_case_stmt(python_parser_cls, source, exception, message):
+    parse_invalid_syntax(python_parser_cls, source, exception, message)
+
+
+
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Valid only in Python 3.10+")
+@pytest.mark.parametrize(
+    "source, exception, message",
+    [
+        ("match a:\n\tcase 1 as _:\n\t\tpass", SyntaxError, "cannot use '_' as a target"),
+        ("match a:\n\tcase 1 as 1+1:\n\tpass", SyntaxError, "invalid pattern target",),
     ],
 )
 def test_invalid_case_stmt(python_parser_cls, source, exception, message):
@@ -329,7 +409,7 @@ def test_invalid_case_stmt(python_parser_cls, source, exception, message):
 @pytest.mark.parametrize(
     "source, exception, message",
     [
-        # ("if a\n\tpass", SyntaxError, "expected ':'"),
+        ("if a\n\tpass", SyntaxError, "expected ':'"),
         (
             "if a:\npass",
             IndentationError,
@@ -344,7 +424,7 @@ def test_invalid_if_stmt(python_parser_cls, source, exception, message):
 @pytest.mark.parametrize(
     "source, exception, message",
     [
-        # ("if a:\n\tpass\nelif a\n\tpass", SyntaxError, "expected ':'"),
+        ("if a:\n\tpass\nelif a\n\tpass", SyntaxError, "expected ':'"),
         (
             "if a:\n\tpass\nelif b:\npass",
             IndentationError,
@@ -359,7 +439,7 @@ def test_invalid_elif_stmt(python_parser_cls, source, exception, message):
 @pytest.mark.parametrize(
     "source, exception, message",
     [
-        # ("if a:\n\tpass\nelse\n\tpass", SyntaxError, "expected ':'"),
+        ("if a:\n\tpass\nelse\n\tpass", SyntaxError, "expected ':'"),
         (
             "if a:\n\tpass\nelse:\npass",
             IndentationError,
@@ -374,7 +454,7 @@ def test_invalid_else_stmt(python_parser_cls, source, exception, message):
 @pytest.mark.parametrize(
     "source, exception, message",
     [
-        # ("while a\n\tpass", SyntaxError, "expected ':'"),
+        ("while a\n\tpass", SyntaxError, "expected ':'"),
         (
             "while a:\npass",
             IndentationError,
@@ -398,6 +478,16 @@ def test_invalid_while_stmt(python_parser_cls, source, exception, message):
             "async for a in range(10):\npass",
             IndentationError,
             "expected an indented block after 'for' statement on line 1",
+        ),
+        (
+            "for a in raise:\npass",
+            SyntaxError,
+            "invalid syntax",
+        ),
+        (
+            "async for a in raise:\npass",
+            SyntaxError,
+            "invalid syntax",
         ),
     ],
 )
@@ -428,6 +518,11 @@ def test_invalid_for_stmt(python_parser_cls, source, exception, message):
             IndentationError,
             "expected an indented block after function definition on line 1",
         ),
+        # (
+        #     "def f():\n# type: () -> int\n# type: () -> str\n\tpass",
+        #     SyntaxError,
+        #     "expected an indented block after function definition on line 1",
+        # ),
     ],
 )
 def test_invalid_def_stmt(python_parser_cls, source, exception, message):
@@ -463,6 +558,7 @@ def test_invalid_class_stmt(python_parser_cls, source, exception, message):
         ("{b:}", SyntaxError, "expression expected after dictionary key and ':'"),
         ("{b:, c}", SyntaxError, "expression expected after dictionary key and ':'"),
         ("{a: *b}", SyntaxError, "cannot use a starred expression in a dictionary value"),
+        ("{**c, a: *b}", SyntaxError, "cannot use a starred expression in a dictionary value"),
     ],
 )
 def test_invalid_dict_key_value(python_parser_cls, source, exception, message):
