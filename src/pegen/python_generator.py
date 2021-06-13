@@ -41,7 +41,7 @@ MODULE_SUFFIX = """
 
 if __name__ == '__main__':
     from pegen.parser import simple_parser_main
-    simple_parser_main(GeneratedParser)
+    simple_parser_main({class_name})
 """
 
 
@@ -172,7 +172,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print(f"KEYWORDS = {tuple(self.callmakervisitor.keywords)}")
             self.print(f"SOFT_KEYWORDS = {tuple(self.callmakervisitor.soft_keywords)}")
 
-        trailer = self.grammar.metas.get("trailer", MODULE_SUFFIX)
+        trailer = self.grammar.metas.get("trailer", MODULE_SUFFIX.format(class_name=cls_name))
         if trailer is not None:
             self.print(trailer.rstrip("\n"))
 
