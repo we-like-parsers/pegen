@@ -583,3 +583,14 @@ def test_soft_keyword() -> None:
     assert parse_string("string test 'b'", parser_class, verbose=True) == "test = 'b'"
     with pytest.raises(SyntaxError):
         parse_string("test 1", parser_class, verbose=True)
+
+        
+def test_forced() -> None:
+    grammar = """
+    start: NAME &&':' | NAME
+    """
+    parser_class = make_parser(grammar)
+    with pytest.raises(SyntaxError) as e:
+        parse_string("a", parser_class, verbose=True)
+
+    assert "expected ':'" in str(e.exconly())
