@@ -101,6 +101,18 @@ alternative won't be considered, even if some_rule or ')' fail
 to be parsed.
 
 
+### Keywords
+
+Keywords are identified in the grammar as quoted names. Single quotes `'def'`
+are used to identify hard keywords i.e. keywords that are reserved in the grammar
+and cannot be used for any other purpose. Double quotes `"match"` identify
+soft keywords that act as keyword only in specific context. As a consequence a
+rule matching `NAME` may match a soft keyword but never a hard keyword.
+
+In some circonstances, it can desirable to match any soft keyword for those cases
+one can use `SOFT_KEYWORD` that will expand to `"match" | "case"` if `match` and
+`case` are the only two known soft keywords.
+
 ### Return Value
 
 Optionally, an alternative can be followed by a so-called action
