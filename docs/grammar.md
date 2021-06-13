@@ -61,18 +61,18 @@ rule_name: e (',' e)* [',']
 ```
 
 ##### `e*`
-Match zero or more occurences of e.
+Match zero or more occurrences of e.
 ```
 rule_name: (e1 e2)*
 ```
 
 ##### `e+`
-Match one or more occurences of e.
+Match one or more occurrences of e.
 ```
 rule_name: (e1 e2)+
 ```
 ##### `s.e+`
-Match one or more occurences of e, separated by s. The generated parse tree
+Match one or more occurrences of e, separated by s. The generated parse tree
 does not include the separator. This is identical to `(e (s e)*)`.
 ```
 rule_name: ','.e+
@@ -99,6 +99,12 @@ rule_name: '(' ~ some_rule ')' | some_alt
 In this example, if a left parenthesis is parsed, then the other
 alternative won't be considered, even if some_rule or ')' fail
 to be parsed.
+
+##### `&&e`
+Fail immediatly if e fails to parse by raising the exception built using the
+`make_syntax_error` method.
+
+This construct can help provides better error messages.
 
 
 ### Keywords
