@@ -18,12 +18,12 @@ from pegen.grammar import (
 
 
 class RuleCheckingVisitor(GrammarVisitor):
-    def __init__(self, rules: Dict[str, Rule], tokens: Dict[int, str]):
+    def __init__(self, rules: Dict[str, Rule], tokens: Set[str]):
         self.rules = rules
         self.tokens = tokens
 
     def visit_NameLeaf(self, node: NameLeaf) -> None:
-        if node.value not in self.rules and node.value not in self.tokens.values():
+        if node.value not in self.rules and node.value not in self.tokens:
             # TODO: Add line/col info to (leaf) nodes
             raise GrammarError(f"Dangling reference to rule {node.value!r}")
 
@@ -37,7 +37,7 @@ class ParserGenerator:
 
     callmakervisitor: GrammarVisitor
 
-    def __init__(self, grammar: Grammar, tokens: Dict[int, str], file: Optional[IO[Text]]):
+    def __init__(self, grammar: Grammar, tokens: Set[str], file: Optional[IO[Text]]):
         self.grammar = grammar
         self.tokens = tokens
         self.rules = grammar.rules

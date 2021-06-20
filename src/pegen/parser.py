@@ -219,6 +219,13 @@ class Parser:
         return None
 
     @memoize
+    def soft_keyword(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == token.NAME and tok.string in self.SOFT_KEYWORDS:
+            return self._tokenizer.getnext()
+        return None
+
+    @memoize
     def expect(self, type: str) -> Optional[tokenize.TokenInfo]:
         tok = self._tokenizer.peek()
         if tok.string == type:
