@@ -532,6 +532,17 @@ def test_cut() -> None:
     ]
 
 
+def test_cut_early_exit() -> None:
+    grammar = """
+    start: '(' ~ expr ')' | '(' name ')'
+    expr: NUMBER
+    name: NAME
+    """
+    parser_class = make_parser(grammar)
+    with pytest.raises(SyntaxError):
+        parse_string("(a)", parser_class, verbose=True)
+
+
 def test_dangling_reference() -> None:
     grammar = """
     start: foo ENDMARKER
