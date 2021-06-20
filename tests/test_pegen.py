@@ -562,8 +562,13 @@ def test_soft_keyword() -> None:
     grammar = """
     start:
         | "number" n=NUMBER { eval(n.string) }
-        | !(SOFT_KEYWORD) l=NAME n=NUMBER { f"{l.string} = {n.string}"}
+        | "string" n=STRING { n.string }
+        | SOFT_KEYWORD l=NAME n=(NUMBER | NAME | STRING) { f"{l.string} = {n.string}"}
     """
     parser_class = make_parser(grammar)
     assert parse_string("number 1", parser_class, verbose=True) == 1
-    assert parse_string("test 1", parser_class, verbose=True) == "test = 1"
+    assert parse_string("string 'b'", parser_class, verbose=True) == "'b'"
+    assert parse_string("number test 1", parser_class, verbose=True) == "test = 1"
+    assert parse_string("string test 'b'", parser_class, verbose=True) == "test = 'b'"
+    with pytest.raises(SyntaxError):
+        parse_string("test 1", parser_class, verbose=True)
