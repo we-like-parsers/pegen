@@ -155,6 +155,8 @@ can add dedicated sections to the grammar, which are discussed below:
 
   Specify a trailer for the module which is appended to the parser definition.
   It defaults to MODULE_SUFFIX which is defined in pegen.python_generator.
+  Note that the trailer is formatted using `.format(class_name=cls_name)`
+  allowing you to reference the created parser in the trailer.
 
 
 The following snippets illustrates naming the parser MyParser and making the
