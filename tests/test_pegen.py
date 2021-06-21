@@ -597,7 +597,7 @@ def test_forced() -> None:
     assert "expected ':'" in str(e.exconly())
 
 
-def test_forced() -> None:
+def test_forced_with_group() -> None:
     grammar = """
     start: NAME &&(':' | ';') | NAME
     """
