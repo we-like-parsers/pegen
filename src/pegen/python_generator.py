@@ -158,7 +158,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         self,
         grammar: grammar.Grammar,
         file: Optional[IO[Text]],
-        tokens: Set[str] = set(token.tok_name,
+        tokens: Set[str] = set(token.tok_name.values()),
         unreachable_formatting: Optional[str] = None,
     ):
         tokens.add("SOFT_KEYWORD")
