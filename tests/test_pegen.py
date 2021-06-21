@@ -590,7 +590,21 @@ def test_forced() -> None:
     start: NAME &&':' | NAME
     """
     parser_class = make_parser(grammar)
+    assert parse_string("number :", parser_class, verbose=True)
     with pytest.raises(SyntaxError) as e:
         parse_string("a", parser_class, verbose=True)
 
     assert "expected ':'" in str(e.exconly())
+
+
+def test_forced() -> None:
+    grammar = """
+    start: NAME &&(':' | ';') | NAME
+    """
+    parser_class = make_parser(grammar)
+    assert parse_string("number :", parser_class, verbose=True)
+    assert parse_string("number ;", parser_class, verbose=True)
+    with pytest.raises(SyntaxError) as e:
+        parse_string("a", parser_class, verbose=True)
+
+    assert "expected (':' | ';')" in e.value.args[0]

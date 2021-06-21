@@ -240,10 +240,9 @@ class Parser:
             return self._tokenizer.getnext()
         return None
 
-    def expect_forced(self, type: str) -> Optional[tokenize.TokenInfo]:
-        res = self.expect(type)
+    def expect_forced(self, res: Any, expectation: str) -> Optional[tokenize.TokenInfo]:
         if res is None:
-            raise self.make_syntax_error(f"expected '{type}'")
+            raise self.make_syntax_error(f"expected {expectation}")
         return res
 
     def positive_lookahead(self, func: Callable[..., T], *args: object) -> T:

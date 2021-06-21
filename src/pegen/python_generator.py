@@ -143,8 +143,14 @@ class PythonCallMakerVisitor(GrammarVisitor):
         return "cut", "True"
 
     def visit_Forced(self, node: Forced) -> Tuple[str, str]:
-        val = ast.literal_eval(node.node.value)
-        return "literal", f"self.expect_forced({node.node.value})"
+        if isinstance(node.node, Group):
+            _, val = self.visit(node.node.rhs)
+            return "forced", f"self.expect_forced({val}, '''({node.node.rhs!s})''')"
+        else:
+            return (
+                "forced",
+                f"self.expect_forced(self.expect({node.node.value}), {node.node.value!r})",
+            )
 
 
 class PythonParserGenerator(ParserGenerator, GrammarVisitor):
