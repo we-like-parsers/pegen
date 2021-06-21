@@ -584,7 +584,7 @@ def test_soft_keyword() -> None:
     with pytest.raises(SyntaxError):
         parse_string("test 1", parser_class, verbose=True)
 
-        
+
 def test_forced() -> None:
     grammar = """
     start: NAME &&':' | NAME
