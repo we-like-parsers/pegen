@@ -1,3 +1,5 @@
+import ast
+import difflib
 import io
 import textwrap
 from tokenize import NAME, NEWLINE, NUMBER, OP, TokenInfo
@@ -643,3 +645,26 @@ def test_unreachable_implicit2() -> None:
     genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
     genr.generate("<string>")
     assert "This is a test" not in out.getvalue()
+
+
+def test_locations_in_alt_action_and_group() -> None:
+    grammar = """
+    start: t=term NEWLINE? $ { ast.Expression(t, LOCATIONS) }
+    term:
+        | l=term '*' r=factor { ast.BinOp(l, ast.Mult(), r, LOCATIONS) }
+        | l=term '/' r=factor { ast.BinOp(l, ast.Div(), r, LOCATIONS) }
+        | factor
+    factor:
+        | (
+            n=NAME { ast.Name(id=n.string, ctx=ast.Load(), LOCATIONS) } |
+            n=NUMBER { ast.Constant(value=ast.literal_eval(n.string), LOCATIONS) }
+         )
+    """
+    parser_class = make_parser(grammar)
+    source = "2*3\n"
+    o = ast.dump(parse_string(source, parser_class).body, include_attributes=True, indent="  ")
+    p = ast.dump(ast.parse(source).body[0].value, include_attributes=True, indent="  ")
+    diff = "\n".join(difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen"))
+    if diff:
+        print(diff)
+    assert not diff
