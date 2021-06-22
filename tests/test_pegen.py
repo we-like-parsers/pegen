@@ -663,7 +663,9 @@ def test_locations_in_alt_action_and_group() -> None:
     parser_class = make_parser(grammar)
     source = "2*3\n"
     o = ast.dump(parse_string(source, parser_class).body, include_attributes=True)
-    p = ast.dump(ast.parse(source).body[0].value, include_attributes=True)
+    p = ast.dump(ast.parse(source).body[0].value, include_attributes=True).replace(
+        " kind=None,", ""
+    )
     diff = "\n".join(difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen"))
     if diff:
         print(diff)
