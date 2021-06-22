@@ -203,9 +203,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             if alt.action and "LOCATIONS" in alt.action:
                 return True
             for n in alt.items:
-                if isinstance(n.item, Alt) and n.item.action and "LOCATIONS" in n.item.action:
-                    return True
-                elif isinstance(n.item, Group) and self.alts_uses_locations(n.item.rhs.alts):
+                if isinstance(n.item, Group) and self.alts_uses_locations(n.item.rhs.alts):
                     return True
         return False
 
