@@ -193,6 +193,10 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print(trailer.rstrip("\n"))
 
     def visit_Rule(self, node: Rule) -> None:
+        if node.name.startswith("invalid"):
+            for alt in node.rhs.alts:
+                if not alt.action:
+                    alt.action = "UNREACHABLE"
         is_loop = node.is_loop()
         is_gather = node.is_gather()
         rhs = node.flatten()

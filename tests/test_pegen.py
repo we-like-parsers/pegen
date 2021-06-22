@@ -608,3 +608,38 @@ def test_forced_with_group() -> None:
         parse_string("a", parser_class, verbose=True)
 
     assert "expected (':' | ';')" in e.value.args[0]
+
+
+def test_unreachable_explicit() -> None:
+    source = """
+    start: NAME { UNREACHABLE }
+    """
+    grammar = parse_string(source, GrammarParser)
+    out = io.StringIO()
+    genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
+    genr.generate("<string>")
+    assert "This is a test" in out.getvalue()
+
+
+def test_unreachable_implicit1() -> None:
+    source = """
+    start: NAME | invalid_input
+    invalid_input: NUMBER
+    """
+    grammar = parse_string(source, GrammarParser)
+    out = io.StringIO()
+    genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
+    genr.generate("<string>")
+    assert "This is a test" in out.getvalue()
+
+
+def test_unreachable_implicit2() -> None:
+    source = """
+    start: NAME | invalid_input
+    invalid_input: NUMBER { None }
+    """
+    grammar = parse_string(source, GrammarParser)
+    out = io.StringIO()
+    genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
+    genr.generate("<string>")
+    assert "This is a test" not in out.getvalue()
