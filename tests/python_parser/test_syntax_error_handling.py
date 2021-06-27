@@ -39,8 +39,8 @@ def test_invalid_primary(python_parser_cls, source, message):
     [
         ("a 1", "invalid syntax. Perhaps you forgot a comma?"),
         ("a 1 if b else 2", "invalid syntax. Perhaps you forgot a comma?"),
-        ("a 1ambda: 1", "invalid syntax. Perhaps you forgot a comma?")
-    ]
+        ("a 1ambda: 1", "invalid syntax. Perhaps you forgot a comma?"),
+    ],
 )
 def test_invalid_expression(python_parser_cls, source, message):
     parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
@@ -59,8 +59,8 @@ def test_invalid_expression(python_parser_cls, source, message):
         ("del raise", "invalid syntax"),
         ("if raise:\n\tpass", "invalid syntax"),
         ("@raise\ndef f():\n\tpass", "invalid syntax"),
-        ("a: int = raise", "invalid syntax")
-    ]
+        ("a: int = raise", "invalid syntax"),
+    ],
 )
 def test_invalid_statements(python_parser_cls, source, message):
     parse_invalid_syntax(python_parser_cls, source, SyntaxError, message)
@@ -73,7 +73,10 @@ def test_invalid_statements(python_parser_cls, source, message):
         ("f(**a, *b)", "iterable argument unpacking follows keyword argument unpacking"),
         ("f(a for a in b, c)", "Generator expression must be parenthesized"),
         ("f(a for a in b, c for c in d)", "Generator expression must be parenthesized"),
-        ("f(a=1 for i in range(10))", "invalid syntax. Maybe you meant '==' or ':=' instead of '='?"),
+        (
+            "f(a=1 for i in range(10))",
+            "invalid syntax. Maybe you meant '==' or ':=' instead of '='?",
+        ),
         ("f(a, b for b in c)", "Generator expression must be parenthesized"),
         ("f(a, b for b in c, d)", "Generator expression must be parenthesized"),
         ("f(**a, b)", "positional argument follows keyword argument unpacking"),
@@ -112,7 +115,6 @@ def test_invalid_call_arguments(python_parser_cls, source, message):
             "list comprehension is an illegal expression for augmented assignment",
         ),
         ("a += raise", "invalid syntax"),
-
     ],
 )
 def test_invalid_assignments(python_parser_cls, source, message):
@@ -251,7 +253,7 @@ def test_invalid_group(python_parser_cls, source, message):
     "source, message",
     [
         ("from a import b,", "trailing comma not allowed without surrounding parentheses"),
-        ("from a import raise", "invalid syntax")
+        ("from a import raise", "invalid syntax"),
     ],
 )
 def test_invalid_import_from_as_names(python_parser_cls, source, message):
@@ -393,13 +395,38 @@ def test_invalid_case_stmt(python_parser_cls, source, exception, message):
     parse_invalid_syntax(python_parser_cls, source, exception, message)
 
 
-
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="Valid only in Python 3.10+")
 @pytest.mark.parametrize(
     "source, exception, message",
     [
+        # As pattern
         ("match a:\n\tcase 1 as _:\n\t\tpass", SyntaxError, "cannot use '_' as a target"),
-        ("match a:\n\tcase 1 as 1+1:\n\tpass", SyntaxError, "invalid pattern target",),
+        (
+            "match a:\n\tcase 1 as 1+1:\n\tpass",
+            SyntaxError,
+            "invalid pattern target",
+        ),
+        # Class pattern
+        (
+            "match a:\n\tcase Foo(z=1, y=2, x):\n\tpass",
+            SyntaxError,
+            "positional patterns follow keyword patterns",
+        ),
+        (
+            "match a:\n\tcase Foo(a, z=1, y=2, x):\n\tpass",
+            SyntaxError,
+            "positional patterns follow keyword patterns",
+        ),
+        (
+            "match a:\n\tcase Foo(z=1, x, y=2):\n\tpass",
+            SyntaxError,
+            "positional patterns follow keyword patterns",
+        ),
+        (
+            "match a:\n\tcase Foo(a=b, c, d=e, f, g=h, i, j=k, ...):\n\tpass",
+            SyntaxError,
+            "positional patterns follow keyword patterns",
+        ),
     ],
 )
 def test_invalid_case_stmt(python_parser_cls, source, exception, message):

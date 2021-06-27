@@ -755,6 +755,7 @@ class_pattern["ast.MatchClass"]:
             LOCATIONS,
         )
      }
+    | invalid_class_pattern { UNREACHABLE }
 positional_patterns:
     | args=','.pattern+ { args }
 keyword_patterns:
@@ -1533,13 +1534,21 @@ invalid_case_block[Optional[NoReturn]]:
             f"expected an indented block after 'case' statement on line {a.lineno}"
         )
      }
-invalid_as_pattern[None]:
+invalid_as_pattern[NoReturn]:
     | or_pattern 'as' a="_" {
         self.raise_syntax_error_known_location("cannot use '_' as a target", a)
      }
     | or_pattern 'as' !NAME a=expression {
         self.raise_syntax_error_known_location("invalid pattern target", a)
      }
+invalid_class_pattern[NoReturn]:
+    | name_or_attr '(' a=invalid_class_argument_pattern  {
+        self.raise_syntax_error_known_range(
+            "positional patterns follow keyword patterns", a[0], a[-1]
+        )
+     }
+invalid_class_argument_pattern[list]:
+    | [positional_patterns ','] keyword_patterns ',' a=positional_patterns { a }
 invalid_if_stmt[Optional[NoReturn]]:
     | 'if' named_expression NEWLINE { self.raise_syntax_error("expected ':'") }
     | a='if' a=named_expression ':' NEWLINE !INDENT {
