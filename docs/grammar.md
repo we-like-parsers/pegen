@@ -142,6 +142,23 @@ The name can then be used in the action, like this:
 rule_name[return_type]: '(' a=some_other_rule ')' { a }
 ```
 
+### Syntax error related rules
+
+Rules meant to provide better error reporting on syntax error are useful but
+can be tricky:
+
+- they will prevent the parser from back tracking which may not always be desirable.
+  In those cases one can customize the parser to delay the error reporting.
+- secondly those rules will never evaluate their action which can be annoying to
+  measure the code coverage on the parser. For those cases, one can use the
+  special action `UNREACHABLE` which will be replaced by the value of the
+  `unreachable_formatting` which defaults to `None  # pragma: no cover`.
+
+.. note::
+
+  All rules whose name starts with `'invalid'` will have the action of their
+  alternatives set to `UNREACHABLE` if no action was specified.
+
 
 ### Customizing the generated parser
 

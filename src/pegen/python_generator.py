@@ -159,10 +159,12 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         grammar: grammar.Grammar,
         file: Optional[IO[Text]],
         tokens: Set[str] = set(token.tok_name.values()),
+        unreachable_formatting: Optional[str] = None,
     ):
         tokens.add("SOFT_KEYWORD")
         super().__init__(grammar, tokens, file)
         self.callmakervisitor: PythonCallMakerVisitor = PythonCallMakerVisitor(self)
+        self.unreachable_formatting = unreachable_formatting or "None  # pragma: no cover"
 
     def generate(self, filename: str) -> None:
         header = self.grammar.metas.get("header", MODULE_PREFIX)
@@ -191,6 +193,10 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print(trailer.rstrip("\n"))
 
     def visit_Rule(self, node: Rule) -> None:
+        if node.name.startswith("invalid"):
+            for alt in node.rhs.alts:
+                if not alt.action:
+                    alt.action = "UNREACHABLE"
         is_loop = node.is_loop()
         is_gather = node.is_gather()
         rhs = node.flatten()
@@ -273,6 +279,8 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     self.print(f"children.append({action})")
                     self.print(f"mark = self._mark()")
                 else:
+                    if "UNREACHABLE" in action:
+                        action = action.replace("UNREACHABLE", self.unreachable_formatting)
                     self.print(f"return {action}")
             self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
