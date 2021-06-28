@@ -1,7 +1,7 @@
 import ast
 import re
 import token
-from typing import IO, Any, Dict, Optional, Set, Text, Tuple
+from typing import IO, Any, Dict, Optional, Sequence, Set, Text, Tuple
 
 from pegen import grammar
 from pegen.grammar import (
@@ -159,12 +159,18 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         grammar: grammar.Grammar,
         file: Optional[IO[Text]],
         tokens: Set[str] = set(token.tok_name.values()),
+        location_formatting: Optional[str] = None,
         unreachable_formatting: Optional[str] = None,
     ):
         tokens.add("SOFT_KEYWORD")
         super().__init__(grammar, tokens, file)
         self.callmakervisitor: PythonCallMakerVisitor = PythonCallMakerVisitor(self)
         self.unreachable_formatting = unreachable_formatting or "None  # pragma: no cover"
+        self.location_formatting = (
+            location_formatting
+            or "lineno=start_lineno, col_offset=start_col_offset, "
+            "end_lineno=end_lineno, end_col_offset=end_col_offset"
+        )
 
     def generate(self, filename: str) -> None:
         header = self.grammar.metas.get("header", MODULE_PREFIX)
@@ -192,6 +198,15 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         if trailer is not None:
             self.print(trailer.rstrip("\n"))
 
+    def alts_uses_locations(self, alts: Sequence[Alt]) -> bool:
+        for alt in alts:
+            if alt.action and "LOCATIONS" in alt.action:
+                return True
+            for n in alt.items:
+                if isinstance(n.item, Group) and self.alts_uses_locations(n.item.rhs.alts):
+                    return True
+        return False
+
     def visit_Rule(self, node: Rule) -> None:
         if node.name.startswith("invalid"):
             for alt in node.rhs.alts:
@@ -216,6 +231,9 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             if node.nullable:
                 self.print(f"# nullable={node.nullable}")
             self.print("mark = self._mark()")
+            if self.alts_uses_locations(node.rhs.alts):
+                self.print("tok = self._tokenizer.peek()")
+                self.print("start_lineno, start_col_offset = tok.start")
             if is_loop:
                 self.print("children = []")
             self.visit(rhs, is_loop=is_loop, is_gather=is_gather)
@@ -275,6 +293,10 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                             action = f"{self.local_variable_names[0]}"
                         else:
                             action = f"[{', '.join(self.local_variable_names)}]"
+                elif "LOCATIONS" in action:
+                    self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
+                    self.print("end_lineno, end_col_offset = tok.end")
+                    action = action.replace("LOCATIONS", self.location_formatting)
                 if is_loop:
                     self.print(f"children.append({action})")
                     self.print(f"mark = self._mark()")

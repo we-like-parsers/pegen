@@ -1,3 +1,5 @@
+import ast
+import difflib
 import io
 import textwrap
 from tokenize import NAME, NEWLINE, NUMBER, OP, TokenInfo
@@ -339,20 +341,20 @@ def test_left_recursive() -> None:
 
 def test_python_expr() -> None:
     grammar = """
-    start: expr NEWLINE? $ { ast.Expression(expr, lineno=1, col_offset=0) }
-    expr: ( expr '+' term { ast.BinOp(expr, ast.Add(), term, lineno=expr.lineno, col_offset=expr.col_offset, end_lineno=term.end_lineno, end_col_offset=term.end_col_offset) }
-          | expr '-' term { ast.BinOp(expr, ast.Sub(), term, lineno=expr.lineno, col_offset=expr.col_offset, end_lineno=term.end_lineno, end_col_offset=term.end_col_offset) }
+    start: expr NEWLINE? $ { ast.Expression(expr, LOCATIONS) }
+    expr: ( expr '+' term { ast.BinOp(expr, ast.Add(), term, LOCATIONS) }
+          | expr '-' term { ast.BinOp(expr, ast.Sub(), term, LOCATIONS) }
           | term { term }
           )
-    term: ( l=term '*' r=factor { ast.BinOp(l, ast.Mult(), r, lineno=l.lineno, col_offset=l.col_offset, end_lineno=r.end_lineno, end_col_offset=r.end_col_offset) }
-          | l=term '/' r=factor { ast.BinOp(l, ast.Div(), r, lineno=l.lineno, col_offset=l.col_offset, end_lineno=r.end_lineno, end_col_offset=r.end_col_offset) }
+    term: ( l=term '*' r=factor { ast.BinOp(l, ast.Mult(), r, LOCATIONS) }
+          | l=term '/' r=factor { ast.BinOp(l, ast.Div(), r, LOCATIONS) }
           | factor { factor }
           )
     factor: ( '(' expr ')' { expr }
             | atom { atom }
             )
-    atom: ( n=NAME { ast.Name(id=n.string, ctx=ast.Load(), lineno=n.start[0], col_offset=n.start[1], end_lineno=n.end[0], end_col_offset=n.end[1]) }
-          | n=NUMBER { ast.Constant(value=ast.literal_eval(n.string), lineno=n.start[0], col_offset=n.start[1], end_lineno=n.end[0], end_col_offset=n.end[1]) }
+    atom: ( n=NAME { ast.Name(id=n.string, ctx=ast.Load(), LOCATIONS) }
+          | n=NUMBER { ast.Constant(value=ast.literal_eval(n.string), LOCATIONS) }
           )
     """
     parser_class = make_parser(grammar)
@@ -643,3 +645,28 @@ def test_unreachable_implicit2() -> None:
     genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
     genr.generate("<string>")
     assert "This is a test" not in out.getvalue()
+
+
+def test_locations_in_alt_action_and_group() -> None:
+    grammar = """
+    start: t=term NEWLINE? $ { ast.Expression(t, LOCATIONS) }
+    term:
+        | l=term '*' r=factor { ast.BinOp(l, ast.Mult(), r, LOCATIONS) }
+        | l=term '/' r=factor { ast.BinOp(l, ast.Div(), r, LOCATIONS) }
+        | factor
+    factor:
+        | (
+            n=NAME { ast.Name(id=n.string, ctx=ast.Load(), LOCATIONS) } |
+            n=NUMBER { ast.Constant(value=ast.literal_eval(n.string), LOCATIONS) }
+         )
+    """
+    parser_class = make_parser(grammar)
+    source = "2*3\n"
+    o = ast.dump(parse_string(source, parser_class).body, include_attributes=True)
+    p = ast.dump(ast.parse(source).body[0].value, include_attributes=True).replace(
+        " kind=None,", ""
+    )
+    diff = "\n".join(difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen"))
+    if diff:
+        print(diff)
+    assert not diff
