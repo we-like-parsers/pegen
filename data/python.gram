@@ -239,7 +239,7 @@ class Parser(Parser):
         message: str,
         start: Optional[Tuple[int, int]] = None,
         end: Optional[Tuple[int, int]] = None
-    ) -> NoReturn:
+    ) -> None:
         line_from_token = start is None and end is None
         if start is None or end is None:
             tok = self._tokenizer.diagnose()
@@ -257,10 +257,12 @@ class Parser(Parser):
             (self.filename, start[0], start[1], line)
         )
 
-    def store_syntax_error(self, message: str) -> NoReturn:
+    def store_syntax_error(self, message: str) -> None:
         self._store_syntax_error(message)
 
-    make_syntax_error = store_syntax_error
+    def make_syntax_error(self, message: str) -> None:
+        self._store_syntax_error(message)
+        return self._exception
 
     def store_syntax_error_known_location(self, message: str, node) -> None:
         """Store a syntax error that occured at a given AST node."""
@@ -396,7 +398,14 @@ assignment:
             (3, 6),
             "Variable annotation syntax is",
             ast.AnnAssign(
-                target=ast.Name(id=a.string, ctx=Store),
+                target=ast.Name(
+                    id=a.string,
+                    ctx=Store,
+                    lineno=a.start[0],
+                    col_offset=a.start[1],
+                    end_lineno=a.end[0],
+                    end_col_offset=a.end[1],
+                ),
                 annotation=b,
                 value=c,
                 simple=1,
@@ -423,7 +432,7 @@ assignment:
     | a=single_target b=augassign ~ c=(yield_expr | star_expressions) {
         ast.AugAssign(target = a, op=b, value=c, LOCATIONS)
      }
-    | invalid_assignment { UNREACHABLE }
+    | invalid_assignment
 
 augassign:
     | '+=' { ast.Add() }
@@ -455,7 +464,7 @@ assert_stmt[ast.Assert]: 'assert' a=expression b=[',' z=expression { z }] {
 
 del_stmt[ast.Delete]:
     | 'del' a=del_targets &(';' | NEWLINE) { ast.Delete(targets=a, LOCATIONS) }
-    | invalid_del_stmt { UNREACHABLE }
+    | invalid_del_stmt
 
 import_stmt[ast.Import]: import_name | import_from
 import_name[ast.Import]: 'import' a=dotted_as_names { ast.Import(names=a, LOCATIONS) }
@@ -471,7 +480,7 @@ import_from_targets[List[ast.alias]]:
     | '(' a=import_from_as_names [','] ')' { a }
     | import_from_as_names !','
     | '*' { [ast.alias(name="*", asname=None, LOCATIONS)] }
-    | invalid_import_from_targets { UNREACHABLE }
+    | invalid_import_from_targets
 import_from_as_names[List[ast.alias]]:
     | a=','.import_from_as_name+ { a }
 import_from_as_name[ast.alias]:
@@ -485,25 +494,25 @@ dotted_name[str]:
     | a=NAME { a.string }
 
 if_stmt[ast.If]:
-    | invalid_if_stmt { UNREACHABLE }
+    | invalid_if_stmt
     | 'if' a=named_expression ':' b=block c=elif_stmt { ast.If(test=a, body=b, orelse=c or [], LOCATIONS) }
     | 'if' a=named_expression ':' b=block c=[else_block] { ast.If(test=a, body=b, orelse=c or [], LOCATIONS) }
 elif_stmt[List[ast.If]]:
-    | invalid_elif_stmt { UNREACHABLE }
+    | invalid_elif_stmt
     | 'elif' a=named_expression ':' b=block c=elif_stmt { [ast.If(test=a, body=b, orelse=c, LOCATIONS)] }
     | 'elif' a=named_expression ':' b=block c=[else_block] { [ast.If(test=a, body=b, orelse=c or [], LOCATIONS)] }
 else_block[list]:
-    | invalid_else_stmt { UNREACHABLE }
+    | invalid_else_stmt
     | 'else' &&':' b=block { b }
 
 while_stmt[ast.While]:
-    | invalid_while_stmt { UNREACHABLE }
+    | invalid_while_stmt
     | 'while' a=named_expression ':' b=block c=[else_block] {
         ast.While(test=a, body=b, orelse=c or [], LOCATIONS)
      }
 
 for_stmt[Union[ast.For, ast.AsyncFor]]:
-    | invalid_for_stmt { UNREACHABLE }
+    | invalid_for_stmt
     | 'for' t=star_targets 'in' ~ ex=star_expressions &&':' tc=[TYPE_COMMENT] b=block el=[else_block] {
         ast.For(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc, LOCATIONS) }
     | 'async' 'for' t=star_targets 'in' ~ ex=star_expressions ':' tc=[TYPE_COMMENT] b=block el=[else_block] {
@@ -511,10 +520,10 @@ for_stmt[Union[ast.For, ast.AsyncFor]]:
             (3, 5),
             "Async for loops are",
             ast.AsyncFor(target=t, iter=ex, body=b, orelse=el or [], type_comment=tc, LOCATIONS)) }
-    | invalid_for_target { UNREACHABLE }
+    | invalid_for_target
 
 with_stmt[Union[ast.With, ast.AsyncWith]]:
-    | invalid_with_stmt_indent { UNREACHABLE }
+    | invalid_with_stmt_indent
     | 'with' '(' a=','.with_item+ ','? ')' ':' b=block {
         ast.With(items=a, body=b, LOCATIONS) }
     | 'with' a=','.with_item+ ':' tc=[TYPE_COMMENT] b=block {
@@ -533,17 +542,17 @@ with_stmt[Union[ast.With, ast.AsyncWith]]:
            ast.AsyncWith(items=a, body=b, type_comment=tc, LOCATIONS)
         )
      }
-    | invalid_with_stmt { UNREACHABLE }
+    | invalid_with_stmt
 
 with_item[ast.withitem]:
     | e=expression 'as' t=star_target &(',' | ')' | ':') {
         ast.withitem(context_expr=e, optional_vars=t)
      }
-    | invalid_with_item { UNREACHABLE }
+    | invalid_with_item
     | e=expression { ast.withitem(context_expr=e, optional_vars=None) }
 
 try_stmt[ast.Try]:
-    | invalid_try_stmt { UNREACHABLE }
+    | invalid_try_stmt
     | 'try' &&':' b=block f=finally_block {
         ast.Try(body=b, handlers=[], orelse=[], finalbody=f, LOCATIONS)
      }
@@ -551,13 +560,13 @@ try_stmt[ast.Try]:
         ast.Try(body=b, handlers=ex, orelse=el or [], finalbody=f or [], LOCATIONS)
      }
 except_block[ast.ExceptHandler]:
-    | invalid_except_stmt_indent { UNREACHABLE }
+    | invalid_except_stmt_indent
     | 'except' e=expression t=['as' z=NAME { z.string }] ':' b=block {
         ast.ExceptHandler(type=e, name=t, body=b, LOCATIONS) }
     | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b, LOCATIONS) }
-    | invalid_except_stmt { UNREACHABLE }
+    | invalid_except_stmt
 finally_block[list]:
-    | invalid_finally_stmt { UNREACHABLE }
+    | invalid_finally_stmt
     | 'finally' &&':' a=block { a }
 
 # We cannot do version here since the production will occur after any other production
@@ -566,7 +575,7 @@ match_stmt["ast.Match"]:
     | "match" subject=subject_expr ':' NEWLINE INDENT cases=case_block+ DEDENT {
         ast.Match(subject=subject, cases=cases, LOCATIONS)
      }
-    | invalid_match_stmt { UNREACHABLE }
+    | invalid_match_stmt
 # Version checking here allows to avoid tracking down every single possible production
 subject_expr:
     | value=star_named_expression ',' values=star_named_expressions? {
@@ -578,7 +587,7 @@ subject_expr:
      }
     | e=named_expression { self.check_version((3, 10), "Pattern matching is", e)}
 case_block["ast.match_case"]:
-    | invalid_case_block { UNREACHABLE }
+    | invalid_case_block
     | "case" pattern=patterns guard=guard? ':' body=block {
         ast.match_case(pattern=pattern, guard=guard, body=body)
      }
@@ -596,7 +605,7 @@ as_pattern["ast.MatchAs"]:
     | pattern=or_pattern 'as' target=pattern_capture_target {
         ast.MatchAs(pattern=pattern, name=target, LOCATIONS)
      }
-    | invalid_as_pattern { UNREACHABLE }
+    | invalid_as_pattern
 or_pattern["ast.MatchOr"]:
     | patterns='|'.closed_pattern+ {
         ast.MatchOr(patterns=patterns, LOCATIONS) if len(patterns) > 1 else patterns[0]
@@ -755,7 +764,7 @@ class_pattern["ast.MatchClass"]:
             LOCATIONS,
         )
      }
-    | invalid_class_pattern { UNREACHABLE }
+    | invalid_class_pattern
 positional_patterns:
     | args=','.pattern+ { args }
 keyword_patterns:
@@ -775,7 +784,7 @@ function_def[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
     | f=function_def_raw {self.set_decorators(f, [])}
 
 function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
-    | invalid_def_raw { UNREACHABLE }
+    | invalid_def_raw
     | 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
         ast.FunctionDef(
             name=n.string,
@@ -802,11 +811,11 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
      }
 func_type_comment:
     | NEWLINE t=TYPE_COMMENT &(NEWLINE INDENT) { t.string }  # Must be followed by indented block
-    | invalid_double_type_comments { UNREACHABLE }
+    | invalid_double_type_comments
     | TYPE_COMMENT
 
 params:
-    | invalid_parameters { UNREACHABLE }
+    | invalid_parameters
     | parameters
 
 parameters[ast.arguments]:
@@ -845,7 +854,7 @@ star_etc[Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast.arg]]]
     | '*' a=param_no_default b=param_maybe_default* c=[kwds] { (a, b, c) }
     | '*' ',' b=param_maybe_default+ c=[kwds] { (None, b, c) }
     | a=kwds { (None, [], a) }
-    | invalid_star_etc { UNREACHABLE }
+    | invalid_star_etc
 
 kwds: '**' a=param_no_default { a }
 
@@ -894,7 +903,7 @@ class_def[ast.ClassDef]:
     | a=decorators b=class_def_raw { self.set_decorators(b, a) }
     | class_def_raw
 class_def_raw[ast.ClassDef]:
-    | invalid_class_def_raw { UNREACHABLE }
+    | invalid_class_def_raw
     | 'class' a=NAME b=['(' z=[arguments] ')' { z }] &&':' c=block {
         ast.ClassDef(
             a.string,
@@ -909,7 +918,7 @@ class_def_raw[ast.ClassDef]:
 block[list] (memo):
     | NEWLINE INDENT a=statements DEDENT { a }
     | simple_stmts
-    | invalid_block { UNREACHABLE }
+    | invalid_block
 
 star_expressions:
     | a=star_expression b=(',' c=star_expression { c })+ [','] {
@@ -935,10 +944,10 @@ assignment_expression:
                 target=ast.Name(
                     id=a.string,
                     ctx=Store,
-                    lineno=a.lineno,
-                    col_offset=a.col_offset,
-                    end_lineno=a.end_lineno,
-                    end_col_offset=a.end_col_offset
+                    lineno=a.start[0],
+                    col_offset=a.start[1],
+                    end_lineno=a.end[0],
+                    end_col_offset=a.end[1]
                 ),
                 value=b,
                 LOCATIONS,
@@ -948,7 +957,7 @@ assignment_expression:
 
 named_expression:
     | assignment_expression
-    | invalid_named_expression { UNREACHABLE }
+    | invalid_named_expression
     | a=expression !':=' { a }
 
 
@@ -960,7 +969,7 @@ expressions:
     | a=expression ',' { ast.Tuple(elts=[a], ctx=Load, LOCATIONS) }
     | expression
 expression (memo):
-    | invalid_expression { UNREACHABLE }
+    | invalid_expression
     | a=disjunction 'if' b=disjunction 'else' c=expression {
         ast.IfExp(body=a, test=b, orelse=c, LOCATIONS)
      }
@@ -973,7 +982,7 @@ lambdef:
      }
 
 lambda_params:
-    | invalid_lambda_parameters { UNREACHABLE }
+    | invalid_lambda_parameters
     | lambda_parameters
 
 # lambda_parameters etc. duplicates parameters but without annotations
@@ -1008,7 +1017,7 @@ lambda_star_etc[Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast
     | '*' ',' b=lambda_param_maybe_default+ c=[lambda_kwds] {
         (None, b, c) }
     | a=lambda_kwds { (None, [], a) }
-    | invalid_lambda_star_etc { UNREACHABLE }
+    | invalid_lambda_star_etc
 
 lambda_kwds[ast.arg]: '**' a=lambda_param_no_default { a }
 
@@ -1102,7 +1111,7 @@ await_primary (memo):
     | 'await' a=primary { self.check_version((3, 5), "Await expressions are", ast.Await(a, LOCATIONS)) }
     | primary
 primary:
-    | invalid_primary { UNREACHABLE } # must be before 'primay genexp' because of invalid_genexp
+    | invalid_primary  # must be before 'primay genexp' because of invalid_genexp
     | a=primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load, LOCATIONS) }
     | a=primary b=genexp { ast.Call(func=a, args=[b], keywords=[], LOCATIONS) }
     | a=primary '(' b=[arguments] ')' {
@@ -1139,31 +1148,31 @@ list[ast.List]:
     | '[' a=[star_named_expressions] ']' { ast.List(elts=a or [], ctx=Load, LOCATIONS) }
 listcomp[ast.ListComp]:
     | '[' a=named_expression b=for_if_clauses ']' { ast.ListComp(elt=a, generators=b, LOCATIONS) }
-    | invalid_comprehension { UNREACHABLE }
+    | invalid_comprehension
 tuple[ast.Tuple]:
     | '(' a=[y=star_named_expression ',' z=[star_named_expressions] { [y] + (z or []) } ] ')' {
         ast.Tuple(elts=a or [], ctx=Load, LOCATIONS)
      }
 group:
     | '(' a=(yield_expr | named_expression) ')' { a }
-    | invalid_group { UNREACHABLE }
+    | invalid_group
 genexp[ast.GeneratorExp]:
     | '(' a=( assignment_expression | expression !':=') b=for_if_clauses ')' {
         ast.GeneratorExp(elt=a, generators=b, LOCATIONS)
      }
-    | invalid_comprehension { UNREACHABLE }
+    | invalid_comprehension
 set[ast.Set]: '{' a=star_named_expressions '}' { ast.Set(elts=a, LOCATIONS) }
 setcomp[ast.SetComp]:
     | '{' a=named_expression b=for_if_clauses '}' { ast.SetComp(elt=a, generators=b, LOCATIONS) }
-    | invalid_comprehension { UNREACHABLE }
+    | invalid_comprehension
 dict[ast.Dict]:
     | '{' a=[double_starred_kvpairs] '}' {
         ast.Dict(keys=[kv[0] for kv in (a or [])], values=[kv[1] for kv in (a or [])], LOCATIONS)
      }
-    | '{' invalid_double_starred_kvpairs '}' { UNREACHABLE }
+    | '{' invalid_double_starred_kvpairs '}'
 dictcomp[ast.DictComp]:
     | '{' a=kvpair b=for_if_clauses '}' { ast.DictComp(key=a[0], value=a[1], generators=b, LOCATIONS) }
-    | invalid_dict_comprehension { UNREACHABLE }
+    | invalid_dict_comprehension
 double_starred_kvpairs[list]: a=','.double_starred_kvpair+ [','] { a }
 double_starred_kvpair:
     | '**' a=bitwise_or { (None, a) }
@@ -1181,7 +1190,7 @@ for_if_clause[ast.comprehension]:
      }
     | 'for' a=star_targets 'in' ~ b=disjunction c=('if' z=disjunction { z })* {
        ast.comprehension(target=a, iter=b, ifs=c, is_async=0) }
-    | invalid_for_target { UNREACHABLE }
+    | invalid_for_target
 
 yield_expr:
     | 'yield' 'from' a=expression { ast.YieldFrom(value=a, LOCATIONS) }
@@ -1189,7 +1198,7 @@ yield_expr:
 
 arguments[Tuple[list, list]] (memo):
     | a=args [','] &')' { a }
-    | invalid_arguments { UNREACHABLE }
+    | invalid_arguments
 args[Tuple[list, list]]:
     | a=','.(starred_expression | ( assignment_expression | expression !':=') !'=')+ b=[',' k=kwargs {k}] {
         (a + ([e for e in b if isinstance(e, ast.Starred)] if b else []),
@@ -1208,12 +1217,12 @@ kwargs[list]:
 starred_expression:
     | '*' a=expression { ast.Starred(value=a, ctx=Load, LOCATIONS) }
 kwarg_or_starred:
-    | invalid_kwarg { UNREACHABLE }
+    | invalid_kwarg
     | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b, LOCATIONS) }
     | a=starred_expression { a }
 
 kwarg_or_double_starred:
-    | invalid_kwarg { UNREACHABLE }
+    | invalid_kwarg
     | a=NAME '=' b=expression { ast.keyword(arg=a.string, value=b, LOCATIONS) }   # XXX Unreachable
     | '**' a=expression { ast.keyword(arg=None, value=a, LOCATIONS) }
 # NOTE: star_targets may contain *bitwise_or, targets may not.
@@ -1385,8 +1394,8 @@ invalid_assignment[Optional[NoReturn]]:
         )
      }
 invalid_ann_assign_target[Optional[ast.AST]]:
-    | list
-    | tuple
+    | a=list { a }
+    | a=tuple { a }
     | '(' a=invalid_ann_assign_target ')' { a }
 invalid_del_stmt[Optional[NoReturn]]:
     | 'del' a=star_expressions {
@@ -1420,14 +1429,14 @@ invalid_parameters[Optional[NoReturn]]:
      }
 invalid_parameters_helper: # This is only there to avoid type errors
     | a=slash_with_default { [a] }
-    | param_with_default+
+    | a=param_with_default+
 invalid_lambda_parameters[Optional[NoReturn]]:
     | lambda_param_no_default* invalid_lambda_parameters_helper a=lambda_param_no_default {
         self.raise_syntax_error_known_location("non-default argument follows default argument", a)
      }
 invalid_lambda_parameters_helper[Optional[NoReturn]]:
     | a=lambda_slash_with_default { [a] }
-    | lambda_param_with_default+
+    | a=lambda_param_with_default+
 invalid_star_etc[Optional[NoReturn]]:
     | a='*' (')' | ',' (')' | '**')) {
         self.store_syntax_error_known_location("named arguments must follow bare *", a)
@@ -1469,19 +1478,19 @@ invalid_with_stmt[None]:
 invalid_with_stmt_indent[Optional[NoReturn]]:
     | ['async'] a='with' ','.(expression ['as' star_target])+ ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'with' statement on line {a.lineno}"
+            f"expected an indented block after 'with' statement on line {a.start[0]}"
         )
      }
     | ['async'] a='with' '(' ','.(expressions ['as' star_target])+ ','? ')' ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'with' statement on line {a.lineno}"
+            f"expected an indented block after 'with' statement on line {a.start[0]}"
         )
      }
 
 invalid_try_stmt[Optional[NoReturn]]:
     | a='try' ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'try' statement on line {a.lineno}",
+            f"expected an indented block after 'try' statement on line {a.start[0]}",
         )
      }
     | 'try' ':' block !('except' | 'finally') {
@@ -1496,13 +1505,13 @@ invalid_except_stmt[None]:
 invalid_finally_stmt[Optional[NoReturn]]:
     | a='finally' ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'finally' statement on line {a.lineno}"
+            f"expected an indented block after 'finally' statement on line {a.start[0]}"
         )
      }
 invalid_except_stmt_indent[Optional[NoReturn]]:
     | a='except' expression ['as' NAME ] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'except' statement on line {a.lineno}"
+            f"expected an indented block after 'except' statement on line {a.start[0]}"
         )
      }
     | a='except' ':' NEWLINE !INDENT {
@@ -1531,7 +1540,7 @@ invalid_case_block[Optional[NoReturn]]:
     | "case" patterns guard? !':' { self.store_syntax_error("expected ':'") }
     | a="case" patterns guard? ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'case' statement on line {a.lineno}"
+            f"expected an indented block after 'case' statement on line {a.start[0]}"
         )
      }
 invalid_as_pattern[NoReturn]:
@@ -1553,50 +1562,50 @@ invalid_if_stmt[Optional[NoReturn]]:
     | 'if' named_expression NEWLINE { self.raise_syntax_error("expected ':'") }
     | a='if' a=named_expression ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'if' statement on line {a.lineno}"
+            f"expected an indented block after 'if' statement on line {a.start[0]}"
         )
      }
 invalid_elif_stmt[Optional[NoReturn]]:
     | 'elif' named_expression NEWLINE { self.raise_syntax_error("expected ':'") }
     | a='elif' named_expression ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'elif' statement on line {a.lineno}"
+            f"expected an indented block after 'elif' statement on line {a.start[0]}"
         )
      }
 invalid_else_stmt[Optional[NoReturn]]:
     | a='else' ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'else' statement on line {a.lineno}"
+            f"expected an indented block after 'else' statement on line {a.start[0]}"
         )
      }
 invalid_while_stmt[Optional[NoReturn]]:
     | 'while' named_expression NEWLINE { self.store_syntax_error("expected ':'") }
     | a='while' named_expression ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'while' statement on line {a.lineno}"
+            f"expected an indented block after 'while' statement on line {a.start[0]}"
         )
      }
 invalid_for_stmt[Optional[NoReturn]]:
     | ['async'] a='for' star_targets 'in' star_expressions ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after 'for' statement on line {a.lineno}"
+            f"expected an indented block after 'for' statement on line {a.start[0]}"
         )
      }
 invalid_def_raw[Optional[NoReturn]]:
     | ['async'] a='def' NAME '(' [params] ')' ['->' expression] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after function definition on line {a.lineno}"
+            f"expected an indented block after function definition on line {a.start[0]}"
         )
      }
 invalid_class_def_raw[Optional[NoReturn]]:
     | a='class' NAME ['(' [arguments] ')'] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
-            f"expected an indented block after class definition on line {a.lineno}"
+            f"expected an indented block after class definition on line {a.start[0]}"
         )
      }
 
 invalid_double_starred_kvpairs[None]:
-    | ','.double_starred_kvpair+ ',' invalid_kvpair { UNREACHABLE }
+    | ','.double_starred_kvpair+ ',' invalid_kvpair
     | expression ':' a='*' bitwise_or {
         self.store_syntax_error_starting_from("cannot use a starred expression in a dictionary value", a)
      }
