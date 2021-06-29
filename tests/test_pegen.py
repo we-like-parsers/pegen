@@ -626,7 +626,7 @@ def test_unreachable_explicit() -> None:
 def test_unreachable_implicit1() -> None:
     source = """
     start: NAME | invalid_input
-    invalid_input: NUMBER
+    invalid_input: NUMBER { None }
     """
     grammar = parse_string(source, GrammarParser)
     out = io.StringIO()
@@ -637,8 +637,20 @@ def test_unreachable_implicit1() -> None:
 
 def test_unreachable_implicit2() -> None:
     source = """
-    start: NAME | invalid_input
+    start: NAME | '(' invalid_input ')'
     invalid_input: NUMBER { None }
+    """
+    grammar = parse_string(source, GrammarParser)
+    out = io.StringIO()
+    genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
+    genr.generate("<string>")
+    assert "This is a test" in out.getvalue()
+
+
+def test_unreachable_implicit3() -> None:
+    source = """
+    start: NAME | invalid_input { None }
+    invalid_input: NUMBER
     """
     grammar = parse_string(source, GrammarParser)
     out = io.StringIO()

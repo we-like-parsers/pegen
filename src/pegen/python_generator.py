@@ -46,6 +46,51 @@ if __name__ == '__main__':
 """
 
 
+class InvalidNodeVisitor(GrammarVisitor):
+    def visit_NameLeaf(self, node: NameLeaf) -> bool:
+        name = node.value
+        return name.startswith("invalid")
+
+    def visit_StringLeaf(self, node: StringLeaf) -> bool:
+        return False
+
+    def visit_NamedItem(self, node: NamedItem) -> bool:
+        return self.visit(node.item)
+
+    def visit_Rhs(self, node: Rhs) -> bool:
+        return any(self.visit(alt) for alt in node.alts)
+
+    def visit_Alt(self, node: Alt) -> bool:
+        return any(self.visit(item) for item in node.items)
+
+    def lookahead_call_helper(self, node: Lookahead) -> bool:
+        return self.visit(node.node)
+
+    def visit_PositiveLookahead(self, node: PositiveLookahead) -> bool:
+        return self.lookahead_call_helper(node)
+
+    def visit_NegativeLookahead(self, node: NegativeLookahead) -> bool:
+        return self.lookahead_call_helper(node)
+
+    def visit_Opt(self, node: Opt) -> bool:
+        return self.visit(node.node)
+
+    def visit_Repeat(self, node: Repeat0) -> Tuple[str, str]:
+        return self.visit(node.node)
+
+    def visit_Gather(self, node: Gather) -> Tuple[str, str]:
+        return self.visit(node.node)
+
+    def visit_Group(self, node: Group) -> bool:
+        return self.visit(node.rhs)
+
+    def visit_Cut(self, node: Cut) -> bool:
+        return False
+
+    def visit_Forced(self, node: Forced) -> bool:
+        return self.visit(node.node)
+
+
 class PythonCallMakerVisitor(GrammarVisitor):
     def __init__(self, parser_generator: ParserGenerator):
         self.gen = parser_generator
@@ -165,6 +210,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         tokens.add("SOFT_KEYWORD")
         super().__init__(grammar, tokens, file)
         self.callmakervisitor: PythonCallMakerVisitor = PythonCallMakerVisitor(self)
+        self.invalidvisitor: InvalidNodeVisitor = InvalidNodeVisitor()
         self.unreachable_formatting = unreachable_formatting or "None  # pragma: no cover"
         self.location_formatting = (
             location_formatting
@@ -208,10 +254,6 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         return False
 
     def visit_Rule(self, node: Rule) -> None:
-        if node.name.startswith("invalid"):
-            for alt in node.rhs.alts:
-                if not alt.action:
-                    alt.action = "UNREACHABLE"
         is_loop = node.is_loop()
         is_gather = node.is_gather()
         rhs = node.flatten()
@@ -289,7 +331,9 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                             f"[{self.local_variable_names[0]}] + {self.local_variable_names[1]}"
                         )
                     else:
-                        if len(self.local_variable_names) == 1:
+                        if self.invalidvisitor.visit(node):
+                            action = "UNREACHABLE"
+                        elif len(self.local_variable_names) == 1:
                             action = f"{self.local_variable_names[0]}"
                         else:
                             action = f"[{', '.join(self.local_variable_names)}]"
@@ -297,6 +341,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
                     self.print("end_lineno, end_col_offset = tok.end")
                     action = action.replace("LOCATIONS", self.location_formatting)
+
                 if is_loop:
                     self.print(f"children.append({action})")
                     self.print(f"mark = self._mark()")
@@ -304,6 +349,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     if "UNREACHABLE" in action:
                         action = action.replace("UNREACHABLE", self.unreachable_formatting)
                     self.print(f"return {action}")
+
             self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
             if has_cut:
