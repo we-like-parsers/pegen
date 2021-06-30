@@ -160,15 +160,17 @@ can be tricky:
 
 - they will prevent the parser from back tracking which may not always be desirable.
   In those cases one can customize the parser to delay the error reporting.
-- secondly those rules will never evaluate their action which can be annoying to
-  measure the code coverage on the parser. For those cases, one can use the
-  special action `UNREACHABLE` which will be replaced by the value of the
-  `unreachable_formatting` which defaults to `None  # pragma: no cover`.
+- secondly when used in the alternative of another rule, this alternative will never
+  evaluate its action. This can be annoying to measure the code coverage on the parser.
+  To alleviate this issue, all rule alternatives making use of a rule whose name
+  starts with `'invalid'` will have its action set to `UNREACHABLE` if no action was
+  specified. `UNREACHABLE` is a special action  which will be replaced by the value
+  of the `unreachable_formatting` which defaults to `None  # pragma: no cover`.
 
 .. note::
 
-  All rules whose name starts with `'invalid'` will have the action of their
-  alternatives set to `UNREACHABLE` if no action was specified.
+  Rules making use of the `&&` forced operator to generate syntax error will never
+  run their action and need to be manually annotated.
 
 
 ### Customizing the generated parser
