@@ -429,7 +429,7 @@ def test_invalid_case_stmt(python_parser_cls, source, exception, message):
         ),
     ],
 )
-def test_invalid_case_stmt(python_parser_cls, source, exception, message):
+def test_invalid_case_pattern(python_parser_cls, source, exception, message):
     parse_invalid_syntax(python_parser_cls, source, exception, message)
 
 
