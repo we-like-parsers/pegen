@@ -51,8 +51,14 @@ def test_parser(python_parser_cls, filename):
         pp_ast = python_parser_cls(tokenizer).parse("file")
 
         with_attr = True
-        o = ast.dump(original, include_attributes=with_attr, indent="  ")
-        p = ast.dump(pp_ast, include_attributes=with_attr, indent="  ")
+        if sys.version_info >= (3, 9):
+            o = ast.dump(original, include_attributes=with_attr, indent="  ")
+            p = ast.dump(pp_ast, include_attributes=with_attr, indent="  ")
+        else:
+            # Python 3.8 does not have indent and also add a kind=None to Constant nodes
+            # which is useless but cause the test to fail.
+            o = ast.dump(original, include_attributes=with_attr)
+            p = ast.dump(pp_ast, include_attributes=with_attr).replace(" kind=None,", "")
         diff = "\n".join(
             difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen")
         )
