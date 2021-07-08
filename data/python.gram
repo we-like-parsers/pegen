@@ -250,7 +250,9 @@ class Parser(Parser):
             line = tok.line
         else:
             # End is used only to get the proper text
-            line = ""  # XXX more work to grab the sources
+            line = "\\n".join(
+                self._tokenizer.get_lines(list(range(start[0], end[0] + 1)))
+            )
 
         self._exception = SyntaxError(
             message,
