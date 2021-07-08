@@ -1,6 +1,6 @@
 import token
 import tokenize
-from typing import Iterator, List
+from typing import Dict, Iterator, List
 
 Mark = int  # NewType('Mark', int)
 
@@ -24,7 +24,7 @@ class Tokenizer:
         self._tokens = []
         self._index = 0
         self._verbose = verbose
-        self._lines = {}
+        self._lines: Dict[int, str] = {}
         if verbose:
             self.report(False, False)
 
