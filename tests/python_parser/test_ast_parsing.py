@@ -14,7 +14,6 @@ from pegen.tokenizer import Tokenizer
 @pytest.mark.parametrize(
     "filename",
     [
-        "test.py",
         pytest.param(
             "advanced_decorators.py",
             marks=pytest.mark.skipif(
@@ -47,10 +46,9 @@ from pegen.tokenizer import Tokenizer
             "with_statement_multi_items.py",
             marks=pytest.mark.skipif(
                 sys.version_info < (3, 9),
-                reason="Parenthesized with items allowed only in Python 3.9+"
+                reason="Parenthesized with items allowed only in Python 3.9+",
             ),
         ),
-
     ],
 )
 def test_parser(python_parser_cls, filename):
