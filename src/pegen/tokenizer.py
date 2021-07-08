@@ -24,21 +24,14 @@ class Tokenizer:
         self._tokens = []
         self._index = 0
         self._verbose = verbose
+        self._lines = {}
         if verbose:
             self.report(False, False)
 
     def getnext(self) -> tokenize.TokenInfo:
         """Return the next token and updates the index."""
-        cached = True
-        while self._index == len(self._tokens):
-            tok = next(self._tokengen)
-            if tok.type in (tokenize.NL, tokenize.COMMENT):
-                continue
-            if tok.type == token.ERRORTOKEN and tok.string.isspace():
-                continue
-            self._tokens.append(tok)
-            cached = False
-        tok = self._tokens[self._index]
+        cached = not self._index == len(self._tokens)
+        tok = self.peek()
         self._index += 1
         if self._verbose:
             self.report(cached, False)
@@ -53,6 +46,7 @@ class Tokenizer:
             if tok.type == token.ERRORTOKEN and tok.string.isspace():
                 continue
             self._tokens.append(tok)
+            self._lines[tok.start[0]] = tok.line
         return self._tokens[self._index]
 
     def diagnose(self) -> tokenize.TokenInfo:
@@ -67,6 +61,10 @@ class Tokenizer:
             ):
                 break
         return tok
+
+    def get_lines(self, line_numbers: List[int]) -> List[str]:
+        """Retrieve source lines corresponding to line numbers."""
+        return [self._lines[n] for n in line_numbers]
 
     def mark(self) -> Mark:
         return self._index
