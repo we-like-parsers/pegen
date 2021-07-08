@@ -120,6 +120,19 @@ def test_generic_decorators(python_parser_cls, source):
     assert "Generic decorator are" in e.exconly()
 
 
+# parenthesized with items 3.9
+@pytest.mark.parametrize("source", ["with (a, b):\n\tpass"])
+def test_parenthesized_with_items(python_parser_cls, source):
+    temp = io.StringIO(source)
+    tokengen = tokenize.generate_tokens(temp.readline)
+    tokenizer = Tokenizer(tokengen, verbose=False)
+    pp = python_parser_cls(tokenizer, py_version=(3, 8))
+    with pytest.raises(SyntaxError) as e:
+        pp.file()
+
+    assert "Parenthesized with items" in e.exconly()
+
+
 # match 3.10
 @pytest.mark.parametrize(
     "source", ["match a:\n\tcase 1:\n\t\tpass", "match a", "match a:\ncase b"]

@@ -74,7 +74,8 @@ else:
     pass
 
 
-if a: b=1;
+if a:
+    b=1
 
 if a:
     pass
@@ -121,10 +122,7 @@ with a, b:
 with a as b:
     pass
 
-with (a, b,):
-    pass
-
-with (a as b, c):
+with a as b, c:
     pass
 
 async with a:
@@ -136,10 +134,7 @@ async with a, b:
 async with a as b:
     pass
 
-async with (a, b,):
-    pass
-
-async with (a as b, c):
+async with a as b, c:
     pass
 
 

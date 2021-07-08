@@ -191,7 +191,7 @@ class Parser(Parser):
         return [comp for _, comp in pairs]
 
     def set_arg_type_comment(self, arg, type_comment):
-        if type_comment:
+        if type_comment or sys.version_info < (3, 9):
             arg.type_comment = type_comment
         return arg
 
@@ -477,6 +477,8 @@ import_from[ast.ImportFrom]:
      }
     | 'from' a=('.' | '...')+ 'import' b=import_from_targets {
         ast.ImportFrom(names=b, level=self.extract_import_level(a), LOCATIONS)
+        if sys.version_info >= (3, 9) else
+        ast.ImportFrom(module=None, names=b, level=self.extract_import_level(a), LOCATIONS)
      }
 import_from_targets[List[ast.alias]]:
     | '(' a=import_from_as_names [','] ')' { a }
@@ -527,13 +529,19 @@ for_stmt[Union[ast.For, ast.AsyncFor]]:
 with_stmt[Union[ast.With, ast.AsyncWith]]:
     | invalid_with_stmt_indent
     | 'with' '(' a=','.with_item+ ','? ')' ':' b=block {
-        ast.With(items=a, body=b, LOCATIONS) }
+        self.check_version(
+           (3, 9),
+           "Parenthesized with items",
+            ast.With(items=a, body=b, LOCATIONS)
+        )
+     }
     | 'with' a=','.with_item+ ':' tc=[TYPE_COMMENT] b=block {
-        ast.With(items=a, body=b, LOCATIONS) }
+        ast.With(items=a, body=b, type_comment=tc, LOCATIONS)
+     }
     | 'async' 'with' '(' a=','.with_item+ ','? ')' ':' b=block {
        self.check_version(
-           (3, 5),
-           "Async with statements are",
+           (3, 9),
+           "Parenthesized with items",
            ast.AsyncWith(items=a, body=b, LOCATIONS)
         )
      }
@@ -893,8 +901,8 @@ decorator:
         self.check_version((3, 9), "Generic decorator are",  a)
      }
 dec_maybe_call:
-    | dn=dec_primary '(' z=arguments ')' {
-        ast.Call(func=dn, args=z[0], keywords=z[1], LOCATIONS)
+    | dn=dec_primary '(' z=[arguments] ')' {
+        ast.Call(func=dn, args=z[0] if z else [], keywords=z[1] if z else [], LOCATIONS)
      }
     | dec_primary
 dec_primary:
@@ -1032,7 +1040,11 @@ lambda_param_with_default[Tuple[ast.arg, Any]]:
 lambda_param_maybe_default[Tuple[ast.arg, Any]]:
     | a=lambda_param c=default? ',' { (a, c) }
     | a=lambda_param c=default? &':' { (a, c) }
-lambda_param[ast.arg]: a=NAME { ast.arg(arg=a.string, annotation=None, LOCATIONS) }
+lambda_param[ast.arg]: a=NAME {
+    ast.arg(arg=a.string, annotation=None, LOCATIONS)
+    if sys.version_info >= (3, 9) else
+    ast.arg(arg=a.string, annotation=None, type_comment=None, LOCATIONS)
+}
 
 disjunction (memo):
     | a=conjunction b=('or' c=conjunction { c })+ { ast.BoolOp(op=ast.Or(), values=[a] + b, LOCATIONS) }
@@ -1129,21 +1141,61 @@ primary:
 
 slices:
     | a=slice !',' { a }
-    | a=','.slice+ [','] { ast.Tuple(elts=a, ctx=Load, LOCATIONS) }
+    | a=','.slice+ [','] {
+        ast.Tuple(elts=a, ctx=Load, LOCATIONS)
+        if sys.version_info >= (3, 9) else
+        (
+            ast.ExtSlice(dims=a, LOCATIONS)
+            if any(isinstance(e, ast.Slice) for e in a) else
+            ast.Index(value=ast.Tuple(elts=[e.value for e in a], ctx=Load, LOCATIONS), LOCATIONS)
+        )
+     }
 slice:
-    | a=[expression] ':' b=[expression] c=[':' d=[expression] { d }] { ast.Slice(lower=a, upper=b, step=c, LOCATIONS) }
-    | a=named_expression { a }
+    | a=[expression] ':' b=[expression] c=[':' d=[expression] { d }] {
+        ast.Slice(lower=a, upper=b, step=c, LOCATIONS)
+     }
+    | a=named_expression {
+        a
+        if sys.version_info >= (3, 9) or isinstance(a, ast.Slice) else
+        ast.Index(
+            value=a,
+            lineno=a.lineno,
+            col_offset=a.col_offset,
+            end_lineno=a.end_lineno,
+            end_col_offset=a.end_col_offset
+        )
+     }
 atom:
     | a=NAME { ast.Name(id=a.string, ctx=Load, LOCATIONS) }
-    | 'True' { ast.Constant(value=True, LOCATIONS) }
-    | 'False' { ast.Constant(value=False, LOCATIONS) }
-    | 'None' { ast.Constant(value=None, LOCATIONS) }
+    | 'True' {
+        ast.Constant(value=True, LOCATIONS)
+        if sys.version_info >= (3, 9) else
+        ast.Constant(value=True, kind=None, LOCATIONS)
+     }
+    | 'False' {
+        ast.Constant(value=False, LOCATIONS)
+        if sys.version_info >= (3, 9) else
+        ast.Constant(value=False, kind=None, LOCATIONS)
+     }
+    | 'None' {
+        ast.Constant(value=None, LOCATIONS)
+        if sys.version_info >= (3, 9) else
+        ast.Constant(value=None, kind=None, LOCATIONS)
+     }
     | &STRING strings
-    | a=NUMBER { ast.Constant(value=ast.literal_eval(a.string), LOCATIONS) }
+    | a=NUMBER {
+        ast.Constant(value=ast.literal_eval(a.string), LOCATIONS)
+        if sys.version_info >= (3, 9) else
+        ast.Constant(value=ast.literal_eval(a.string), kind=None, LOCATIONS)
+     }
     | &'(' (tuple | group | genexp)
     | &'[' (list | listcomp)
     | &'{' (dict | set | dictcomp | setcomp)
-    | '...' { ast.Constant(value=Ellipsis, LOCATIONS) }
+    | '...' {
+        ast.Constant(value=Ellipsis, LOCATIONS)
+        if sys.version_info >= (3, 9) else
+        ast.Constant(value=Ellipsis, kind=None, LOCATIONS)
+     }
 
 strings[ast.Str] (memo): a=STRING+ { self.generate_ast_for_string(a) }
 list[ast.List]:

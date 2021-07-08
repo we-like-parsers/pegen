@@ -14,6 +14,7 @@ from pegen.tokenizer import Tokenizer
 @pytest.mark.parametrize(
     "filename",
     [
+        "test.py",
         pytest.param(
             "advanced_decorators.py",
             marks=pytest.mark.skipif(
@@ -29,6 +30,12 @@ from pegen.tokenizer import Tokenizer
         "imports.py",
         "lambdas.py",
         pytest.param(
+            "multi_statement_per_line.py",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 9), reason="Col offset match only on Python 3.9+"
+            ),
+        ),
+        pytest.param(
             "pattern_matching.py",
             marks=pytest.mark.skipif(
                 sys.version_info < (3, 10), reason="Valid only in Python 3.10+"
@@ -36,6 +43,14 @@ from pegen.tokenizer import Tokenizer
         ),
         "simple_decorators.py",
         "statements.py",
+        pytest.param(
+            "with_statement_multi_items.py",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 9),
+                reason="Parenthesized with items allowed only in Python 3.9+"
+            ),
+        ),
+
     ],
 )
 def test_parser(python_parser_cls, filename):
@@ -48,17 +63,26 @@ def test_parser(python_parser_cls, filename):
         temp = io.StringIO(part)
         tokengen = tokenize.generate_tokens(temp.readline)
         tokenizer = Tokenizer(tokengen, verbose=False)
-        pp_ast = python_parser_cls(tokenizer).parse("file")
 
-        with_attr = True
+        kwargs = dict(include_attributes=True)
         if sys.version_info >= (3, 9):
-            o = ast.dump(original, include_attributes=with_attr, indent="  ")
-            p = ast.dump(pp_ast, include_attributes=with_attr, indent="  ")
-        else:
-            # Python 3.8 does not have indent and also add a kind=None to Constant nodes
-            # which is useless but cause the test to fail.
-            o = ast.dump(original, include_attributes=with_attr)
-            p = ast.dump(pp_ast, include_attributes=with_attr).replace(" kind=None,", "")
+            kwargs["indent"] = "  "
+
+        try:
+            pp_ast = python_parser_cls(tokenizer).parse("file")
+        except Exception:
+            temp = io.StringIO(part)
+            print("Parsing failed:")
+            print("Token stream is:")
+            for t in tokenize.generate_tokens(temp.readline):
+                print(t)
+            print()
+            print("CPython ast is:")
+            print(ast.dump(original, **kwargs))
+            raise
+
+        o = ast.dump(original, **kwargs)
+        p = ast.dump(pp_ast, **kwargs)
         diff = "\n".join(
             difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen")
         )
