@@ -55,13 +55,17 @@ def parse_file(
     path: str,
     py_version: Optional[tuple]=None,
     token_stream_factory: Optional[
-        Callable[[str], Iterator[tokenize.TokenInfo]]
+        Callable[[Callable[[], str]], Iterator[tokenize.TokenInfo]]
     ] = None,
     verbose:bool = False,
 ) -> ast.Module:
     """Parse a file."""
     with open(path) as f:
-        tok_stream = tokenize.generate_tokens(f.readline)
+        tok_stream = (
+            token_stream_factory(f.readline)
+            if token_stream_factory else
+            tokenize.generate_tokens(f.readline)
+        )
         tokenizer = Tokenizer(tok_stream, verbose=verbose, path=path)
         parser = PythonParser(
             tokenizer,
@@ -77,12 +81,16 @@ def parse_string(
     mode: Union[Literal["eval"], Literal["exec"]],
     py_version: Optional[tuple]=None,
     token_stream_factory: Optional[
-        Callable[[str], Iterator[tokenize.TokenInfo]]
+        Callable[[Callable[[], str]], Iterator[tokenize.TokenInfo]]
     ] = None,
     verbose:bool = False,
 ) -> Any:
     """Parse a string."""
-    tok_stream = tokenize.generate_tokens(io.StringIO(source).readline)
+    tok_stream = (
+        token_stream_factory(io.StringIO(source).readline)
+        if token_stream_factory else
+        tokenize.generate_tokens(io.StringIO(source).readline)
+    )
     tokenizer = Tokenizer(tok_stream, verbose=verbose)
     parser = PythonParser(tokenizer, verbose=verbose, py_version=py_version)
     return parser.parse(mode if mode == "eval" else "file")
