@@ -20,11 +20,7 @@ class Tokenizer:
     _tokens: List[tokenize.TokenInfo]
 
     def __init__(
-        self,
-        tokengen: Iterator[tokenize.TokenInfo],
-        *,
-        path: str="",
-        verbose: bool = False
+        self, tokengen: Iterator[tokenize.TokenInfo], *, path: str = "", verbose: bool = False
     ):
         self._tokengen = tokengen
         self._tokens = []
@@ -75,7 +71,7 @@ class Tokenizer:
         if self._lines:
             lines = self._lines
         else:
-            n =  len(line_numbers)
+            n = len(line_numbers)
             lines = {}
             count = 0
             seen = 0
@@ -89,7 +85,6 @@ class Tokenizer:
                             break
 
         return [lines[n] for n in line_numbers]
-
 
     def mark(self) -> Mark:
         return self._index
