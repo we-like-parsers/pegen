@@ -19,12 +19,19 @@ class Tokenizer:
 
     _tokens: List[tokenize.TokenInfo]
 
-    def __init__(self, tokengen: Iterator[tokenize.TokenInfo], *, verbose: bool = False):
+    def __init__(
+        self,
+        tokengen: Iterator[tokenize.TokenInfo],
+        *,
+        path: str="",
+        verbose: bool = False
+    ):
         self._tokengen = tokengen
         self._tokens = []
         self._index = 0
         self._verbose = verbose
         self._lines: Dict[int, str] = {}
+        self._path = path
         if verbose:
             self.report(False, False)
 
@@ -46,7 +53,8 @@ class Tokenizer:
             if tok.type == token.ERRORTOKEN and tok.string.isspace():
                 continue
             self._tokens.append(tok)
-            self._lines[tok.start[0]] = tok.line
+            if not self._path:
+                self._lines[tok.start[0]] = tok.line
         return self._tokens[self._index]
 
     def diagnose(self) -> tokenize.TokenInfo:
@@ -64,7 +72,24 @@ class Tokenizer:
 
     def get_lines(self, line_numbers: List[int]) -> List[str]:
         """Retrieve source lines corresponding to line numbers."""
-        return [self._lines[n] for n in line_numbers]
+        if self._lines:
+            lines = self._lines
+        else:
+            n =  len(line_numbers)
+            lines = {}
+            count = 0
+            seen = 0
+            with open(self._path) as f:
+                for l in f:
+                    count += 1
+                    if count in line_numbers:
+                        seen += 1
+                        lines[count] = l
+                        if seen == n:
+                            break
+
+        return [lines[n] for n in line_numbers]
+
 
     def mark(self) -> Mark:
         return self._index
