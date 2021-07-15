@@ -51,26 +51,24 @@ from pegen.tokenizer import Tokenizer
         ),
     ],
 )
-def test_parser(python_parser_cls, filename):
+def test_parser(python_parse_file, python_parse_str, filename):
     path = Path(__file__).parent / "data" / filename
     with open(path) as f:
         source = f.read()
 
     for part in source.split("\n\n\n"):
         original = ast.parse(part)
-        temp = io.StringIO(part)
-        tokengen = tokenize.generate_tokens(temp.readline)
-        tokenizer = Tokenizer(tokengen, verbose=False)
 
         kwargs = dict(include_attributes=True)
         if sys.version_info >= (3, 9):
             kwargs["indent"] = "  "
 
         try:
-            pp_ast = python_parser_cls(tokenizer).parse("file")
+            pp_ast = python_parse_str(part, "exec")
         except Exception:
             temp = io.StringIO(part)
             print("Parsing failed:")
+            temp = io.StringIO(part)
             print("Token stream is:")
             for t in tokenize.generate_tokens(temp.readline):
                 print(t)
@@ -88,3 +86,10 @@ def test_parser(python_parser_cls, filename):
             print(part)
             print(diff)
         assert not diff
+
+    o = ast.dump(ast.parse(source), **kwargs)
+    p = ast.dump(python_parse_file(path), **kwargs)
+    diff = "\n".join(
+        difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen")
+    )
+    assert not diff

@@ -3,10 +3,14 @@
 @class PythonParser
 
 @subheader'''
+import io
 import itertools
+import os
 import sys
 import token
-from typing import Any, List, Tuple, TypeVar, Union, NoReturn
+from typing import (
+    Any, Callable, Iterator, List, Literal, Tuple, TypeVar, Union, NoReturn
+)
 
 from pegen.tokenizer import Tokenizer
 
@@ -45,6 +49,43 @@ EXPR_NAME_MAPPING = {
     ast.IfExp: "conditional expression",
     ast.NamedExpr: "named expression",
 }
+
+
+def parse_file(
+    path: str,
+    py_version: Optional[tuple]=None,
+    token_stream_factory: Optional[
+        Callable[[str], Iterator[tokenize.TokenInfo]]
+    ] = None,
+    verbose:bool = False,
+) -> ast.Module:
+    """Parse a file."""
+    with open(path) as f:
+        tok_stream = tokenize.generate_tokens(f.readline)
+        tokenizer = Tokenizer(tok_stream, verbose=verbose, path=path)
+        parser = PythonParser(
+            tokenizer,
+            verbose=verbose,
+            filename=os.path.basename(path),
+            py_version=py_version
+        )
+        return parser.parse("file")
+
+
+def parse_string(
+    source: str,
+    mode: Union[Literal["eval"], Literal["exec"]],
+    py_version: Optional[tuple]=None,
+    token_stream_factory: Optional[
+        Callable[[str], Iterator[tokenize.TokenInfo]]
+    ] = None,
+    verbose:bool = False,
+) -> Any:
+    """Parse a string."""
+    tok_stream = tokenize.generate_tokens(io.StringIO(source).readline)
+    tokenizer = Tokenizer(tok_stream, verbose=verbose)
+    parser = PythonParser(tokenizer, verbose=verbose, py_version=py_version)
+    return parser.parse(mode if mode == "eval" else "file")
 
 
 class Parser(Parser):
