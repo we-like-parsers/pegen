@@ -30,14 +30,18 @@ def parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, 
     "source, message", [("f'a = { 1 + }'", "line 1"), ("(\n\t'b'\n\tf'a = { 1 + }'\n)", "line 3")]
 )
 def test_syntax_error_in_str(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
     "source, message", [("\n\na {}", "invalid syntax"), ("\n\na {}", "line 3")]
 )
 def test_invalid_primary(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -49,7 +53,9 @@ def test_invalid_primary(python_parse_file, python_parse_str, tmp_path, source, 
     ],
 )
 def test_invalid_expression(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 # Those tests are mostly there to get coverage on exiting rules without matching
@@ -69,7 +75,9 @@ def test_invalid_expression(python_parse_file, python_parse_str, tmp_path, sourc
     ],
 )
 def test_invalid_statements(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -93,7 +101,9 @@ def test_invalid_statements(python_parse_file, python_parse_str, tmp_path, sourc
     ],
 )
 def test_invalid_call_arguments(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -124,7 +134,9 @@ def test_invalid_call_arguments(python_parse_file, python_parse_str, tmp_path, s
     ],
 )
 def test_invalid_assignments(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -135,7 +147,9 @@ def test_invalid_assignments(python_parse_file, python_parse_str, tmp_path, sour
     ],
 )
 def test_invalid_del_statements(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -176,7 +190,9 @@ def test_invalid_del_statements(python_parse_file, python_parse_str, tmp_path, s
     ],
 )
 def test_invalid_comprehension(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -190,7 +206,12 @@ def test_invalid_comprehension(python_parse_file, python_parse_str, tmp_path, so
 )
 def test_invalid_parameters(python_parse_file, python_parse_str, tmp_path, source):
     parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, "non-default argument follows default argument"
+        python_parse_file,
+        python_parse_str,
+        tmp_path,
+        source,
+        SyntaxError,
+        "non-default argument follows default argument",
     )
 
 
@@ -206,7 +227,12 @@ def test_invalid_parameters(python_parse_file, python_parse_str, tmp_path, sourc
 )
 def test_invalid_star_etc(python_parse_file, python_parse_str, tmp_path, source):
     parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, "named arguments must follow bare *"
+        python_parse_file,
+        python_parse_str,
+        tmp_path,
+        source,
+        SyntaxError,
+        "named arguments must follow bare *",
     )
 
 
@@ -219,7 +245,9 @@ def test_invalid_star_etc(python_parse_file, python_parse_str, tmp_path, source)
     ],
 )
 def test_invalid_with_item(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -230,7 +258,9 @@ def test_invalid_with_item(python_parse_file, python_parse_str, tmp_path, source
     ],
 )
 def test_invalid_for_target(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -241,7 +271,9 @@ def test_invalid_for_target(python_parse_file, python_parse_str, tmp_path, sourc
     ],
 )
 def test_named_expression(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -252,7 +284,9 @@ def test_named_expression(python_parse_file, python_parse_str, tmp_path, source,
     ],
 )
 def test_invalid_group(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -262,8 +296,12 @@ def test_invalid_group(python_parse_file, python_parse_str, tmp_path, source, me
         ("from a import raise", "invalid syntax"),
     ],
 )
-def test_invalid_import_from_as_names(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message)
+def test_invalid_import_from_as_names(
+    python_parse_file, python_parse_str, tmp_path, source, message
+):
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+    )
 
 
 @pytest.mark.parametrize(
@@ -283,7 +321,9 @@ def test_invalid_import_from_as_names(python_parse_file, python_parse_str, tmp_p
         ("\nasync with (open(a) as f, b as d)\npass", SyntaxError, "expected ':'"),
     ],
 )
-def test_invalid_with_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_with_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -299,7 +339,9 @@ def test_invalid_with_stmt(python_parse_file, python_parse_str, tmp_path, source
         ("try:\n\tpass\na = 1", SyntaxError, "expected 'except' or 'finally' block"),
     ],
 )
-def test_invalid_try_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_try_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -346,7 +388,9 @@ def test_invalid_try_stmt(python_parse_file, python_parse_str, tmp_path, source,
         ("try:\n\tpass\nexcept\npass", SyntaxError, "expected ':'"),
     ],
 )
-def test_invalid_except_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_except_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -365,7 +409,9 @@ def test_invalid_except_stmt(python_parse_file, python_parse_str, tmp_path, sour
         ),
     ],
 )
-def test_invalid_finally_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_finally_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -381,7 +427,9 @@ def test_invalid_finally_stmt(python_parse_file, python_parse_str, tmp_path, sou
         ),
     ],
 )
-def test_invalid_match_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_match_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -397,7 +445,9 @@ def test_invalid_match_stmt(python_parse_file, python_parse_str, tmp_path, sourc
         ),
     ],
 )
-def test_invalid_case_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_case_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -435,7 +485,9 @@ def test_invalid_case_stmt(python_parse_file, python_parse_str, tmp_path, source
         ),
     ],
 )
-def test_invalid_case_pattern(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_case_pattern(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -450,7 +502,9 @@ def test_invalid_case_pattern(python_parse_file, python_parse_str, tmp_path, sou
         ),
     ],
 )
-def test_invalid_if_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_if_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -465,7 +519,9 @@ def test_invalid_if_stmt(python_parse_file, python_parse_str, tmp_path, source, 
         ),
     ],
 )
-def test_invalid_elif_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_elif_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -480,7 +536,9 @@ def test_invalid_elif_stmt(python_parse_file, python_parse_str, tmp_path, source
         ),
     ],
 )
-def test_invalid_else_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_else_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -495,7 +553,9 @@ def test_invalid_else_stmt(python_parse_file, python_parse_str, tmp_path, source
         ),
     ],
 )
-def test_invalid_while_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_while_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -524,7 +584,9 @@ def test_invalid_while_stmt(python_parse_file, python_parse_str, tmp_path, sourc
         ),
     ],
 )
-def test_invalid_for_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_for_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -558,7 +620,9 @@ def test_invalid_for_stmt(python_parse_file, python_parse_str, tmp_path, source,
         # ),
     ],
 )
-def test_invalid_def_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_def_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -577,7 +641,9 @@ def test_invalid_def_stmt(python_parse_file, python_parse_str, tmp_path, source,
         ),
     ],
 )
-def test_invalid_class_stmt(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_class_stmt(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
 
 
@@ -594,5 +660,7 @@ def test_invalid_class_stmt(python_parse_file, python_parse_str, tmp_path, sourc
         ("{**c, a: *b}", SyntaxError, "cannot use a starred expression in a dictionary value"),
     ],
 )
-def test_invalid_dict_key_value(python_parse_file, python_parse_str, tmp_path, source, exception, message):
+def test_invalid_dict_key_value(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message
+):
     parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exception, message)
