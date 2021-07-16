@@ -36,15 +36,6 @@ def test_syntax_error_in_str(python_parse_file, python_parse_str, tmp_path, sour
 
 
 @pytest.mark.parametrize(
-    "source, message", [("\n\na {}", "invalid syntax"), ("\n\na {}", "line 3")]
-)
-def test_invalid_primary(python_parse_file, python_parse_str, tmp_path, source, message):
-    parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
-    )
-
-
-@pytest.mark.parametrize(
     "source, message",
     [
         ("a 1", "invalid syntax. Perhaps you forgot a comma?"),

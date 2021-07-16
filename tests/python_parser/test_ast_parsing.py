@@ -3,6 +3,7 @@ import ast
 import difflib
 import io
 import sys
+import textwrap
 import tokenize
 from pathlib import Path
 
@@ -68,6 +69,8 @@ def test_parser(python_parse_file, python_parse_str, filename):
         except Exception:
             temp = io.StringIO(part)
             print("Parsing failed:")
+            print("Source is:")
+            print(textwrap.indent(part, "  "))
             temp = io.StringIO(part)
             print("Token stream is:")
             for t in tokenize.generate_tokens(temp.readline):

@@ -1174,7 +1174,6 @@ await_primary (memo):
     | 'await' a=primary { self.check_version((3, 5), "Await expressions are", ast.Await(a, LOCATIONS)) }
     | primary
 primary:
-    | invalid_primary  # must be before 'primay genexp' because of invalid_genexp
     | a=primary '.' b=NAME { ast.Attribute(value=a, attr=b.string, ctx=Load, LOCATIONS) }
     | a=primary b=genexp { ast.Call(func=a, args=[b], keywords=[], LOCATIONS) }
     | a=primary '(' b=[arguments] ')' {
@@ -1506,8 +1505,6 @@ invalid_del_stmt[NoReturn]:
      }
 invalid_block[NoReturn]:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
-invalid_primary[NoReturn]:
-    | primary a='{' { self.raise_syntax_error_known_location("invalid syntax", a) }
 invalid_comprehension[NoReturn]:
     | ('[' | '(' | '{') a=starred_expression for_if_clauses {
         self.raise_syntax_error_known_location("iterable unpacking cannot be used in comprehension", a)
