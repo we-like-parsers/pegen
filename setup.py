@@ -29,7 +29,7 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
     python_requires='>=3.8, <4',
-    install_requires=['psutil'],
+    install_requires=['psutil', 'flask', 'flask-wtf'],
     extras_require={
         'lint': ['black', 'flake8', 'mypy'],
         'test': ['pytest', 'pytest-cov'],
@@ -38,4 +38,7 @@ setup(
         'Bug Reports': 'https://github.com/we-like-parsers/pegen/issues',
         'Source': 'https://github.com/we-like-parsers/pegen',
     },
+    package_data={
+        "pegen": ["templates/*.html"],
+    }
 )
