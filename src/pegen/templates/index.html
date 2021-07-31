@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" href="/docs/4.0/assets/img/favicons/favicon.ico">
+
+    <title>Pegen live demo</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="https://getbootstrap.com/docs/4.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom styles for this template -->
+    <style>
+        body {
+          padding-top: 5rem;
+        }
+        .main {
+          padding: 3rem 0rem;
+          text-align: center;
+        }
+
+        .inputfield {
+          height: 400px
+        }
+
+        samp.bash {
+          background-color: black;
+          color: white;
+          font-size: medium ; 
+          font-family: Consolas,Monaco,Lucida Console,Liberation Mono,DejaVu Sans Mono,Bitstream Vera Sans Mono,Courier New, monospace;
+          width: 100%;
+          display: inline-block;
+          padding: 1rem 1.5rem;
+        }
+
+    </style>
+  </head>
+
+  <body>
+
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+      <a class="navbar-brand" href="#">PEGEN LIVE DEMO</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+        <ul class="navbar-nav mr-auto">
+        </ul>
+      </div>
+    </nav>
+
+    <main role="main" class="container">
+
+      <div class="main">
+        <form method="POST" action="/" autocomplete="off">
+            {{ form.csrf_token }}
+          <div class="form-row">
+            <div class="col">
+                <label>{{ form.grammar.label }}</label>
+            </div>
+            <div class="col">
+                <label>{{ form.source.label }}</label>
+            </div>
+          </div>
+ 
+          <div class="form-row">
+            <div class="col">
+                <div>{{ form.grammar(class_="form-control inputfield", type="text") }}</div>
+            </div>
+            <div class="col">
+                <div>{{ form.source(class_="form-control inputfield", type="text") }}</div>
+            </div>
+          </div>
+          <br><div>{{ form.submit(class_="btn btn-dark btn-lg btn-block") }}</div></br>
+        </form>
+      </div>
+
+      <div style="white-space: pre-wrap;">
+          {% if output.strip() != "" %}
+              <samp class="bash">{{output}}</samp>
+          {% endif %}
+      </div>
+
+
+    </main><!-- /.container -->
+
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script>window.jQuery || document.write('<script src="../../assets/js/vendor/jquery-slim.min.js"><\/script>')</script>
+    <script src="https://getbootstrap.com/docs/4.0/assets/js/vendor/popper.min.js"></script>
+    <script src="https://getbootstrap.com/docs/4.0/dist/js/bootstrap.min.js"></script>
+  </body>
+</html>
+
