@@ -35,6 +35,8 @@ from pegen.tokenizer import Tokenizer
                 sys.version_info < (3, 9), reason="Col offset match only on Python 3.9+"
             ),
         ),
+        "no_newline_at_end_of_file.py",
+        "no_newline_at_end_of_file_with_comment.py",
         pytest.param(
             "pattern_matching.py",
             marks=pytest.mark.skipif(

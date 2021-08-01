@@ -48,6 +48,8 @@ class Tokenizer:
                 continue
             if tok.type == token.ERRORTOKEN and tok.string.isspace():
                 continue
+            if tok.type == token.NEWLINE and self._tokens and self._tokens[-1].type == token.NEWLINE:
+                continue
             self._tokens.append(tok)
             if not self._path:
                 self._lines[tok.start[0]] = tok.line
