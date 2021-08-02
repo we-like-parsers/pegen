@@ -1629,6 +1629,9 @@ invalid_expression[NoReturn]:
     | !(NAME STRING | SOFT_KEYWORD) a=disjunction b=expression_without_invalid {
         self.store_syntax_error_known_range("invalid syntax. Perhaps you forgot a comma?", a, b)
      }
+    | a=disjunction 'if' b=disjunction !'else' {
+        self.store_syntax_error_known_range("expected 'else' after 'if' expression", a, b)
+     }
 invalid_named_expression[NoReturn]:
     | a=expression ':=' expression {
         self.store_syntax_error_known_location(
