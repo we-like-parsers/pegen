@@ -1,0 +1,2 @@
+We store the Python parser generated for the tests here to be able to perform
+code coverage measurements.

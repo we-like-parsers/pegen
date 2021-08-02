@@ -7,7 +7,8 @@ line-length = 99
 target_version = ['py38']
 exclude = '''
 (
-          /pegen/grammar_parser.py   # generated file
-        | /tests/test_data/          # test files
+          /pegen/grammar_parser.py            # generated file
+        | /tests/python_parser/data/          # test files
+        | /tests/python_parser/parser_cache/  # generated parser
 )
 '''

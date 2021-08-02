@@ -1,6 +1,5 @@
 PYTHON ?= python
 PIP_INSTALL=$(PYTHON) -m pip install
-python_files := $(shell find src tests -name \*.py -not -path '*/\.*')
 
 # Use this to inject arbitrary commands before the make targets (e.g. docker)
 ENV :=
@@ -35,13 +34,13 @@ pycoverage:  ## Run the test suite, with Python code coverage
 		tests
 
 .PHONY: format
-format: 
-	$(PYTHON) -m black $(python_files)
+format:
+	$(PYTHON) -m black src tests
 
 .PHONY: lint
 lint: ## Lint all files
-	$(PYTHON) -m black --check $(python_files)
-	$(PYTHON) -m mypy src/pegen 
+	$(PYTHON) -m black --check src tests
+	$(PYTHON) -m mypy src/pegen
 
 .PHONY: clean
 clean:  ## Clean any built/generated artifacts
