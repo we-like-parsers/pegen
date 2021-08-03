@@ -62,7 +62,7 @@ rulename[RuleName]:
 
 # In the future this may return something more complicated
 memoflag[str]:
-    | '(' 'memo' ')' { "memo" }
+    | '(' "memo" ')' { "memo" }
 
 alts[Rhs]:
     | alt "|" alts { Rhs([alt] + alts.alts)}
