@@ -42,6 +42,9 @@ def test_syntax_error_in_str(python_parse_file, python_parse_str, tmp_path, sour
         ("2 if 4", "expected 'else' after 'if' expression"),
         ("a 1 if b else 2", "invalid syntax. Perhaps you forgot a comma?"),
         ("a 1ambda: 1", "invalid syntax. Perhaps you forgot a comma?"),
+        ("print 1", "Missing parentheses in call to 'print'"),
+        ("exec 1", "Missing parentheses in call to 'exec'"),
+        ("a if b", "expected 'else' after 'if' expression"),
     ],
 )
 def test_invalid_expression(python_parse_file, python_parse_str, tmp_path, source, message):
