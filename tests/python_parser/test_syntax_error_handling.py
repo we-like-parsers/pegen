@@ -45,6 +45,7 @@ def test_syntax_error_in_str(python_parse_file, python_parse_str, tmp_path, sour
         ("print 1", "Missing parentheses in call to 'print'"),
         ("exec 1", "Missing parentheses in call to 'exec'"),
         ("a if b", "expected 'else' after 'if' expression"),
+        ("c = a if b:", "SyntaxError: invalid syntax"),
     ],
 )
 def test_invalid_expression(python_parse_file, python_parse_str, tmp_path, source, message):
