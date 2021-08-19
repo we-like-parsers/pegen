@@ -1753,7 +1753,7 @@ invalid_group[NoReturn]:
         self.raise_syntax_error_known_location("cannot use double starred expression here", a)
      }
 invalid_import_from_targets[NoReturn]:
-    | import_from_as_names ',' {
+    | import_from_as_names ',' NEWLINE {
         self.raise_syntax_error("trailing comma not allowed without surrounding parentheses")
      }
 
