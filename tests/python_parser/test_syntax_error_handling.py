@@ -289,6 +289,7 @@ def test_invalid_group(python_parse_file, python_parse_str, tmp_path, source, me
     "source, message",
     [
         ("from a import b,", "trailing comma not allowed without surrounding parentheses"),
+        ("from a import b, and 3", "invalid syntax"),
         ("from a import raise", "invalid syntax"),
     ],
 )
