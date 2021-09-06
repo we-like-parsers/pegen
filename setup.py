@@ -8,8 +8,8 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
     name='pegen',
-    version='1.0.0',  # Required
-    description='A PEG parser generator for Python',
+    version='0.1.0',
+    description="CPython's PEG parser generator",
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/we-like-parsers/pegen',
