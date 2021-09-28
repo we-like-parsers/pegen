@@ -1,0 +1,4 @@
+{
+    "restructuredtext.confPath": "${workspaceFolder}/Doc",
+    "python.pythonPath": "/home/pablogsal/github/pegen/venv/bin/python"
+}
