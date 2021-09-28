@@ -14,11 +14,11 @@ you have `tox` installed and then you can run the tests with the following comma
 python -m tox
 ```
 
-This will check that all the test pass but also will make several checks on the code style
+This will check that all the tests pass but also will make several checks on the code style
 and type annotations of the package.
 
-Additionally, if you want to just run the testes and you have `pytest` installed, you can run
-the test directly by running:
+Additionally, if you want to just run the tests and you have `pytest` installed, you can run
+the tests directly by running:
 
 ```
 python -m pytest tests
