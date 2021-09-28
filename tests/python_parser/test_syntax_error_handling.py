@@ -24,8 +24,8 @@ def parse_invalid_syntax(
     with pytest.raises(exc_cls) as e:
         python_parse_file(str(test_file))
 
-    print(str( e.exconly()))
-    assert message in str( e.exconly())
+    print(str(e.exconly()))
+    assert message in str(e.exconly())
 
     exc = e.value
     if start:
@@ -116,8 +116,18 @@ def test_invalid_statements(python_parse_file, python_parse_str, tmp_path, sourc
         ("f(**a, b)", "positional argument follows keyword argument unpacking", None, None),
         ("f(a=1, b)", "positional argument follows keyword argument", None, None),
         # Invalid kwarg rules
-        ("f(b=c for c in d)", "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", None, None),
-        ("f(1 + b=2)", 'expression cannot contain assignment, perhaps you meant "=="?', None, None),
+        (
+            "f(b=c for c in d)",
+            "invalid syntax. Maybe you meant '==' or ':=' instead of '='?",
+            None,
+            None,
+        ),
+        (
+            "f(1 + b=2)",
+            'expression cannot contain assignment, perhaps you meant "=="?',
+            None,
+            None,
+        ),
     ],
 )
 def test_invalid_call_arguments(
