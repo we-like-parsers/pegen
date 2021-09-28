@@ -136,3 +136,6 @@ data/pypi
 
 # Temporary file for coverage measurement
 tests/python_parser/parser_cache/py_parser.py
+
+# Vscode stuff
+.vscode
