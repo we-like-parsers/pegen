@@ -1,5 +1,7 @@
 PYTHON ?= python
 PIP_INSTALL=$(PYTHON) -m pip install
+DOCSBUILDDIR := docs/_build
+HTMLDIR := $(DOCSBUILDDIR)/html
 
 # Use this to inject arbitrary commands before the make targets (e.g. docker)
 ENV :=
@@ -51,6 +53,23 @@ clean:  ## Clean any built/generated artifacts
 regen-metaparser: src/pegen/metagrammar.gram src/pegen/*.py # Regenerate the metaparser
 	$(PYTHON) -m pegen -q src/pegen/metagrammar.gram -o src/pegen/grammar_parser.py
 	$(PYTHON) -m black src/pegen/grammar_parser.py
+
+.PHONY: docs
+docs:  ## Generate documentation
+	$(MAKE) -C docs clean
+	$(MAKE) -C docs html
+
+.PHONY: gh-pages
+gh-pages:  ## Publish documentation on BBGitHub Pages
+	$(eval GIT_REMOTE := $(shell git remote get-url $(UPSTREAM_GIT_REMOTE)))
+	$(eval COMMIT_HASH := $(shell git rev-parse HEAD))
+	touch $(HTMLDIR)/.nojekyll
+	@echo -n "Documentation ready, push to $(GIT_REMOTE)? [Y/n] " && read ans && [ $${ans:-Y} == Y ]
+	git init $(HTMLDIR)
+	GIT_DIR=$(HTMLDIR)/.git GIT_WORK_TREE=$(HTMLDIR) git add -A
+	GIT_DIR=$(HTMLDIR)/.git git commit -m "Documentation for commit $(COMMIT_HASH)"
+	GIT_DIR=$(HTMLDIR)/.git git push $(GIT_REMOTE) HEAD:gh-pages --force
+	rm -rf $(HTMLDIR)/.git
 
 .PHONY: help
 help:  ## Print this message
