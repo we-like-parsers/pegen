@@ -212,7 +212,7 @@ alternative
            | first_alt1 first_alt2 { first_alt1 }
            | second_alt1 second_alt2 { second_alt1 }
 
-If the action is ommited, a default action is generated:
+If the action is omitted, a default action is generated:
 
 -  If there’s a single name in the rule in the rule, it gets returned.
 
@@ -220,7 +220,7 @@ If the action is ommited, a default action is generated:
    parsed expressions gets returned.
 
 This default behaviour is primarily made for very simple situations and
-for debugging pourposes.
+for debugging purposes.
 
 As an illustrative example this simple grammar file allows directly
 generating a full parser that can parse simple arithmetic expressions
