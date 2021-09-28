@@ -34,7 +34,7 @@ New code should ideally have tests and not break existing tests.
 
 ### Type Checking
 
-`pege` uses type annotations throughout, and `mypy` to do the checking.
+`pegen` uses type annotations throughout, and `mypy` to do the checking.
 Run the following to type check `pegen`:
 
 ```
