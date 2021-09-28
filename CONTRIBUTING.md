@@ -24,7 +24,7 @@ the test directly by running:
 python -m pytest tests
 ```
 
-Or if you don't have `make`, run the following:
+Or if you have `make`, run the following:
 
 ```
 make check
@@ -41,7 +41,7 @@ Run the following to type check `pegen`:
 python -m tox -e lint
 ```
 
-Or if you don't have `make` and `mypy` is installed in your current Python environment:
+Or if you have `make` and `mypy` is installed in your current Python environment:
 
 ```
 make lint
