@@ -8,7 +8,9 @@ import pytest
 from pegen.tokenizer import Tokenizer
 
 
-def parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exc_cls, message):
+def parse_invalid_syntax(
+    python_parse_file, python_parse_str, tmp_path, source, exc_cls, message, start=None, stop=None
+):
     with pytest.raises(exc_cls) as e:
         python_parse_str(source, "exec")
 
@@ -22,8 +24,17 @@ def parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, 
     with pytest.raises(exc_cls) as e:
         python_parse_file(str(test_file))
 
-    print(str(e.exconly()))
-    assert message in str(e.exconly())
+    print(str( e.exconly()))
+    assert message in str( e.exconly())
+
+    exc = e.value
+    if start:
+        assert exc.lineno == start[0]
+        assert exc.offset == start[1]
+
+    if stop and sys.version_info >= (3, 10):
+        assert exc.end_lineno == stop[0]
+        assert exc.end_offset == stop[1]
 
 
 @pytest.mark.parametrize(
@@ -77,28 +88,43 @@ def test_invalid_statements(python_parse_file, python_parse_str, tmp_path, sourc
 
 
 @pytest.mark.parametrize(
-    "source, message",
+    "source, message, start, stop",
     [
         # Invalid arguments rules
-        ("f(**a, *b)", "iterable argument unpacking follows keyword argument unpacking"),
-        ("f(a for a in b, c)", "Generator expression must be parenthesized"),
-        ("f(a for a in b, c for c in d)", "Generator expression must be parenthesized"),
+        (
+            "f(**a, *b)",
+            "iterable argument unpacking follows keyword argument unpacking",
+            None,
+            None,
+        ),
+        ("f(a for a in b, c)", "Generator expression must be parenthesized", (1, 2), (1, 14)),
+        ("f(a for a in b if a, c)", "Generator expression must be parenthesized", None, None),
+        (
+            "f(a for a in b, c for c in d)",
+            "Generator expression must be parenthesized",
+            None,
+            None,
+        ),
         (
             "f(a=1 for i in range(10))",
             "invalid syntax. Maybe you meant '==' or ':=' instead of '='?",
+            None,
+            None,
         ),
-        ("f(a, b for b in c)", "Generator expression must be parenthesized"),
-        ("f(a, b for b in c, d)", "Generator expression must be parenthesized"),
-        ("f(**a, b)", "positional argument follows keyword argument unpacking"),
-        ("f(a=1, b)", "positional argument follows keyword argument"),
+        ("f(a, b for b in c)", "Generator expression must be parenthesized", (1, 5), None),
+        ("f(a, b for b in c, d)", "Generator expression must be parenthesized", None, None),
+        ("f(**a, b)", "positional argument follows keyword argument unpacking", None, None),
+        ("f(a=1, b)", "positional argument follows keyword argument", None, None),
         # Invalid kwarg rules
-        ("f(b=c for c in d)", "invalid syntax. Maybe you meant '==' or ':=' instead of '='?"),
-        ("f(1 + b=2)", 'expression cannot contain assignment, perhaps you meant "=="?'),
+        ("f(b=c for c in d)", "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", None, None),
+        ("f(1 + b=2)", 'expression cannot contain assignment, perhaps you meant "=="?', None, None),
     ],
 )
-def test_invalid_call_arguments(python_parse_file, python_parse_str, tmp_path, source, message):
+def test_invalid_call_arguments(
+    python_parse_file, python_parse_str, tmp_path, source, message, start, stop
+):
     parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message, start, stop
     )
 
 
