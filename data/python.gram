@@ -303,10 +303,10 @@ class Parser(Parser):
                 self._tokenizer.get_lines(list(range(start[0], end[0] + 1)))
             )
 
-        self._exception = SyntaxError(
-            message,
-            (self.filename, start[0], start[1], line)
-        )
+        args = (self.filename, start[0], start[1], line)
+        if sys.version_info >= (3, 10):
+            args += (stop[0], stop[1])
+        self._exception = SyntaxError(message, args)
 
     def store_syntax_error(self, message: str) -> None:
         self._store_syntax_error(message)
