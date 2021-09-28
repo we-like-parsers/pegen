@@ -34,7 +34,7 @@ pycoverage:  ## Run the test suite, with Python code coverage
 		tests
 
 .PHONY: format
-format:
+format: ## Format all files
 	$(PYTHON) -m black src tests
 
 .PHONY: lint
