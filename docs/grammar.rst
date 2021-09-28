@@ -246,6 +246,11 @@ alternative
            | first_alt1 first_alt2 { first_alt1 }
            | second_alt1 second_alt2 { second_alt1 }
 
+.. important::
+
+   The code inside curly-braces can only be a Python expression (i.e. it
+   can be assigned to a variable).
+
 If the action is omitted, a default action is generated:
 
 -  If there’s a single name in the rule in the rule, it gets returned.
