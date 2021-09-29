@@ -109,7 +109,7 @@ Match one or more occurrences of e.
 ''''''''
 
 Match one or more occurrences of e, separated by s. The generated parse
-tree does not include the separator. This is identical to
+tree does not include the separator. This is otherwise identical to
 ``(e (s e)*)``.
 
 ::
@@ -161,7 +161,7 @@ parsed.
 Fail immediatly if e fails to parse by raising the exception built using
 the ``make_syntax_error`` method.
 
-This construct can help provides better error messages.
+This construct can help provide better error messages.
 
 Keywords
 ~~~~~~~~
@@ -173,7 +173,7 @@ quotes ``"match"`` identify soft keywords that act as keyword only in
 specific context. As a consequence a rule matching ``NAME`` may match a
 soft keyword but never a hard keyword.
 
-In some circonstances, it can desirable to match any soft keyword for
+In some circumstances, it can desirable to match any soft keyword. For
 those cases one can use ``SOFT_KEYWORD`` that will expand to
 ``"match" | "case"`` if ``match`` and ``case`` are the only two known
 soft keywords.
@@ -238,7 +238,7 @@ are not directly related to the grammar.
 
 To indicate these actions each alternative can be followed by the action
 code inside curly-braces, which specifies the return value of the
-alternative
+alternative:
 
 ::
 
