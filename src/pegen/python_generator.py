@@ -237,8 +237,8 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
         self.print()
         with self.indent():
-            self.print(f"KEYWORDS = {tuple(self.callmakervisitor.keywords)}")
-            self.print(f"SOFT_KEYWORDS = {tuple(self.callmakervisitor.soft_keywords)}")
+            self.print(f"KEYWORDS = {tuple(sorted(self.callmakervisitor.keywords))}")
+            self.print(f"SOFT_KEYWORDS = {tuple(sorted(self.callmakervisitor.soft_keywords))}")
 
         trailer = self.grammar.metas.get("trailer", MODULE_SUFFIX.format(class_name=cls_name))
         if trailer is not None:
