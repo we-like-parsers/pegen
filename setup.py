@@ -31,6 +31,7 @@ setup(
     python_requires='>=3.8, <4',
     install_requires=['psutil', 'flask', 'flask-wtf'],
     extras_require={
+        'docs': ['sphinx', 'sphinx-copybutton', 'furo'],
         'lint': ['black', 'flake8', 'mypy'],
         'test': ['pytest', 'pytest-cov'],
     },

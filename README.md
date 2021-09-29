@@ -21,6 +21,10 @@ Install with `pip` or your favorite PyPi package manager.
 pip install pegen
 ```
 
+# Documentation
+
+The documentation is available [here](https://we-like-parsers.github.io/pegen/).
+
 # How to generate a parser
 
 Given a grammar file compatible with `pegen` (you can write your own or start with one in the [`data`](data) directory), you
