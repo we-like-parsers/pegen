@@ -49,7 +49,8 @@ of the generator only allows to generate Python code. This is due to the fact th
 in CPython includes a lot of implementation details and private headers that are not available for general usage.
 
 The official PEG generator for Python 3.9 and later is now included in the CPython repo under
-[Tools/peg_generator/](https://github.com/python/cpython/tree/master/Tools/peg_generator).
+[Tools/peg_generator/](https://github.com/python/cpython/tree/master/Tools/peg_generator). We aim to keep this repo in sync with the
+Python generator from that version of `pegen`.
 
 See also [PEP 617](https://www.python.org/dev/peps/pep-0617/).
 
