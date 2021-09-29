@@ -236,9 +236,9 @@ process is supported by the use of some helper functions that factor out
 common AST object manipulations and some other required operations that
 are not directly related to the grammar.
 
-To indicate these actions each alternative can be followed by the action
-code inside curly-braces, which specifies the return value of the
-alternative:
+To indicate these actions, each alternative can be followed by an action
+inside curly-braces, which specifies a Python expression to be evaluated
+and returned for the alternative:
 
 ::
 
