@@ -683,10 +683,11 @@ def test_locations_in_alt_action_and_group() -> None:
         print(diff)
     assert not diff
 
+
 def test_keywords() -> None:
     grammar = """
     start: 'one' 'two' 'three' 'four' 'five' "six" "seven" "eight" "nine" "ten"
     """
     parser_class = make_parser(grammar)
-    assert parser_class.KEYWORDS == ('five', 'four', 'one', 'three', 'two')
-    assert parser_class.SOFT_KEYWORDS == ('eight', 'nine', 'seven', 'six', 'ten')
+    assert parser_class.KEYWORDS == ("five", "four", "one", "three", "two")
+    assert parser_class.SOFT_KEYWORDS == ("eight", "nine", "seven", "six", "ten")
