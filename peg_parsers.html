@@ -1,0 +1,453 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Syntax" href="grammar.html" /><link rel="prev" title="What is this?" href="index.html" />
+
+    <meta name="generator" content="sphinx-4.0.1, furo 2021.04.11.beta34"/>
+        <title>About PEG parsers - pegen documentation</title>
+      <link rel="stylesheet" href="_static/styles/furo.css?digest=59ab60ac09ea94ccfe6deddff6d715cce948a6fc">
+    <link rel="stylesheet" href="_static/pygments.css">
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="_static/pygments_dark.css">
+    
+
+
+<style>
+  :root {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+
+  /* For allowing end-user-specific overrides */
+  .override-light {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  .override-dark {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+</style><link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css" />
+    <link rel="stylesheet" href="_static/styles/furo-extensions.css?digest=d391b54134226e4196576da3bdb6dddb7e05ba2b"></head>
+  <body dir="">
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+      stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z"/>
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+      class="feather feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+      class="feather feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">pegen  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/logo_simple.png" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/logo_simple.png" alt="Dark Logo"/>
+  </div>
+  
+  <span class="sidebar-brand-text">pegen  documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html">
+  <input class="sidebar-search" placeholder=Search name="q">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">About PEG parsers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grammar.html">Syntax</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <main class="main">
+    <div class="content">
+      <article role="main">
+        <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+        </label>
+        <section id="about-peg-parsers">
+<h1>About PEG parsers<a class="headerlink" href="#about-peg-parsers" title="Permalink to this headline">¶</a></h1>
+<section id="how-peg-parsers-work">
+<h2>How PEG Parsers Work<a class="headerlink" href="#how-peg-parsers-work" title="Permalink to this headline">¶</a></h2>
+<p id="id1">A PEG (Parsing Expression Grammar) grammar (like the current one) differs from a
+context-free grammar in that the way it is written more closely
+reflects how the parser will operate when parsing it. The fundamental technical
+difference is that the choice operator is ordered. This means that when writing:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>rule: A | B | C
+</pre></div>
+</div>
+<p>a context-free-grammar parser (like an LL(1) parser) will generate constructions
+that given an input string will <em>deduce</em> which alternative (<code class="docutils literal notranslate"><span class="pre">A</span></code>, <code class="docutils literal notranslate"><span class="pre">B</span></code> or <code class="docutils literal notranslate"><span class="pre">C</span></code>)
+must be expanded, while a PEG parser will check if the first alternative succeeds
+and only if it fails, will it continue with the second or the third one in the
+order in which they are written. This makes the choice operator not commutative.</p>
+<p>Unlike LL(1) parsers, PEG-based parsers cannot be ambiguous: if a string parses,
+it has exactly one valid parse tree. This means that a PEG-based parser cannot
+suffer from the ambiguity problems that can arise with LL(1) parsers and with
+context-free grammars in general.</p>
+<p>PEG parsers are usually constructed as a recursive descent parser in which every
+rule in the grammar corresponds to a function in the program implementing the
+parser and the parsing expression (the “expansion” or “definition” of the rule)
+represents the “code” in said function. Each parsing function conceptually takes
+an input string as its argument, and yields one of the following results:</p>
+<ul class="simple">
+<li><p>A “success” result. This result indicates that the expression can be parsed by
+that rule and the function may optionally move forward or consume one or more
+characters of the input string supplied to it.</p></li>
+<li><p>A “failure” result, in which case no input is consumed.</p></li>
+</ul>
+<p>Notice that “failure” results do not imply that the program is incorrect, nor do
+they necessarily mean that the parsing has failed. Since the choice operator is
+ordered, a failure very often merely indicates “try the following option”.  A
+direct implementation of a PEG parser as a recursive descent parser will present
+exponential time performance in the worst case, because PEG parsers have
+infinite lookahead (this means that they can consider an arbitrary number of
+tokens before deciding for a rule).  Usually, PEG parsers avoid this exponential
+time complexity with a technique called “packrat parsing” <a class="footnote-reference brackets" href="#id3" id="id2">1</a> which not only
+loads the entire program in memory before parsing it but also allows the parser
+to backtrack arbitrarily. This is made efficient by memoizing the rules already
+matched for each position. The cost of the memoization cache is that the parser
+will naturally use more memory than a simple LL(1) parser, which normally are
+table-based.</p>
+<section id="key-ideas">
+<h3>Key ideas<a class="headerlink" href="#key-ideas" title="Permalink to this headline">¶</a></h3>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Don’t try to reason about a PEG grammar in the same way you would to with an EBNF
+or context free grammar. PEG is optimized to describe <strong>how</strong> input strings will
+be parsed, while context-free grammars are optimized to generate strings of the
+language they describe (in EBNF, to know if a given string is in the language, you need
+to do work to find out as it is not immediately obvious from the grammar).</p>
+</div>
+<ul class="simple">
+<li><p>Alternatives are ordered ( <code class="docutils literal notranslate"><span class="pre">A</span> <span class="pre">|</span> <span class="pre">B</span></code> is not the same as <code class="docutils literal notranslate"><span class="pre">B</span> <span class="pre">|</span> <span class="pre">A</span></code> ).</p></li>
+<li><p>If a rule returns a failure, it doesn’t mean that the parsing has failed,
+it just means “try something else”.</p></li>
+<li><p>By default PEG parsers run in exponential time, which can be optimized to linear by
+using memoization.</p></li>
+<li><p>If parsing fails completely (no rule succeeds in parsing all the input text), the
+PEG parser doesn’t have a concept of “where the <code class="xref py py-exc docutils literal notranslate"><span class="pre">SyntaxError</span></code> is”.</p></li>
+</ul>
+</section>
+<section id="consequences-or-the-ordered-choice-operator">
+<h3>Consequences or the ordered choice operator<a class="headerlink" href="#consequences-or-the-ordered-choice-operator" title="Permalink to this headline">¶</a></h3>
+<p id="consequences-of-ordered-choice">Although PEG may look like EBNF, its meaning is quite different. The fact
+that in PEG parsers alternatives are ordered (which is at the core of how PEG
+parsers work) has deep consequences, other than removing ambiguity.</p>
+<p>If a rule has two alternatives and the first of them succeeds, the second one is
+<strong>not</strong> attempted even if the caller rule fails to parse the rest of the input.
+Thus the parser is said to be “eager”. To illustrate this, consider
+the following two rules (in these examples, a token is an individual character):</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>first_rule:  ( 'a' | 'aa' ) 'a'
+second_rule: ('aa' | 'a'  ) 'a'
+</pre></div>
+</div>
+<p>In a regular EBNF grammar, both rules specify the language <code class="docutils literal notranslate"><span class="pre">{aa,</span> <span class="pre">aaa}</span></code> but
+in PEG, one of these two rules accepts the string <code class="docutils literal notranslate"><span class="pre">aaa</span></code> but not the string
+<code class="docutils literal notranslate"><span class="pre">aa</span></code>. The other does the opposite – it accepts the string the string <code class="docutils literal notranslate"><span class="pre">aa</span></code>
+but not the string <code class="docutils literal notranslate"><span class="pre">aaa</span></code>. The rule <code class="docutils literal notranslate"><span class="pre">('a'|'aa')'a'</span></code> does
+not accept <code class="docutils literal notranslate"><span class="pre">aaa</span></code> because <code class="docutils literal notranslate"><span class="pre">'a'|'aa'</span></code> consumes the first <code class="docutils literal notranslate"><span class="pre">a</span></code>, letting the
+final <code class="docutils literal notranslate"><span class="pre">a</span></code> in the rule consume the second, and leaving out the third <code class="docutils literal notranslate"><span class="pre">a</span></code>.
+As the rule has succeeded, no attempt is ever made to go back and let
+<code class="docutils literal notranslate"><span class="pre">'a'|'aa'</span></code> try the second alternative. The expression <code class="docutils literal notranslate"><span class="pre">('aa'|'a')'a'</span></code> does
+not accept <code class="docutils literal notranslate"><span class="pre">aa</span></code> because <code class="docutils literal notranslate"><span class="pre">'aa'|'a'</span></code> accepts all of <code class="docutils literal notranslate"><span class="pre">aa</span></code>, leaving nothing
+for the final <code class="docutils literal notranslate"><span class="pre">a</span></code>. Again, the second alternative of <code class="docutils literal notranslate"><span class="pre">'aa'|'a'</span></code> is not
+tried.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The effects of ordered choice, such as the ones illustrated above, may be hidden by many levels of rules.</p>
+</div>
+<p>For this reason, writing rules where an alternative is contained in the next one is in almost all cases a mistake,
+for example:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>my_rule:
+    | 'if' expression 'then' block
+    | 'if' expression 'then' block 'else' block
+</pre></div>
+</div>
+<p>In this example, the second alternative will never be tried because the first one will
+succeed first (even if the input string has an <code class="docutils literal notranslate"><span class="pre">'else'</span> <span class="pre">block</span></code> that follows). To correctly
+write this rule you can simply alter the order:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>my_rule:
+    | 'if' expression 'then' block 'else' block
+    | 'if' expression 'then' block
+</pre></div>
+</div>
+<p>In this case, if the input string doesn’t have an <code class="docutils literal notranslate"><span class="pre">'else'</span> <span class="pre">block</span></code>, the first alternative
+will fail and the second will be attempted without said part.</p>
+</section>
+<section id="grammatical-elements-and-rules">
+<h3>Grammatical elements and rules<a class="headerlink" href="#grammatical-elements-and-rules" title="Permalink to this headline">¶</a></h3>
+<p>Pegen has some special grammatical elements and rules:</p>
+<ul class="simple">
+<li><p>Strings with single quotes (’) (e.g. <code class="docutils literal notranslate"><span class="pre">'class'</span></code>) denote KEYWORDS.</p></li>
+<li><p>Strings with double quotes (”) (e.g. <code class="docutils literal notranslate"><span class="pre">"match"</span></code>) denote SOFT KEYWORDS.</p></li>
+<li><p>Upper case names (e.g. <code class="docutils literal notranslate"><span class="pre">NAME</span></code>) denote tokens in the <code class="file docutils literal notranslate"><span class="pre">Grammar/Tokens</span></code> file.</p></li>
+<li><p>Rule names starting with <cite>invalid_</cite> are used for specialized syntax errors.</p>
+<ul>
+<li><p>These rules are NOT used in the first pass of the parser.</p></li>
+<li><p>Only if the first pass fails to parse, a second pass including the invalid
+rules will be executed.</p></li>
+<li><p>If the parser fails in the second phase with a generic syntax error, the
+location of the generic failure of the first pass will be used (this avoids
+reporting incorrect locations due to the invalid rules).</p></li>
+<li><p>The order of the alternatives involving invalid rules matter
+(like any rule in PEG).</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="tokenization">
+<h3>Tokenization<a class="headerlink" href="#tokenization" title="Permalink to this headline">¶</a></h3>
+<p>It is common among PEG parser frameworks that the parser does both the parsing and the tokenization,
+but this does not happen in Pegen. The reason is that the Python language needs a custom tokenizer
+to handle things like indentation boundaries, some special keywords like <code class="docutils literal notranslate"><span class="pre">ASYNC</span></code> and <code class="docutils literal notranslate"><span class="pre">AWAIT</span></code>
+(for compatibility purposes), backtracking errors (such as unclosed parenthesis), dealing with encoding,
+interactive mode and much more. Some of these reasons are also there for historical purposes, and some
+others are useful even today.</p>
+<p>Tokens are restricted the the ones available in the <code class="docutils literal notranslate"><span class="pre">tokenize</span></code> module of the
+Python interpreter that is used to generate the parser. This means that
+tokenization of any parser generated by <code class="docutils literal notranslate"><span class="pre">pegen</span></code> must be a subset of the
+tokenization that Python itself uses.</p>
+</section>
+<section id="memoization">
+<h3>Memoization<a class="headerlink" href="#memoization" title="Permalink to this headline">¶</a></h3>
+<p>As described previously, to avoid exponential time complexity in the parser, memoization is used.</p>
+<p>Memoization can be expensive both in memory and time. Although the memory cost
+is obvious (the parser needs memory for storing previous results in the cache)
+the execution time cost comes for continuously checking if the given rule has a
+cache hit or not. In many situations, just parsing it again can be faster.
+<code class="docutils literal notranslate"><span class="pre">pegen</span></code> <strong>disables memoization by default</strong> except for rules with the special
+marker <cite>memo</cite> after the rule name (and type, if present):</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>rule_name[typr] (memo):
+    ...
+</pre></div>
+</div>
+<p>By selectively turning on memoization for a handful of rules, the parser becomes faster and uses less memory.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Left-recursive rules always use memoization, since the implementation of left-recursion depends on it.</p>
+</div>
+<p>To know if a new rule needs memoization or not, benchmarking is required
+(comparing execution times and memory usage of some considerably big files with
+and without memoization).</p>
+</section>
+<section id="hard-and-soft-keywords">
+<h3>Hard and Soft keywords<a class="headerlink" href="#hard-and-soft-keywords" title="Permalink to this headline">¶</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In the grammar files, keywords are defined using <strong>single quotes</strong> (e.g. <cite>‘class’</cite>) while soft
+keywords are defined using <strong>double quotes</strong> (e.g. <cite>“match”</cite>).</p>
+</div>
+<p>There are two kinds of keywords allowed in pegen grammars: <em>hard</em> and <em>soft</em>
+keywords. The difference between hard and soft keywords is that hard keywords
+are always reserved words, even in positions where they make no sense (e.g. <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">class</span> <span class="pre">+</span> <span class="pre">1</span></code>),
+while soft keywords only get a special meaning in context. Trying to use a hard
+keyword as a variable will always fail:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt; class = 3
+File "&lt;stdin&gt;", line 1
+    class = 3
+        ^
+SyntaxError: invalid syntax
+&gt;&gt;&gt; foo(class=3)
+File "&lt;stdin&gt;", line 1
+    foo(class=3)
+        ^^^^^
+SyntaxError: invalid syntax
+</pre></div>
+</div>
+<p>While soft keywords don’t have this limitation if used in a context other the one where they
+are defined as keywords:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">match</span> <span class="o">=</span> <span class="mi">45</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">foo</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"Yeah!"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">match</span></code> and <code class="docutils literal notranslate"><span class="pre">case</span></code> keywords are soft keywords, so that they are recognized as
+keywords at the beginning of a match statement or case block respectively, but are
+allowed to be used in other places as variable or argument names.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Soft keywords can be a bit challenging to manage as they can be accepted in
+places you don’t intend to, given how the order alternatives behave in PEG
+parsers (see <a class="reference internal" href="#consequences-of-ordered-choice"><span class="std std-ref">consequences of ordered choice section</span></a> for some background on this). In general,
+try to define them in places where there is not a lot of alternatives.</p>
+</div>
+</section>
+<section id="error-handling">
+<h3>Error handling<a class="headerlink" href="#error-handling" title="Permalink to this headline">¶</a></h3>
+<p>When a pegen-generated parser detects that an exception is raised, it will
+<strong>automatically stop parsing</strong>, no matter what the current state of the parser
+is and it will unwind the stack and report the exception. This means that if a
+rule action raises an exception all parsing will stop at that exact point. This
+is done to allow to correctly propagate any exception set by any Python
+functions. This also includes <cite>SyntaxError</cite> exceptions and this is the main
+mechanism the parser uses to report custom syntax error messages.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Tokenizer errors are normally reported by raising exceptions but some special
+tokenizer errors such as unclosed parenthesis will be reported only after the
+parser finishes without returning anything.</p>
+</div>
+</section>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<dl class="footnote brackets">
+<dt class="label" id="id3"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
+<dd><p>Ford, Bryan
+<a class="reference external" href="http://pdos.csail.mit.edu/~baford/packrat/thesis">http://pdos.csail.mit.edu/~baford/packrat/thesis</a></p>
+</dd>
+</dl>
+</section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="grammar.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Syntax</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="index.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Home</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2021, Pablo Galindo Salgado, Guido van Rossum, Lysandros Nikolaou
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="_sources/peg_parsers.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">About PEG parsers</a><ul>
+<li><a class="reference internal" href="#how-peg-parsers-work">How PEG Parsers Work</a><ul>
+<li><a class="reference internal" href="#key-ideas">Key ideas</a></li>
+<li><a class="reference internal" href="#consequences-or-the-ordered-choice-operator">Consequences or the ordered choice operator</a></li>
+<li><a class="reference internal" href="#grammatical-elements-and-rules">Grammatical elements and rules</a></li>
+<li><a class="reference internal" href="#tokenization">Tokenization</a></li>
+<li><a class="reference internal" href="#memoization">Memoization</a></li>
+<li><a class="reference internal" href="#hard-and-soft-keywords">Hard and Soft keywords</a></li>
+<li><a class="reference internal" href="#error-handling">Error handling</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </main>
+</div>
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/scripts/main.js?digest=e931d09b2a40c1bb82b542effe772014573baf67"></script></body>
+</html>
