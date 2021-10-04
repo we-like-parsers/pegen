@@ -31,10 +31,9 @@ def parse_invalid_syntax(
             start[1],
         ), f"expected start location of {start} but got {(exc.lineno, exc.offset)}"
     else:
-        assert exc.lineno is None and exc.offset is None, (
-            f"missing start location ({exc.lineno}, {exc.offset})"
-            + f" xxx ({exc.end_lineno}, {exc.end_offset})"
-        )
+        assert (
+            exc.lineno is None and exc.offset is None
+        ), f"missing start location ({exc.lineno}, {exc.offset})"
 
     if sys.version_info >= (3, 10):
         if end:
