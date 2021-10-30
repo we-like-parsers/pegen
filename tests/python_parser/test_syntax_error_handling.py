@@ -27,27 +27,41 @@ def parse_invalid_syntax(
     print(str(e.exconly()))
     assert message in str(e.exconly())
 
-    exc = e.value
-    if start:
-        assert (exc.lineno, exc.offset) == (
-            start[0],
-            start[1],
-        ), f"expected start location of {start} but got {(exc.lineno, exc.offset)}"
+    # Compare against Python's error messages
+    try:
+        exec(source, {}, {})
+    except exc_cls as py_e:
+        py_exc = py_e
+    except Exception as py_e:
+        assert False, f"Python produced {py_exc.__class__.__name__} instead of {exc_cls.__name__}: {py_exc}"
     else:
-        assert (
-            exc.lineno is None and exc.offset is None
-        ), f"missing start location ({exc.lineno}, {exc.offset})"
+        assert False, f"Python did not throw any exception, expected {exc_cls}"
 
-    if sys.version_info >= (3, 10):
-        if end:
-            assert (exc.end_lineno, exc.end_offset) == (
-                end[0],
-                end[1],
-            ), f"expected end location of {end} but got {(exc.end_lineno, exc.end_offset)}"
+    # Check start/end line/column
+    for parser, exc in [
+        ("pegen", e.value),
+        ("Python", py_exc)
+    ]:
+        if start:
+            assert (exc.lineno, exc.offset) == (
+                start[0],
+                start[1],
+            ), f"expected start location of {start} but got {(exc.lineno, exc.offset)} from {parser}"
         else:
             assert (
-                exc.end_lineno is None and exc.end_offset is None
-            ), f"missing end location ({exc.end_lineno}, {exc.end_offset})"
+                exc.lineno is None and exc.offset is None
+            ), f"missing start location ({exc.lineno}, {exc.offset})"
+
+        if sys.version_info >= (3, 10):
+            if end:
+                assert (exc.end_lineno, exc.end_offset) == (
+                    end[0],
+                    end[1],
+                ), f"expected end location of {end} but got {(exc.end_lineno, exc.end_offset)} from {parser}"
+            else:
+                assert (
+                    exc.end_lineno is None and exc.end_offset is None
+                ), f"missing end location ({exc.end_lineno}, {exc.end_offset})"
 
 
 @pytest.mark.parametrize(
