@@ -264,7 +264,7 @@ If the action is ommited, a default action is generated:
   expressions gets returned.
 
 This default behaviour is primarily made for very simple situations and for
-debugging pourposes.
+debugging purposes.
 
 As an illustrative example this simple grammar file allows directly
 generating a full parser that can parse simple arithmetic expressions and that
