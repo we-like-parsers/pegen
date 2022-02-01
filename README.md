@@ -272,7 +272,7 @@ returns a valid Python AST:
 
 
 ```
-    start[ast.Module]: a=expr_stmt* ENDMARKER { ast.Module(body=a or [] }
+    start[ast.Module]: a=expr_stmt* ENDMARKER { ast.Module(body=a or []) }
     expr_stmt: a=expr NEWLINE { ast.Expr(value=a, EXTRA) }
 
     expr:
