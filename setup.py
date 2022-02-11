@@ -33,7 +33,7 @@ setup(
     extras_require={
         'docs': ['sphinx', 'sphinx-copybutton', 'furo'],
         'lint': ['black', 'flake8', 'mypy'],
-        'test': ['pytest', 'pytest-cov'],
+        'test': ['pytest', 'pytest-cov', 'tox'],
     },
     project_urls={
         'Bug Reports': 'https://github.com/we-like-parsers/pegen/issues',
