@@ -9,8 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from pegen.tokenizer import Tokenizer
-
 
 @pytest.mark.parametrize(
     "filename",

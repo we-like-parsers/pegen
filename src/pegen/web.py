@@ -1,20 +1,12 @@
-import html
 import io
-import textwrap
-import tokenize
 import traceback
-from typing import IO, Any, Dict, Final, Type, cast
 
-from flask import Flask, cli, redirect, render_template, url_for  # type: ignore
+from flask import Flask, cli, render_template  # type: ignore
 from flask_wtf import FlaskForm  # type: ignore
 from wtforms import SubmitField, TextAreaField  # type: ignore
 from wtforms.validators import DataRequired  # type: ignore
 
-from pegen.grammar import Grammar
-from pegen.grammar_parser import GeneratedParser as GrammarParser
-from pegen.parser import Parser
-from pegen.python_generator import PythonParserGenerator
-from pegen.tokenizer import Tokenizer
+from pegen.utils import parse_string, make_parser
 
 DEFAULT_GRAMMAR = """\
 start: expr NEWLINE? ENDMARKER { expr }
@@ -34,44 +26,6 @@ atom: NUMBER
 """
 
 DEFAULT_SOURCE = "(1 + 2) * (3 - 6)"
-
-
-def run_parser(file: IO[bytes], parser_class: Type[Parser], *, verbose: bool = False) -> Any:
-    # Run a parser on a file (stream).
-    tokenizer = Tokenizer(tokenize.generate_tokens(file.readline))  # type: ignore # typeshed issue #3515
-    parser = parser_class(tokenizer, verbose=verbose)
-    result = parser.start()
-    if result is None:
-        raise parser.make_syntax_error("invalid syntax")
-    return result
-
-
-def parse_string(
-    source: str, parser_class: Type[Parser], *, dedent: bool = True, verbose: bool = False
-) -> Any:
-    # Run the parser on a string.
-    if dedent:
-        source = textwrap.dedent(source)
-    file = io.StringIO(source)
-    return run_parser(file, parser_class, verbose=verbose)  # type: ignore # typeshed issue #3515
-
-
-def generate_parser(grammar: Grammar) -> Type[Parser]:
-    # Generate a parser.
-    out = io.StringIO()
-    genr = PythonParserGenerator(grammar, out)
-    genr.generate("<string>")
-
-    # Load the generated parser class.
-    ns: Dict[str, Any] = {}
-    exec(out.getvalue(), ns)
-    return ns["GeneratedParser"]
-
-
-def make_parser(source: str) -> Type[Parser]:
-    # Combine parse_string() and generate_parser().
-    grammar = parse_string(source, GrammarParser)
-    return generate_parser(grammar)
 
 
 app = Flask(__name__)

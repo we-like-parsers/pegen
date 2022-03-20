@@ -2,7 +2,7 @@ from typing import Any
 
 from pegen.grammar import GrammarVisitor
 from pegen.grammar_parser import GeneratedParser as GrammarParser
-from tests.utils import parse_string
+from pegen.utils import parse_string
 
 
 class Visitor(GrammarVisitor):

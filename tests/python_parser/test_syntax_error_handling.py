@@ -1,11 +1,8 @@
 """Test syntax errors for cases where the parser can generate helpful messages."""
-import io
-import tokenize
 import sys
 
 import pytest
 
-from pegen.tokenizer import Tokenizer
 
 
 def parse_invalid_syntax(python_parse_file, python_parse_str, tmp_path, source, exc_cls, message):
