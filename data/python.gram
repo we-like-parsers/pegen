@@ -403,7 +403,7 @@ fstring[ast.Expr]: star_expressions
 # GENERAL STATEMENTS
 # ==================
 
-statements[list]: a=statement+ { list(itertools.chain(*a)) }
+statements[list]: a=statement+ { list(itertools.chain.from_iterable(a)) }
 
 statement[list]: a=compound_stmt { [a] } | a=simple_stmts { a }
 
