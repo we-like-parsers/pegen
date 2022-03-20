@@ -41,5 +41,10 @@ setup(
     },
     package_data={
         "pegen": ["templates/*.html"],
-    }
+    },
+    entry_points={
+        'console_scripts': [
+            'pegen = pegen.__main__:main',
+        ],
+    },
 )
