@@ -29,11 +29,11 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
     python_requires='>=3.8, <4',
-    install_requires=['psutil', 'flask', 'flask-wtf'],
     extras_require={
+        'web': ['flask', 'flask-wtf'],
         'docs': ['sphinx', 'sphinx-copybutton', 'furo'],
         'lint': ['black', 'flake8', 'mypy'],
-        'test': ['pytest', 'pytest-cov'],
+        'test': ['pytest', 'pytest-cov', 'psutil'],
     },
     project_urls={
         'Bug Reports': 'https://github.com/we-like-parsers/pegen/issues',
