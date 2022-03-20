@@ -13,7 +13,7 @@ from typing import List, Optional, Any
 
 sys.path.insert(0, os.getcwd())
 from pegen.build import build_parser
-from tests.utils import print_memstats, generate_parser
+from pegen.utils import print_memstats, generate_parser
 from scripts import show_parse
 
 SUCCESS = "\033[92m"

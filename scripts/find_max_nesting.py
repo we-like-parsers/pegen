@@ -20,7 +20,7 @@ from typing import Any
 
 sys.path.insert(0, ".")
 from pegen.build import build_parser
-from tests.utils import generate_parser, generate_parser_c_extension, parse_string
+from pegen.utils import generate_parser, generate_parser_c_extension, parse_string
 
 GRAMMAR_FILE = "data/python.gram"
 INITIAL_NESTING_DEPTH = 10
