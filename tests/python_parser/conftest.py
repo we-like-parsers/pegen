@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from pegen.build import build_parser
-from ..utils import generate_parser
+from pegen.utils import generate_parser
 
 
 @pytest.fixture(scope="session")

@@ -2,7 +2,6 @@ import importlib.util
 import io
 import sys
 import textwrap
-import token
 import tokenize
 from typing import IO, Any, Dict, Final, Optional, Type, cast
 
@@ -12,11 +11,18 @@ from pegen.parser import Parser
 from pegen.python_generator import PythonParserGenerator
 from pegen.tokenizer import Tokenizer
 
-ALL_TOKENS = token.tok_name
-EXACT_TOKENS = token.EXACT_TOKEN_TYPES  # type: ignore
-NON_EXACT_TOKENS = {
-    name for index, name in token.tok_name.items() if index not in EXACT_TOKENS.values()
-}
+
+def import_file(full_name: str, path: str) -> Any:
+    """Import a python module from a path"""
+
+    spec = importlib.util.spec_from_file_location(full_name, path)
+    mod = importlib.util.module_from_spec(spec)
+
+    # We assume this is not None and has an exec_module() method.
+    # See https://docs.python.org/3/reference/import.html?highlight=exec_module#loading
+    loader = cast(Any, spec.loader)
+    loader.exec_module(mod)
+    return mod
 
 
 def generate_parser(
@@ -63,19 +69,6 @@ def make_parser(source: str) -> Type[Parser]:
     # Combine parse_string() and generate_parser().
     grammar = parse_string(source, GrammarParser)
     return generate_parser(grammar)
-
-
-def import_file(full_name: str, path: str) -> Any:
-    """Import a python module from a path"""
-
-    spec = importlib.util.spec_from_file_location(full_name, path)
-    mod = importlib.util.module_from_spec(spec)
-
-    # We assume this is not None and has an exec_module() method.
-    # See https://docs.python.org/3/reference/import.html?highlight=exec_module#loading
-    loader = cast(Any, spec.loader)
-    loader.exec_module(mod)
-    return mod
 
 
 def print_memstats() -> bool:

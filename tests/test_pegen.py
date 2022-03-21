@@ -11,8 +11,7 @@ from pegen.grammar import Grammar, GrammarError
 from pegen.grammar_parser import GeneratedParser as GrammarParser
 from pegen.parser import Parser
 from pegen.python_generator import PythonParserGenerator
-
-from .utils import generate_parser, make_parser, parse_string
+from pegen.utils import generate_parser, make_parser, parse_string
 
 
 def test_parse_grammar() -> None:

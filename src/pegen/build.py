@@ -1,7 +1,6 @@
 import pathlib
-import sysconfig
 import tokenize
-from typing import Dict, List, Set, Tuple
+from typing import Dict, Set, Tuple
 
 from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser

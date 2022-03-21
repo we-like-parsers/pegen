@@ -3,8 +3,7 @@ from typing import Set, Dict
 from pegen.first_sets import FirstSetCalculator
 from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser
-
-from tests.utils import parse_string
+from pegen.utils import parse_string
 
 
 def calculate_first_sets(grammar_source: str) -> Dict[str, Set[str]]:
@@ -62,7 +61,7 @@ def test_optional_operator() -> None:
 def test_optional_literal() -> None:
     grammar = """
     start: sum NEWLINE
-    sum: '+' ? term 
+    sum: '+' ? term
     term: NUMBER
     """
     assert calculate_first_sets(grammar) == {

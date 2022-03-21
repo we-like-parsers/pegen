@@ -2,7 +2,7 @@ import ast
 import sys
 import time
 
-from tests.utils import print_memstats
+from pegen.utils import print_memstats
 
 
 def main() -> None:

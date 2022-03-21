@@ -5,7 +5,6 @@ not broader since we would not be able to generate the proper ast nodes.
 
 """
 import io
-import sys
 import tokenize
 
 import pytest

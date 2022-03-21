@@ -1,6 +1,5 @@
 import io
-from tokenize import NAME, NEWLINE, NUMBER, OP, TokenInfo, generate_tokens
-from typing import Any, Dict, Type
+from tokenize import NEWLINE, NUMBER, TokenInfo, generate_tokens
 
 from pegen.tokenizer import Tokenizer
 
