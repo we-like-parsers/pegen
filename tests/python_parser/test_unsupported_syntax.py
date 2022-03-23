@@ -31,7 +31,7 @@ def test_await(python_parser_cls):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 4))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
 
     assert "Await expressions are" in e.exconly()
 
@@ -51,7 +51,7 @@ def test_async(python_parser_cls, source, message):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 4))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
 
     assert message in e.exconly()
 
@@ -63,7 +63,7 @@ def test_async_comprehension(python_parser_cls):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 5))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
     assert "Async comprehensions are" in e.exconly()
 
 
@@ -75,7 +75,7 @@ def test_variable_annotation(python_parser_cls, source):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 5))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
 
     assert "Variable annotation syntax is" in e.exconly()
 
@@ -88,7 +88,7 @@ def test_pos_only_args(python_parser_cls, source):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 7))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
 
     assert "Positional only arguments are" in e.exconly()
 
@@ -101,7 +101,7 @@ def test_assignment_operator(python_parser_cls, source):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 7))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
 
     assert "The ':=' operator is" in e.exconly()
 
@@ -114,7 +114,7 @@ def test_generic_decorators(python_parser_cls, source):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 8))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
 
     assert "Generic decorator are" in e.exconly()
 
@@ -127,7 +127,7 @@ def test_parenthesized_with_items(python_parser_cls, source):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 8))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
 
     assert "Parenthesized with items" in e.exconly()
 
@@ -142,6 +142,6 @@ def test_match_statement(python_parser_cls, source):
     tokenizer = Tokenizer(tokengen, verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 9))
     with pytest.raises(SyntaxError) as e:
-        pp.file()
+        pp.parse("file")
 
     assert "Pattern matching is" in e.exconly()
