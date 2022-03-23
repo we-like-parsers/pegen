@@ -112,9 +112,22 @@ class Parser(Parser):
         self.py_version = min(py_version, sys.version_info) if py_version else sys.version_info
         self._exception = None
 
-    def parse(self, rule: str) -> Optional[ast.AST]:
+    def parse(self, rule: str, call_invalid_rules: bool = False) -> Optional[ast.AST]:
+        old = self.call_invalid_rules
+        self.call_invalid_rules = call_invalid_rules
         res = getattr(self, rule)()
+
         if res is None:
+            if not call_invalid_rules:
+                self.call_invalid_rules = True
+
+                # Reset the parser cache to be able to restart parsing from the
+                # beginning.
+                self._reset(0)  # type: ignore
+                self._cache.clear()
+
+                res = getattr(self, rule)()
+
             if self._exception is not None:
                 raise self._exception
             else:
