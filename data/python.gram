@@ -178,14 +178,14 @@ class Parser(Parser):
 
     def ensure_real(self, number_str: str):
         number = ast.literal_eval(number_str)
-        if number is not complex:
+        if type(number) is complex:
             self.raise_syntax_error("real number required in complex literal")
         return number
 
     def ensure_imaginary(self, number_str: str):
         number = ast.literal_eval(number_str)
-        if number is not complex:
-            self.raise_syntax_error("imaginary  number required in complex literal")
+        if type(number) is not complex:
+            self.raise_syntax_error("imaginary number required in complex literal")
         return number
 
     def generate_ast_for_string(self, tokens):
