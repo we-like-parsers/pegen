@@ -158,7 +158,7 @@ parsed.
 ``&&e``
 '''''''
 
-Fail immediatly if e fails to parse by raising the exception built using
+Fail immediately if e fails to parse by raising the exception built using
 the ``make_syntax_error`` method.
 
 This construct can help provide better error messages.
@@ -311,20 +311,26 @@ and “hidden left-recursion” like::
 Syntax error related rules
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Rules meant to provide better error reporting on syntax error are useful
-but can be tricky:
+Rules starting with ``invalid`` are meant to provide better error reporting on
+syntax error. They are ignored by the parser unless the ``call_invalid_rules``
+attribute of the parser is set to ``True``. This allows for faster parsing on
+the happy path and nicer errors can be generated in a second path as is done
+in the Python parser.
 
--  they will prevent the parser from back tracking which may not always
-   be desirable. In those cases one can customize the parser to delay
-   the error reporting.
--  secondly when used in the alternative of another rule, this
-   alternative will never evaluate its action. This can be annoying to
-   measure the code coverage on the parser. To alleviate this issue, all
-   rule alternatives making use of a rule whose name starts with
-   ``'invalid'`` will have its action set to ``UNREACHABLE`` if no
-   action was specified. ``UNREACHABLE`` is a special action which will
-   be replaced by the value of the ``unreachable_formatting`` which
-   defaults to ``None  # pragma: no cover``.
+.. note::
+
+   Rule whose name ends in ``without_invalid`` will never call ``invalid``
+   rules which avoids possibly infinite recursion.
+
+.. note::
+
+   When used in the alternative of another rule, this alternative will never
+   evaluate its action. This can be annoying to measure the code coverage on
+   the parser. To alleviate this issue, all rule alternatives making use of a
+   rule whose name starts with ``'invalid'`` will have its action set to
+   ``UNREACHABLE`` if no action was specified. ``UNREACHABLE`` is a special
+   action which will be replaced by the value of the ``unreachable_formatting``
+   which defaults to ``None  # pragma: no cover``.
 
 .. note::
     Rules making use of the ``&&`` forced operator to generate syntax error
