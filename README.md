@@ -41,6 +41,12 @@ we just used:
 python parser.py <file-with-code-to-parse>
 ```
 
+As a demo: generate a Python parser from data/python.gram, and use the generated parser to parse and run tests/demo.py
+```
+make demo
+```
+
+
 # How to contribute
 
 See the instructions in the [CONTRIBUTING.md](CONTRIBUTING.md) file.
