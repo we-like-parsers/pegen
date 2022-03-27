@@ -1,4 +1,5 @@
 import argparse
+import ast
 import sys
 import time
 import token
@@ -271,9 +272,8 @@ def simple_parser_main(parser_class: Type[Parser]) -> None:
         default=0,
         help="Print timing stats; repeat for more debug output",
     )
-    argparser.add_argument(
-        "-q", "--quiet", action="store_true", help="Don't print the parsed program"
-    )
+    argparser.add_argument("-q", "--quiet", action="store_true", help="Don't print the parsed program")
+    argparser.add_argument("-r", "--run",   action="store_true", help="Run the parsed program")
     argparser.add_argument("filename", help="Input file ('-' to use stdin)")
 
     args = argparser.parse_args()
@@ -313,7 +313,9 @@ def simple_parser_main(parser_class: Type[Parser]) -> None:
         sys.exit(1)
 
     if not args.quiet:
-        print(tree)
+        print(ast.dump(tree))
+    if args.run:
+        exec(compile(tree, filename=filename, mode="exec"))
 
     if verbose:
         dt = t1 - t0
