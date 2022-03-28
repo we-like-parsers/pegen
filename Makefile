@@ -76,6 +76,6 @@ help:  ## Print this message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 demo:
-	PYTHONPATH=$(shell pwd)/src:$(PYTHONPATH) python -m pegen data/python.gram -o data/python_parser.py
-	PYTHONPATH=$(shell pwd)/src:$(PYTHONPATH) python data/python_parser.py -r tests/demo.py
+	PYTHONPATH=$(shell pwd)/src:$(PYTHONPATH) $(PYTHON) -m pegen data/python.gram -o data/python_parser.py
+	PYTHONPATH=$(shell pwd)/src:$(PYTHONPATH) $(PYTHON) data/python_parser.py -r tests/demo.py
 
