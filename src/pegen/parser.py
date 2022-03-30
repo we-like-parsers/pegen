@@ -169,16 +169,17 @@ class Parser:
         self._verbose = verbose
         self._level = 0
         self._cache: Dict[Tuple[Mark, str, Tuple[Any, ...]], Tuple[Any, Mark]] = {}
+
         # Integer tracking wether we are in a left recursive rule or not. Can be useful
         # for error reporting.
         self.in_recursive_rule = 0
+
         # Pass through common tokenizer methods.
         self._mark = self._tokenizer.mark
         self._reset = self._tokenizer.reset
 
-    @abstractmethod
-    def start(self) -> Any:
-        pass
+        # Are we looking for syntax error ? When true enable matching on invalid rules
+        self.call_invalid_rules = False
 
     def showpeek(self) -> str:
         tok = self._tokenizer.peek()

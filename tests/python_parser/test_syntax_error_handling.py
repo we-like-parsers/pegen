@@ -452,31 +452,41 @@ def test_invalid_case_stmt(
         # As pattern
         ("match a:\n\tcase 1 as _:\n\t\tpass", SyntaxError, "cannot use '_' as a target"),
         (
-            "match a:\n\tcase 1 as 1+1:\n\tpass",
+            "match a:\n\tcase 1 as 1+1:\n\t\tpass",
             SyntaxError,
             "invalid pattern target",
         ),
         # Class pattern
         (
-            "match a:\n\tcase Foo(z=1, y=2, x):\n\tpass",
+            "match a:\n\tcase Foo(z=1, y=2, x):\n\t\tpass",
             SyntaxError,
             "positional patterns follow keyword patterns",
         ),
         (
-            "match a:\n\tcase Foo(a, z=1, y=2, x):\n\tpass",
+            "match a:\n\tcase Foo(a, z=1, y=2, x):\n\t\tpass",
             SyntaxError,
             "positional patterns follow keyword patterns",
         ),
         (
-            "match a:\n\tcase Foo(z=1, x, y=2):\n\tpass",
+            "match a:\n\tcase Foo(z=1, x, y=2):\n\t\tpass",
             SyntaxError,
             "positional patterns follow keyword patterns",
         ),
         (
-            "match a:\n\tcase Foo(a=b, c, d=e, f, g=h, i, j=k, ...):\n\tpass",
+            "match a:\n\tcase Foo(a=b, c, d=e, f, g=h, i, j=k, ...):\n\t\tpass",
             SyntaxError,
             "positional patterns follow keyword patterns",
         ),
+        (
+            "match x:\n\tcase -1j + 1j:\n\t\tpass",
+            SyntaxError,
+            "real number required in complex literal",
+        ),
+        (
+            "match x:\n\tcase -1 + 1:\n\t\tpass",
+            SyntaxError,
+            "imaginary number required in complex literal",
+        )
     ],
 )
 def test_invalid_case_pattern(

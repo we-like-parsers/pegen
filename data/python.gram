@@ -110,15 +110,29 @@ class Parser(Parser):
         super().__init__(tokenizer, verbose=verbose)
         self.filename = filename
         self.py_version = min(py_version, sys.version_info) if py_version else sys.version_info
-        self._exception = None
 
-    def parse(self, rule: str) -> Optional[ast.AST]:
+    def parse(self, rule: str, call_invalid_rules: bool = False) -> Optional[ast.AST]:
+        old = self.call_invalid_rules
+        self.call_invalid_rules = call_invalid_rules
         res = getattr(self, rule)()
+
         if res is None:
-            if self._exception is not None:
-                raise self._exception
-            else:
-                raise SyntaxError("invalid syntax")
+
+            # Grab the last token that was parsed in the first run to avoid
+            # polluting a generic error reports with progress made by invalid rules.
+            last_token = self._tokenizer.diagnose()
+
+            if not call_invalid_rules:
+                self.call_invalid_rules = True
+
+                # Reset the parser cache to be able to restart parsing from the
+                # beginning.
+                self._reset(0)  # type: ignore
+                self._cache.clear()
+
+                res = getattr(self, rule)()
+
+            self.raise_syntax_error_starting_from("invalid syntax", last_token)
 
         return res
 
@@ -164,14 +178,14 @@ class Parser(Parser):
 
     def ensure_real(self, number_str: str):
         number = ast.literal_eval(number_str)
-        if number is not complex:
-            self.store_syntax_error("real number required in complex literal")
+        if type(number) is complex:
+            self.raise_syntax_error("real number required in complex literal")
         return number
 
     def ensure_imaginary(self, number_str: str):
         number = ast.literal_eval(number_str)
-        if number is not complex:
-            self.store_syntax_error("imaginary  number required in complex literal")
+        if type(number) is not complex:
+            self.raise_syntax_error("imaginary number required in complex literal")
         return number
 
     def generate_ast_for_string(self, tokens):
@@ -206,7 +220,7 @@ class Parser(Parser):
         # Avoid getting a triple nesting in the error report that does not
         # bring anything relevant to the traceback.
         if err_msg:
-            self.store_syntax_error_known_location(err_msg, t)
+            self.raise_syntax_error_known_location(err_msg, t)
             raise self._exception
 
         return m.body[0].value
@@ -283,7 +297,7 @@ class Parser(Parser):
             kwarg=after_star[2]
         )
 
-    def _store_syntax_error(
+    def _build_syntax_error(
         self,
         message: str,
         start: Optional[Tuple[int, int]] = None,
@@ -303,20 +317,28 @@ class Parser(Parser):
                 self._tokenizer.get_lines(list(range(start[0], end[0] + 1)))
             )
 
-        self._exception = SyntaxError(
+        return  SyntaxError(
             message,
             (self.filename, start[0], start[1], line)
         )
 
-    def store_syntax_error(self, message: str) -> None:
-        self._store_syntax_error(message)
+    def raise_raw_syntax_error(
+        self,
+        message: str,
+        start: Optional[Tuple[int, int]] = None,
+        end: Optional[Tuple[int, int]] = None
+    ) -> None:
+        raise self._build_syntax_error(message, start, end)
 
     def make_syntax_error(self, message: str) -> None:
-        self._store_syntax_error(message)
-        return self._exception
+        return self._build_syntax_error(message)
 
-    def store_syntax_error_known_location(self, message: str, node) -> None:
-        """Store a syntax error that occured at a given AST node."""
+    def raise_syntax_error(self, message: str) -> None:
+        """Raise a syntax error."""
+        raise self._build_syntax_error(message)
+
+    def raise_syntax_error_known_location(self, message: str, node) -> None:
+        """Raise a syntax error that occured at a given AST node."""
         if isinstance(node, tokenize.TokenInfo):
             start = node.start
             end = node.end
@@ -324,9 +346,9 @@ class Parser(Parser):
             start = node.lineno, node.col_offset
             end = node.end_lineno, node.end_col_offset
 
-        self._store_syntax_error(message, start, end)
+        raise self._build_syntax_error(message, start, end)
 
-    def store_syntax_error_known_range(
+    def raise_syntax_error_known_range(
         self,
         message: str,
         start_node: Union[ast.AST, tokenize.TokenInfo],
@@ -342,9 +364,9 @@ class Parser(Parser):
         else:
             end = end_node.end_lineno, end_node.end_col_offset
 
-        self._store_syntax_error(message, start, end)
+        raise self._build_syntax_error(message, start, end)
 
-    def store_syntax_error_starting_from(
+    def raise_syntax_error_starting_from(
         self,
         message: str,
         start_node: Union[ast.AST, tokenize.TokenInfo]
@@ -354,37 +376,7 @@ class Parser(Parser):
         else:
             start = start_node.lineno, start_node.col_offset
 
-        self._store_syntax_error(message, start, None)
-
-    def raise_syntax_error(self, message: str) -> NoReturn:
-        self._store_syntax_error(message)
-        raise self._exception
-
-    def raise_syntax_error_known_location(
-            self,
-            message: str,
-            node: Union[ast.AST, tokenize.TokenInfo]
-        ) -> NoReturn:
-        """Raise a syntax error that occured at a given AST node."""
-        self.store_syntax_error_known_location(message, node)
-        raise self._exception
-
-    def raise_syntax_error_known_range(
-        self,
-        message: str,
-        start_node: Union[ast.AST, tokenize.TokenInfo],
-        end_node: Union[ast.AST, tokenize.TokenInfo]
-    ) -> NoReturn:
-        self.store_syntax_error_known_range(message, start_node, end_node)
-        raise self._exception
-
-    def raise_syntax_error_starting_from(
-        self,
-        message: str,
-        start_node: Union[ast.AST, tokenize.TokenInfo]
-    ) -> NoReturn:
-        self.store_syntax_error_starting_from(message, start_node)
-        raise self._exception
+        raise self._build_syntax_error(message, start, None)
 
 '''
 
@@ -1565,36 +1557,37 @@ func_type_comment:
 # From here on, there are rules for invalid syntax with specialised error messages
 invalid_arguments[NoReturn]:
     | a=args ',' '*' {
-        self.store_syntax_error_known_location(
+        self.raise_syntax_error_known_location(
             "iterable argument unpacking follows keyword argument unpacking",
             a[1][-1] if a[1] else a[0][-1],
         )
      }
     | a=expression b=for_if_clauses ',' [args | expression for_if_clauses] {
-        self.store_syntax_error_known_range(
+        self.raise_syntax_error_known_range(
             "Generator expression must be parenthesized", a, b[-1].target
         )
      }
     | a=NAME b='=' expression for_if_clauses {
-        self.store_syntax_error_known_range(
+        self.raise_syntax_error_known_range(
             "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", a, b
         )
      }
-    | a=args for_if_clauses {
-        self.store_syntax_error_starting_from(
+    | a=args b=for_if_clauses {
+        self.raise_syntax_error_known_range(
             "Generator expression must be parenthesized",
-            a[1][-1] if a[1] else a[0][-1]
-        )
+            a[0][-1],
+            b[-1].target
+        ) if len(a[0]) > 1 else None
      }
     | args ',' a=expression b=for_if_clauses {
-        self.store_syntax_error_known_range(
+        self.raise_syntax_error_known_range(
             "Generator expression must be parenthesized",
             a,
             b[-1].target,
         )
      }
     | a=args ',' args {
-        self.store_syntax_error(
+        self.raise_syntax_error(
             "positional argument follows keyword argument unpacking"
             if a[1][-1].arg is None else
             "positional argument follows keyword argument",
@@ -1602,12 +1595,12 @@ invalid_arguments[NoReturn]:
      }
 invalid_kwarg[NoReturn]:
     | a=NAME b='=' expression for_if_clauses {
-        self.store_syntax_error_known_range(
+        self.raise_syntax_error_known_range(
             "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", a, b
         )
      }
     | !(NAME '=') a=expression b='=' {
-        self.store_syntax_error_known_range(
+        self.raise_syntax_error_known_range(
             "expression cannot contain assignment, perhaps you meant \"==\"?", a, b,
         )
      }
@@ -1628,14 +1621,14 @@ invalid_expression[NoReturn]:
     # !(NAME STRING) is not matched so we don't show this error with some invalid string prefixes like: kf"dsfsdf"
     # Soft keywords need to also be ignored because they can be parsed as NAME NAME
     | !(NAME STRING | SOFT_KEYWORD) a=disjunction b=expression_without_invalid {
-        self.store_syntax_error_known_range("invalid syntax. Perhaps you forgot a comma?", a, b)
+        self.raise_syntax_error_known_range("invalid syntax. Perhaps you forgot a comma?", a, b)
      }
     | a=disjunction 'if' b=disjunction !('else'|':') {
-        self.store_syntax_error_known_range("expected 'else' after 'if' expression", a, b)
+        self.raise_syntax_error_known_range("expected 'else' after 'if' expression", a, b)
      }
 invalid_named_expression[NoReturn]:
     | a=expression ':=' expression {
-        self.store_syntax_error_known_location(
+        self.raise_syntax_error_known_location(
             f"cannot use assignment expressions with {self.get_expr_name(a)}", a
         )
      }
@@ -1644,7 +1637,7 @@ invalid_named_expression[NoReturn]:
         (
             None
             if self.in_recursive_rule else
-            self.store_syntax_error_known_range(
+            self.raise_syntax_error_known_range(
                 "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", a, b
             )
         )
@@ -1653,7 +1646,7 @@ invalid_named_expression[NoReturn]:
         (
             None
             if self.in_recursive_rule else
-            self.store_syntax_error_known_range(
+            self.raise_syntax_error_known_range(
                 f"cannot assign to {self.get_expr_name(a)} here. Maybe you meant '==' instead of '='?", a, b
             )
         )
@@ -1661,22 +1654,22 @@ invalid_named_expression[NoReturn]:
 
 invalid_assignment[NoReturn]:
     | a=invalid_ann_assign_target ':' expression {
-        self.store_syntax_error_known_location(
+        self.raise_syntax_error_known_location(
             f"only single target (not {self.get_expr_name(a)}) can be annotated", a
         )
      }
     | a=star_named_expression ',' star_named_expressions* ':' expression {
-        self.store_syntax_error_known_location("only single target (not tuple) can be annotated", a) }
+        self.raise_syntax_error_known_location("only single target (not tuple) can be annotated", a) }
     | a=expression ':' expression {
-        self.store_syntax_error_known_location("illegal target for annotation", a) }
+        self.raise_syntax_error_known_location("illegal target for annotation", a) }
     | (star_targets '=')* a=star_expressions '=' {
-        self.store_syntax_error_known_location(f"cannot assign to {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_known_location(f"cannot assign to {self.get_expr_name(a)}", a)
      }
     | (star_targets '=')* a=yield_expr '=' {
-        self.store_syntax_error_known_location("assignment to yield expression not possible", a)
+        self.raise_syntax_error_known_location("assignment to yield expression not possible", a)
      }
     | a=star_expressions augassign (yield_expr | star_expressions) {
-        self.store_syntax_error_known_location(
+        self.raise_syntax_error_known_location(
             f"{self.get_expr_name(a)} is an illegal expression for augmented assignment", a
         )
      }
@@ -1724,9 +1717,9 @@ invalid_lambda_parameters_helper[NoReturn]:
     | a=lambda_param_with_default+
 invalid_star_etc[NoReturn]:
     | a='*' (')' | ',' (')' | '**')) {
-        self.store_syntax_error_known_location("named arguments must follow bare *", a)
+        self.raise_syntax_error_known_location("named arguments must follow bare *", a)
      }
-    | '*' ',' TYPE_COMMENT { self.store_syntax_error("bare * has associated type comment") }
+    | '*' ',' TYPE_COMMENT { self.raise_syntax_error("bare * has associated type comment") }
 invalid_lambda_star_etc[NoReturn]:
     | '*' (':' | ',' (':' | '**')) {
         self.raise_syntax_error("named arguments must follow bare *")
@@ -1785,8 +1778,8 @@ invalid_except_stmt[None]:
     | 'except' a=expression ',' expressions ['as' NAME ] ':' {
         self.raise_syntax_error_starting_from("exception group must be parenthesized", a)
      }
-    | a='except' expression ['as' NAME ] NEWLINE { self.store_syntax_error("expected ':'") }
-    | a='except' NEWLINE { self.store_syntax_error("expected ':'") }
+    | a='except' expression ['as' NAME ] NEWLINE { self.raise_syntax_error("expected ':'") }
+    | a='except' NEWLINE { self.raise_syntax_error("expected ':'") }
 invalid_finally_stmt[NoReturn]:
     | a='finally' ':' NEWLINE !INDENT {
         self.raise_indentation_error(
@@ -1822,7 +1815,7 @@ invalid_match_stmt[NoReturn]:
         )
      }
 invalid_case_block[NoReturn]:
-    | "case" patterns guard? !':' { self.store_syntax_error("expected ':'") }
+    | "case" patterns guard? !':' { self.raise_syntax_error("expected ':'") }
     | a="case" patterns guard? ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'case' statement on line {a.start[0]}"
@@ -1864,7 +1857,7 @@ invalid_else_stmt[NoReturn]:
         )
      }
 invalid_while_stmt[NoReturn]:
-    | 'while' named_expression NEWLINE { self.store_syntax_error("expected ':'") }
+    | 'while' named_expression NEWLINE { self.raise_syntax_error("expected ':'") }
     | a='while' named_expression ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after 'while' statement on line {a.start[0]}"
@@ -1892,22 +1885,22 @@ invalid_class_def_raw[NoReturn]:
 invalid_double_starred_kvpairs[None]:
     | ','.double_starred_kvpair+ ',' invalid_kvpair
     | expression ':' a='*' bitwise_or {
-        self.store_syntax_error_starting_from("cannot use a starred expression in a dictionary value", a)
+        self.raise_syntax_error_starting_from("cannot use a starred expression in a dictionary value", a)
      }
     | expression a=':' &('}'|',') {
-        self.store_syntax_error_known_location("expression expected after dictionary key and ':'", a)
+        self.raise_syntax_error_known_location("expression expected after dictionary key and ':'", a)
      }
 invalid_kvpair[None]:
     | a=expression !(':') {
-        self._store_syntax_error(
+        self.raise_raw_syntax_error(
             "':' expected after dictionary key",
             (a.lineno, a.col_offset - 1),
             (a.end_lineno, a.end_col_offset, -1)
         )
      }
     | expression ':' a='*' bitwise_or {
-        self.store_syntax_error_starting_from("cannot use a starred expression in a dictionary value", a)
+        self.raise_syntax_error_starting_from("cannot use a starred expression in a dictionary value", a)
      }
     | expression a=':' {
-        self.store_syntax_error_known_location("expression expected after dictionary key and ':'", a)
+        self.raise_syntax_error_known_location("expression expected after dictionary key and ':'", a)
      }

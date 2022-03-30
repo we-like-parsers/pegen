@@ -217,6 +217,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             or "lineno=start_lineno, col_offset=start_col_offset, "
             "end_lineno=end_lineno, end_col_offset=end_col_offset"
         )
+        self.cleanup_statements = []
 
     def generate(self, filename: str) -> None:
         header = self.grammar.metas.get("header", MODULE_PREFIX)
@@ -253,6 +254,11 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     return True
         return False
 
+    def add_return(self, ret_val: str) -> None:
+        for stmt in self.cleanup_statements:
+            self.print(stmt)
+        self.print(f"return {ret_val};")
+
     def visit_Rule(self, node: Rule) -> None:
         is_loop = node.is_loop()
         is_gather = node.is_gather()
@@ -272,6 +278,12 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print(f"# {node.name}: {rhs}")
             if node.nullable:
                 self.print(f"# nullable={node.nullable}")
+
+            if node.name.endswith("without_invalid"):
+                self.print("_prev_call_invalid = self.call_invalid_rules")
+                self.print("self.call_invalid_rules = False")
+                self.cleanup_statements.append("self.call_invalid_rules = _prev_call_invalid")
+
             self.print("mark = self._mark()")
             if self.alts_uses_locations(node.rhs.alts):
                 self.print("tok = self._tokenizer.peek()")
@@ -280,9 +292,12 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 self.print("children = []")
             self.visit(rhs, is_loop=is_loop, is_gather=is_gather)
             if is_loop:
-                self.print("return children")
+                self.add_return("children")
             else:
-                self.print("return None")
+                self.add_return("None")
+
+        if node.name.endswith("without_invalid"):
+            self.cleanup_statements.pop()
 
     def visit_NamedItem(self, node: NamedItem) -> None:
         name, call = self.callmakervisitor.visit(node.item)
@@ -303,6 +318,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
     def visit_Alt(self, node: Alt, is_loop: bool, is_gather: bool) -> None:
         has_cut = any(isinstance(item.item, Cut) for item in node.items)
+        has_invalid = self.invalidvisitor.visit(node)
         with self.local_variable_context():
             if has_cut:
                 self.print("cut = False")
@@ -312,6 +328,9 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 self.print("if (")
             with self.indent():
                 first = True
+                if has_invalid:
+                    self.print("self.call_invalid_rules")
+                    first = False
                 for item in node.items:
                     if first:
                         first = False
@@ -331,7 +350,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                             f"[{self.local_variable_names[0]}] + {self.local_variable_names[1]}"
                         )
                     else:
-                        if self.invalidvisitor.visit(node):
+                        if has_invalid:
                             action = "UNREACHABLE"
                         elif len(self.local_variable_names) == 1:
                             action = f"{self.local_variable_names[0]}"
@@ -348,9 +367,11 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 else:
                     if "UNREACHABLE" in action:
                         action = action.replace("UNREACHABLE", self.unreachable_formatting)
-                    self.print(f"return {action}")
+                    self.add_return(f"{action}")
 
             self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
             if has_cut:
-                self.print("if cut: return None")
+                self.print("if cut:")
+                with self.indent():
+                    self.add_return("None")
