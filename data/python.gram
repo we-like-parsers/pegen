@@ -154,9 +154,13 @@ class Parser(Parser):
                 f"{error_msg} is only supported in Python {min_version} and above."
             )
 
-    def raise_indentation_error(self, msg) -> None:
+    def raise_indentation_error(self, msg: str) -> None:
         """Raise an indentation error."""
-        raise IndentationError(msg)
+        last_token = self._tokenizer.diagnose()
+        args = (self.filename, last_token.start[0], last_token.start[1] + 1, last_token.line)
+        if sys.version_info >= (3, 10):
+            args += (last_token.end[0], last_token.end[1] + 1)
+        raise IndentationError(msg, args)
 
     def get_expr_name(self, node) -> str:
         """Get a descriptive name for an expression."""
