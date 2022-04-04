@@ -373,17 +373,28 @@ class Parser(Parser):
         message: str,
         start: Optional[Tuple[int, int]] = None,
         end: Optional[Tuple[int, int]] = None
-    ) -> None:
+    ) -> NoReturn:
         raise self._build_syntax_error(message, start, end)
 
     def make_syntax_error(self, message: str) -> None:
         return self._build_syntax_error(message)
 
-    def raise_syntax_error(self, message: str) -> None:
-        """Raise a syntax error."""
-        raise self._build_syntax_error(message)
+    def expect_forced(self, res: Any, expectation: str) -> Optional[tokenize.TokenInfo]:
+        if res is None:
+            last_token = self._tokenizer.diagnose()
+            self.raise_raw_syntax_error(
+                f"expected {expectation}", last_token.start, last_token.start
+            )
+        return res
 
-    def raise_syntax_error_known_location(self, message: str, node) -> None:
+    def raise_syntax_error(self, message: str) -> NoReturn:
+        """Raise a syntax error."""
+        tok = self._tokenizer.diagnose()
+        raise self._build_syntax_error(message, tok.start, tok.end if tok.type != 4 else tok.start)
+
+    def raise_syntax_error_known_location(
+        self, message: str, node: Union[ast.AST, tokenize.TokenInfo]
+    ) -> NoReturn:
         """Raise a syntax error that occured at a given AST node."""
         if isinstance(node, tokenize.TokenInfo):
             start = node.start
@@ -399,7 +410,7 @@ class Parser(Parser):
         message: str,
         start_node: Union[ast.AST, tokenize.TokenInfo],
         end_node: Union[ast.AST, tokenize.TokenInfo]
-    ) -> None:
+    ) -> NoReturn:
         if isinstance(start_node, tokenize.TokenInfo):
             start = start_node.start
         else:
@@ -416,11 +427,13 @@ class Parser(Parser):
         self,
         message: str,
         start_node: Union[ast.AST, tokenize.TokenInfo]
-    ) -> None:
+    ) -> NoReturn:
         if isinstance(start_node, tokenize.TokenInfo):
             start = start_node.start
         else:
             start = start_node.lineno, start_node.col_offset
+
+        last_token = self._tokenizer.diagnose()
 
         raise self._build_syntax_error(message, start, last_token.start)
 
@@ -1709,8 +1722,8 @@ invalid_named_expression[NoReturn]:
         (
             None
             if self.in_recursive_rule else
-            self.raise_syntax_error_known_range(
-                f"cannot assign to {self.get_expr_name(a)} here. Maybe you meant '==' instead of '='?", a, b
+            self.raise_syntax_error_known_location(
+                f"cannot assign to {self.get_expr_name(a)} here. Maybe you meant '==' instead of '='?", a
             )
         )
      }
@@ -1733,7 +1746,7 @@ invalid_assignment[NoReturn]:
      }
     | a=star_expressions augassign (yield_expr | star_expressions) {
         self.raise_syntax_error_known_location(
-            f"{self.get_expr_name(a)} is an illegal expression for augmented assignment", a
+            f"'{self.get_expr_name(a)}' is an illegal expression for augmented assignment", a
         )
      }
 invalid_ann_assign_target[ast.AST]:
@@ -1839,7 +1852,7 @@ invalid_try_stmt[NoReturn]:
      }
 invalid_except_stmt[None]:
     | 'except' a=expression ',' expressions ['as' NAME ] ':' {
-        self.raise_syntax_error_starting_from("exception group must be parenthesized", a)
+        self.raise_syntax_error_starting_from("multiple exception types must be parenthesized", a)
      }
     | a='except' expression ['as' NAME ] NEWLINE { self.raise_syntax_error("expected ':'") }
     | a='except' NEWLINE { self.raise_syntax_error("expected ':'") }
@@ -1957,8 +1970,8 @@ invalid_kvpair[None]:
     | a=expression !(':') {
         self.raise_raw_syntax_error(
             "':' expected after dictionary key",
-            (a.lineno, a.col_offset - 1),
-            (a.end_lineno, a.end_col_offset, -1)
+            (a.lineno, a.col_offset),
+            (a.end_lineno, a.end_col_offset)
         )
      }
     | expression ':' a='*' bitwise_or {
