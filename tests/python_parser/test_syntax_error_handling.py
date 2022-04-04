@@ -4,10 +4,23 @@ import sys
 import pytest
 
 
-
 def parse_invalid_syntax(
-    python_parse_file, python_parse_str, tmp_path, source, exc_cls, message, start=None, end=None
+    python_parse_file, python_parse_str, tmp_path, source, exc_cls, message, start, end
 ):
+
+    # Check we obtain the expected error from Python
+    try:
+        exec(source, {}, {})
+    except exc_cls as py_e:
+        py_exc = py_e
+    except Exception as py_e:
+        assert (
+            False
+        ), f"Python produced {py_e.__class__.__name__} instead of {exc_cls.__name__}: {py_e}"
+    else:
+        assert False, f"Python did not throw any exception, expected {exc_cls}"
+
+    # Check our parser raises both from str and file mode.
     with pytest.raises(exc_cls) as e:
         python_parse_str(source, "exec")
 
@@ -21,44 +34,32 @@ def parse_invalid_syntax(
     with pytest.raises(exc_cls) as e:
         python_parse_file(str(test_file))
 
+    # Check Python message but do not expect message to match for earlier Python versions
+    if sys.version_info >= (3, 10):
+        # NOTE ugly hack for 1 CPython bug
+        if exc_cls is SyntaxError and e.type is IndentationError:
+            assert message.replace("'", "") in py_exc.args[0]
+        else:
+            assert message in py_exc.args[0]
+
     print(str(e.exconly()))
     assert message in str(e.exconly())
 
-    # Compare against Python's error messages
-    try:
-        exec(source, {}, {})
-    except exc_cls as py_e:
-        py_exc = py_e
-    except Exception as py_e:
-        assert False, f"Python produced {py_exc.__class__.__name__} instead of {exc_cls.__name__}: {py_exc}"
-    else:
-        assert False, f"Python did not throw any exception, expected {exc_cls}"
-
-    # Check start/end line/column
-    for parser, exc in [
-        ("pegen", e.value),
-        ("Python", py_exc)
-    ]:
-        if start:
-            assert (exc.lineno, exc.offset) == (
-                start[0],
-                start[1],
-            ), f"expected start location of {start} but got {(exc.lineno, exc.offset)} from {parser}"
-        else:
-            assert (
-                exc.lineno is None and exc.offset is None
-            ), f"missing start location ({exc.lineno}, {exc.offset})"
-
-        if sys.version_info >= (3, 10):
-            if end:
-                assert (exc.end_lineno, exc.end_offset) == (
-                    end[0],
-                    end[1],
-                ), f"expected end location of {end} but got {(exc.end_lineno, exc.end_offset)} from {parser}"
-            else:
-                assert (
-                    exc.end_lineno is None and exc.end_offset is None
-                ), f"missing end location ({exc.end_lineno}, {exc.end_offset})"
+    # Check start/end line/column on Python 3.10
+    if sys.version_info >= (3, 10):
+        for parser, exc in [("Python", py_exc), ("pegen", e.value)]:
+            if (
+                exc.lineno != start[0]
+                or exc.offset != start[1]
+                # Do not check end for indentation errors
+                or (not isinstance(e, IndentationError) and exc.end_lineno != end[0])
+                or (not isinstance(e, IndentationError) and (end[1] is not None and exc.end_offset != end[1]))
+            ):
+                raise ValueError(
+                    f"Expected locations of {start} and {end}, but got "
+                    f"{(exc.lineno, exc.offset)} and {(exc.end_lineno, exc.end_offset)} "
+                    f"from {parser}"
+                )
 
 
 @pytest.mark.parametrize(
