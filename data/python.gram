@@ -1625,7 +1625,9 @@ invalid_arguments[NoReturn]:
      }
     | a=expression b=for_if_clauses ',' [args | expression for_if_clauses] {
         self.raise_syntax_error_known_range(
-            "Generator expression must be parenthesized", a, b[-1].target
+            "Generator expression must be parenthesized",
+            a,
+            (b[-1].ifs[-1] if b[-1].ifs else b[-1].iter)
         )
      }
     | a=NAME b='=' expression for_if_clauses {
@@ -1637,14 +1639,14 @@ invalid_arguments[NoReturn]:
         self.raise_syntax_error_known_range(
             "Generator expression must be parenthesized",
             a[0][-1],
-            b[-1].target
+            (b[-1].ifs[-1] if b[-1].ifs else b[-1].iter),
         ) if len(a[0]) > 1 else None
      }
     | args ',' a=expression b=for_if_clauses {
         self.raise_syntax_error_known_range(
             "Generator expression must be parenthesized",
             a,
-            b[-1].target,
+            (b[-1].ifs[-1] if b[-1].ifs else b[-1].iter),
         )
      }
     | a=args ',' args {
