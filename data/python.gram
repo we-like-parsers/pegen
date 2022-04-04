@@ -139,7 +139,7 @@ class Parser(Parser):
 
                 res = getattr(self, rule)()
 
-            self.raise_syntax_error_starting_from("invalid syntax", last_token)
+            self.raise_raw_syntax_error("invalid syntax", last_token.start, last_token.end)
 
         return res
 
