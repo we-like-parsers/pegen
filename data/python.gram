@@ -3,6 +3,7 @@
 @class PythonParser
 
 @subheader'''
+import enum
 import io
 import itertools
 import os
@@ -96,6 +97,12 @@ def parse_string(
     return parser.parse(mode if mode == "eval" else "file")
 
 
+class Target(enum.Enum):
+    FOR_TARGETS = enum.auto()
+    STAR_TARGETS = enum.auto()
+    DEL_TARGETS = enum.auto()
+
+
 class Parser(Parser):
 
     #: Name of the source file, used in error reports
@@ -158,7 +165,14 @@ class Parser(Parser):
         node_t = type(node)
         if node_t is ast.Constant:
             v = node.value
-            if v in (None, True, False, Ellipsis):
+            if v is Ellipsis:
+                return "ellipsis"
+            elif v is None:
+                return str(v)
+            # Avoid treating 1 as True through == comparison
+            elif v is True:
+                return str(v)
+            elif v is False:
                 return str(v)
             else:
                 return "literal"
@@ -170,6 +184,39 @@ class Parser(Parser):
                 f"unexpected expression in assignment {type(node).__name__} "
                 f"(line {node.lineno})."
             )
+
+    def get_invalid_target(self, target: Target, node: Optional[ast.AST]) -> Optional[ast.AST]:
+        """Get the meaningful invalid target for different assignment type."""
+        if node is None:
+            return None
+
+        # We only need to visit List and Tuple nodes recursively as those
+        # are the only ones that can contain valid names in targets when
+        # they are parsed as expressions. Any other kind of expression
+        # that is a container (like Sets or Dicts) is directly invalid and
+        # we do not need to visit it recursively.
+        if isinstance(node, (ast.List, ast.Tuple)):
+            for e in node.elts:
+                if (inv := self.get_invalid_target(target, e)) is not None:
+                    return inv
+        elif isinstance(node, ast.Starred):
+            if target is Target.DEL_TARGETS:
+                return node
+            return self.get_invalid_target(target, node.value)
+        elif isinstance(node, ast.Compare):
+            # This is needed, because the `a in b` in `for a in b` gets parsed
+            # as a comparison, and so we need to search the left side of the comparison
+            # for invalid targets.
+            if target is Target.FOR_TARGETS:
+                if isinstance(node.ops[0], ast.In):
+                    return self.get_invalid_target(target, node.left)
+                return None
+
+            return node
+        elif isinstance(node, (ast.Name, ast.Subscript, ast.Attribute)):
+            return None
+        else:
+            return node
 
     def set_expr_context(self, node, context):
         """Set the context (Load, Store, Del) of an ast node."""
@@ -376,7 +423,22 @@ class Parser(Parser):
         else:
             start = start_node.lineno, start_node.col_offset
 
-        raise self._build_syntax_error(message, start, None)
+        raise self._build_syntax_error(message, start, last_token.start)
+
+    def raise_syntax_error_invalid_target(
+        self, target: Target, node: Optional[ast.AST]
+    ) -> NoReturn:
+        invalid_target = self.get_invalid_target(target, node)
+
+        if invalid_target is None:
+            return None
+
+        if target in (Target.STAR_TARGETS, Target.FOR_TARGETS):
+            msg = f"cannot assign to {self.get_expr_name(invalid_target)}"
+        else:
+            msg = f"cannot delete {self.get_expr_name(invalid_target)}"
+
+        self.raise_syntax_error_known_location(msg, invalid_target)
 
 '''
 
@@ -1663,7 +1725,7 @@ invalid_assignment[NoReturn]:
     | a=expression ':' expression {
         self.raise_syntax_error_known_location("illegal target for annotation", a) }
     | (star_targets '=')* a=star_expressions '=' {
-        self.raise_syntax_error_known_location(f"cannot assign to {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_invalid_target(Target.STAR_TARGETS, a)
      }
     | (star_targets '=')* a=yield_expr '=' {
         self.raise_syntax_error_known_location("assignment to yield expression not possible", a)
@@ -1679,7 +1741,7 @@ invalid_ann_assign_target[ast.AST]:
     | '(' a=invalid_ann_assign_target ')' { a }
 invalid_del_stmt[NoReturn]:
     | 'del' a=star_expressions {
-        self.raise_syntax_error_known_location(f"cannot delete {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_invalid_target(Target.DEL_TARGETS, a)
      }
 invalid_block[NoReturn]:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
@@ -1730,12 +1792,12 @@ invalid_double_type_comments[NoReturn]:
      }
 invalid_with_item[NoReturn]:
     | expression 'as' a=expression &(',' | ')' | ':') {
-        self.raise_syntax_error_known_location(f"cannot assign to {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_invalid_target(Target.STAR_TARGETS, a)
      }
 
 invalid_for_target[NoReturn]:
     | 'async'? 'for' a=star_expressions {
-        self.raise_syntax_error_known_location(f"cannot assign to {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_invalid_target(Target.FOR_TARGETS, a)
      }
 
 invalid_group[NoReturn]:
