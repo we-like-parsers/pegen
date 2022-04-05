@@ -1681,6 +1681,9 @@ invalid_arguments[NoReturn]:
         )
      }
 invalid_kwarg[NoReturn]:
+    | a=('True'|'False'|'None') b='=' {
+        self.raise_syntax_error_known_range(f"cannot assign to {a.string}", a, b)
+     }
     | a=NAME b='=' expression for_if_clauses {
         self.raise_syntax_error_known_range(
             "invalid syntax. Maybe you meant '==' or ':=' instead of '='?", a, b

@@ -5,7 +5,15 @@ import pytest
 
 
 def parse_invalid_syntax(
-    python_parse_file, python_parse_str, tmp_path, source, exc_cls, message, start, end
+    python_parse_file,
+    python_parse_str,
+    tmp_path,
+    source,
+    exc_cls,
+    message,
+    start,
+    end,
+    min_python_version=(3, 10),
 ):
 
     # Check we obtain the expected error from Python
@@ -35,7 +43,7 @@ def parse_invalid_syntax(
         python_parse_file(str(test_file))
 
     # Check Python message but do not expect message to match for earlier Python versions
-    if sys.version_info >= (3, 10):
+    if sys.version_info >= min_python_version:
         # NOTE ugly hack for 1 CPython bug
         if exc_cls is SyntaxError and e.type is IndentationError:
             assert message.replace("'", "") in py_exc.args[0]
@@ -46,14 +54,17 @@ def parse_invalid_syntax(
     assert message in str(e.exconly())
 
     # Check start/end line/column on Python 3.10
-    if sys.version_info >= (3, 10):
+    if sys.version_info >= min_python_version:
         for parser, exc in [("Python", py_exc), ("pegen", e.value)]:
             if (
                 exc.lineno != start[0]
                 or exc.offset != start[1]
                 # Do not check end for indentation errors
                 or (not isinstance(e, IndentationError) and exc.end_lineno != end[0])
-                or (not isinstance(e, IndentationError) and (end[1] is not None and exc.end_offset != end[1]))
+                or (
+                    not isinstance(e, IndentationError)
+                    and (end[1] is not None and exc.end_offset != end[1])
+                )
             ):
                 raise ValueError(
                     f"Expected locations of {start} and {end}, but got "
@@ -135,7 +146,12 @@ def test_invalid_statements(
         # NOTE CPython bug, should report 15 as expected (we use None to omit the check)
         ("f(a for a in b, c)", "Generator expression must be parenthesized", (1, 3), (1, None)),
         # NOTE CPython bug, should report 20 as expected (we use None to omit the check)
-        ("f(a for a in b if a, c)", "Generator expression must be parenthesized", (1, 3), (1, None)),
+        (
+            "f(a for a in b if a, c)",
+            "Generator expression must be parenthesized",
+            (1, 3),
+            (1, None),
+        ),
         # NOTE CPython bug, should report 15 as expected (we use None to omit the check)
         (
             "f(a for a in b, c for c in d)",
@@ -168,13 +184,24 @@ def test_invalid_statements(
             (1, 3),
             (1, 9),
         ),
+        ("f(True=1)", "cannot assign to True", (1, 3), (1, 8)),
+        ("f(False=1)", "cannot assign to False", (1, 3), (1, 9)),
+        ("f(None=1)", "cannot assign to None", (1, 3), (1, 8)),
     ],
 )
 def test_invalid_call_arguments(
     python_parse_file, python_parse_str, tmp_path, source, message, start, end
 ):
     parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message, start, end
+        python_parse_file,
+        python_parse_str,
+        tmp_path,
+        source,
+        SyntaxError,
+        message,
+        start,
+        end,
+        (3, 11) if "cannot assign" in message else (3, 10),
     )
 
 
