@@ -1795,12 +1795,18 @@ invalid_parameters[NoReturn]:
     | param_no_default* invalid_parameters_helper a=param_no_default {
         self.raise_syntax_error_known_location("non-default argument follows default argument", a)
      }
+    | param_no_default* a='(' param_no_default+ ','? b=')' {
+        self.raise_syntax_error_known_range("Function parameters cannot be parenthesized", a, b)
+     }
 invalid_parameters_helper: # This is only there to avoid type errors
     | a=slash_with_default { [a] }
     | a=param_with_default+
 invalid_lambda_parameters[NoReturn]:
     | lambda_param_no_default* invalid_lambda_parameters_helper a=lambda_param_no_default {
         self.raise_syntax_error_known_location("non-default argument follows default argument", a)
+     }
+    | lambda_param_no_default* a='(' ','.lambda_param+ ','? b=')' {
+        self.raise_syntax_error_known_range("Lambda expression parameters cannot be parenthesized", a, b)
      }
 invalid_lambda_parameters_helper[NoReturn]:
     | a=lambda_slash_with_default { [a] }

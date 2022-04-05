@@ -352,24 +352,107 @@ def test_invalid_comprehension(
 
 
 @pytest.mark.parametrize(
-    "source, start, end",
+    "source, message, start, end, py_version",
     [
-        ("def f(a=1, b):\n\tpass", (1, 12), (1, 13)),
-        ("def f(a=1, /, b):\n\tpass", (1, 15), (1, 16)),
-        ("lambda x=1, y: x", (1, 13), (1, 14)),
-        ("lambda x=1, /, y: x", (1, 16), (1, 17)),
+        (
+            "def f(a=1, b):\n\tpass",
+            "non-default argument follows default argument",
+            (1, 12),
+            (1, 13),
+            (3, 10),
+        ),
+        (
+            "def f(a=1, /, b):\n\tpass",
+            "non-default argument follows default argument",
+            (1, 15),
+            (1, 16),
+            (3, 10),
+        ),
+        (
+            "def f(x, (y, z), w):\n\tpass",
+            "parameters cannot be parenthesized",
+            (1, 10),
+            (1, 16),
+            (3, 11),
+        ),
+        (
+            "def f((x, y, z, w)):\n\tpass",
+            "parameters cannot be parenthesized",
+            (1, 7),
+            (1, 19),
+            (3, 11),
+        ),
+        (
+            "def f(x, (y, z, w)):\n\tpass",
+            "parameters cannot be parenthesized",
+            (1, 10),
+            (1, 19),
+            (3, 11),
+        ),
+        (
+            "def f((x, y, z), w):\n\tpass",
+            "parameters cannot be parenthesized",
+            (1, 7),
+            (1, 16),
+            (3, 11),
+        ),
+        (
+            "lambda x=1, y: x",
+            "non-default argument follows default argument",
+            (1, 13),
+            (1, 14),
+            (3, 10),
+        ),
+        (
+            "lambda x=1, /, y: x",
+            "non-default argument follows default argument",
+            (1, 16),
+            (1, 17),
+            (3, 10),
+        ),
+        (
+            "lambda x, (y, z), w: None",
+            "parameters cannot be parenthesized",
+            (1, 11),
+            (1, 17),
+            (3, 11),
+        ),
+        (
+            "lambda (x, y, z, w): None",
+            "parameters cannot be parenthesized",
+            (1, 8),
+            (1, 20),
+            (3, 11),
+        ),
+        (
+            "lambda x, (y, z, w): None",
+            "parameters cannot be parenthesized",
+            (1, 11),
+            (1, 20),
+            (3, 11),
+        ),
+        (
+            "lambda (x, y, z), w: None",
+            "parameters cannot be parenthesized",
+            (1, 8),
+            (1, 17),
+            (3, 11),
+        ),
     ],
 )
-def test_invalid_parameters(python_parse_file, python_parse_str, tmp_path, source, start, end):
+def test_invalid_parameters(
+    python_parse_file, python_parse_str, tmp_path, source, message, start, end, py_version
+):
     parse_invalid_syntax(
         python_parse_file,
         python_parse_str,
         tmp_path,
         source,
         SyntaxError,
-        "non-default argument follows default argument",
+        message,
         start,
         end,
+        py_version,
     )
 
 
