@@ -698,7 +698,7 @@ function_def[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
 
 function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
     | invalid_def_raw
-    | 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
+    | 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
         ast.FunctionDef(
             name=n.string,
             args=params or self.make_arguments(None, [], None, [], None),
@@ -708,7 +708,7 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
             LOCATIONS,
         )
      }
-    | 'async' 'def' n=NAME '(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
+    | 'async' 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
        self.check_version(
             (3, 5),
             "Async functions are",

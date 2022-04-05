@@ -905,6 +905,8 @@ def test_invalid_for_stmt(
             (2, 1),
             (2, 5),
         ),
+        ("def f:", SyntaxError, "expected '('", (1, 6), (1, 6)),
+        ("async def f:", SyntaxError, "expected '('", (1, 12), (1, 12)),
         # (
         #     "def f():\n# type: () -> int\n# type: () -> str\n\tpass",
         #     SyntaxError,
@@ -916,7 +918,15 @@ def test_invalid_def_stmt(
     python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
 ):
     parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
+        python_parse_file,
+        python_parse_str,
+        tmp_path,
+        source,
+        exception,
+        message,
+        start,
+        end,
+        (3, 11) if exception is SyntaxError else (3, 10),
     )
 
 
