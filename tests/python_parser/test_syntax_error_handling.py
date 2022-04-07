@@ -108,6 +108,7 @@ def test_syntax_error_in_str(
         ("2 if 4", "expected 'else' after 'if' expression", (1, 1), (1, 7)),
         ("(a 1 if b else 2)", "invalid syntax. Perhaps you forgot a comma?", (1, 2), (1, 17)),
         ("(a lambda: 1)", "invalid syntax. Perhaps you forgot a comma?", (1, 2), (1, 13)),
+        ("(a b)", "invalid syntax. Perhaps you forgot a comma?", (1, 2), (1, 5)),
         ("print 1", "Missing parentheses in call to 'print'", (1, 1), (1, 8)),
         ("exec 1", "Missing parentheses in call to 'exec'", (1, 1), (1, 7)),
         ("a if b", "expected 'else' after 'if' expression", (1, 1), (1, 7)),
