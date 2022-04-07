@@ -763,12 +763,14 @@ slash_with_default[List[Tuple[ast.arg, Any]]]:
     | a=param_no_default* b=param_with_default+ '/' &')' { ([(p, None) for p in a] if a else []) + b }
 
 star_etc[Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast.arg]]]:
+    | invalid_star_etc
     | '*' a=param_no_default b=param_maybe_default* c=[kwds] { (a, b, c) }
     | '*' ',' b=param_maybe_default+ c=[kwds] { (None, b, c) }
     | a=kwds { (None, [], a) }
-    | invalid_star_etc
 
-kwds: '**' a=param_no_default { a }
+kwds[ast.arg]:
+    | invalid_kwds
+    | '**' a=param_no_default { a }
 
 # One parameter.  This *includes* a following comma and type comment.
 #
@@ -794,7 +796,7 @@ param_maybe_default[Tuple[ast.arg, Any]]:
     | a=param c=default? tc=TYPE_COMMENT? &')' { (self.set_arg_type_comment(a, tc), c) }
 param: a=NAME b=annotation? { ast.arg(arg=a.string, annotation=b, LOCATIONS) }
 annotation: ':' a=expression { a }
-default: '=' a=expression { a }
+default: '=' a=expression { a } | invalid_default
 
 # If statement
 # ------------
@@ -1407,14 +1409,16 @@ lambda_slash_with_default[List[Tuple[ast.arg, Any]]]:
     | a=lambda_param_no_default* b=lambda_param_with_default+ '/' &':' { ([(p, None) for p in a] if a else []) + b }
 
 lambda_star_etc[Tuple[Optional[ast.arg], List[Tuple[ast.arg, Any]], Optional[ast.arg]]]:
+    | invalid_lambda_star_etc
     | '*' a=lambda_param_no_default b=lambda_param_maybe_default* c=[lambda_kwds] {
        (a, b, c) }
     | '*' ',' b=lambda_param_maybe_default+ c=[lambda_kwds] {
         (None, b, c) }
     | a=lambda_kwds { (None, [], a) }
-    | invalid_lambda_star_etc
 
-lambda_kwds[ast.arg]: '**' a=lambda_param_no_default { a }
+lambda_kwds[ast.arg]:
+    | invalid_lambda_kwds
+    | '**' a=lambda_param_no_default { a }
 
 lambda_param_no_default[ast.arg]:
     | a=lambda_param ',' { a }
@@ -1798,6 +1802,43 @@ invalid_parameters[NoReturn]:
     | param_no_default* a='(' param_no_default+ ','? b=')' {
         self.raise_syntax_error_known_range("Function parameters cannot be parenthesized", a, b)
      }
+    | a="/" ',' {
+        self.raise_syntax_error_known_location("at least one argument must precede /", a)
+     }
+    | (slash_no_default | slash_with_default) param_maybe_default* a='/' {
+        self.raise_syntax_error_known_location("/ may appear only once", a)
+     }
+    | (slash_no_default | slash_with_default)? param_maybe_default* '*' (',' | param_no_default) param_maybe_default* a='/' {
+        self.raise_syntax_error_known_location("/ must be ahead of *", a)
+     }
+    | param_maybe_default+ '/' a='*' {
+        self.raise_syntax_error_known_location("expected comma between / and *", a)
+     }
+invalid_default:
+    | a='=' &(')'|',') {
+        self.raise_syntax_error_known_location("expected default value expression", a)
+     }
+invalid_star_etc:
+    | a='*' (')' | ',' (')' | '**')) {
+        self.raise_syntax_error_known_location("named arguments must follow bare *", a)
+     }
+    | '*' ',' TYPE_COMMENT { self.raise_syntax_error("bare * has associated type comment") }
+    | '*' param a='=' {
+        self.raise_syntax_error_known_location("var-positional argument cannot have default value", a)
+     }
+    | '*' (param_no_default | ',') param_maybe_default* a='*' (param_no_default | ',') {
+        self.raise_syntax_error_known_location("* argument may appear only once", a)
+     }
+invalid_kwds:
+    | '**' param a='=' {
+        self.raise_syntax_error_known_location("var-keyword argument cannot have default value", a)
+     }
+    | '**' param ',' a=param {
+        self.raise_syntax_error_known_location("arguments cannot follow var-keyword argument", a)
+     }
+    | '**' param ',' a=('*'|'**'|'/') {
+        self.raise_syntax_error_known_location("arguments cannot follow var-keyword argument", a)
+     }
 invalid_parameters_helper: # This is only there to avoid type errors
     | a=slash_with_default { [a] }
     | a=param_with_default+
@@ -1808,17 +1849,40 @@ invalid_lambda_parameters[NoReturn]:
     | lambda_param_no_default* a='(' ','.lambda_param+ ','? b=')' {
         self.raise_syntax_error_known_range("Lambda expression parameters cannot be parenthesized", a, b)
      }
+    | a="/" ',' {
+        self.raise_syntax_error_known_location("at least one argument must precede /", a)
+     }
+    | (lambda_slash_no_default | lambda_slash_with_default) lambda_param_maybe_default* a='/' {
+        self.raise_syntax_error_known_location("/ may appear only once", a)
+     }
+    | (lambda_slash_no_default | lambda_slash_with_default)? lambda_param_maybe_default* '*' (',' | lambda_param_no_default) lambda_param_maybe_default* a='/' {
+        self.raise_syntax_error_known_location("/ must be ahead of *", a)
+     }
+    | lambda_param_maybe_default+ '/' a='*' {
+        self.raise_syntax_error_known_location("expected comma between / and *", a)
+     }
 invalid_lambda_parameters_helper[NoReturn]:
     | a=lambda_slash_with_default { [a] }
     | a=lambda_param_with_default+
-invalid_star_etc[NoReturn]:
-    | a='*' (')' | ',' (')' | '**')) {
-        self.raise_syntax_error_known_location("named arguments must follow bare *", a)
-     }
-    | '*' ',' TYPE_COMMENT { self.raise_syntax_error("bare * has associated type comment") }
 invalid_lambda_star_etc[NoReturn]:
     | '*' (':' | ',' (':' | '**')) {
         self.raise_syntax_error("named arguments must follow bare *")
+     }
+    | '*' lambda_param a='=' {
+        self.raise_syntax_error_known_location("var-positional argument cannot have default value", a)
+     }
+    | '*' (lambda_param_no_default | ',') lambda_param_maybe_default* a='*' (lambda_param_no_default | ',') {
+        self.raise_syntax_error_known_location("* argument may appear only once", a)
+     }
+invalid_lambda_kwds:
+    | '**' lambda_param a='=' {
+        self.raise_syntax_error_known_location("var-keyword argument cannot have default value", a)
+     }
+    | '**' lambda_param ',' a=lambda_param {
+        self.raise_syntax_error_known_location("arguments cannot follow var-keyword argument", a)
+     }
+    | '**' lambda_param ',' a=('*'|'**'|'/') {
+        self.raise_syntax_error_known_location("arguments cannot follow var-keyword argument", a)
      }
 invalid_double_type_comments[NoReturn]:
     | TYPE_COMMENT NEWLINE TYPE_COMMENT NEWLINE INDENT {
