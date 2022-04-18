@@ -99,7 +99,7 @@ def test_pos_only_args(python_parser_cls, source):
 def test_assignment_operator(python_parser_cls, source):
     temp = io.StringIO(source)
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 7))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")
