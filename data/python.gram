@@ -241,7 +241,7 @@ class Parser(Parser):
 
     def generate_ast_for_string(self, tokens):
         """Generate AST nodes for strings."""
-        err = None
+        err_args = None
         line_offset = tokens[0].start[0]
         line = line_offset
         col_offset = 0
@@ -255,18 +255,26 @@ class Parser(Parser):
         source += "\\n)"
         try:
             m = ast.parse(source)
-        except SyntaxError as e:
-            err = e
-
-        # Avoid getting a triple nesting in the error report that does not
-        # bring anything relevant to the traceback.
-        if err is not None:
+        except SyntaxError as err:
             args = (err.filename, err.lineno + line_offset - 2, err.offset, err.text)
             if sys.version_info >= (3, 10):
                 args += (err.end_lineno + line_offset - 2, err.end_offset)
-            raise SyntaxError(err.msg, args)
+            err_args = (err.msg, args)
+            # Ensure we do not keep the frame alive longer than necessary
+            # by explicitely deleting the error once we got what we needed out
+            # of it
+            del err
+
+        # Avoid getting a triple nesting in the error report that does not
+        # bring anything relevant to the traceback.
+        if err_args is not None:
+            raise SyntaxError(*err_args)
 
         node = m.body[0].value
+        # Since we asked Python to parse an alterred source starting at line 2
+        # we alter the lineno of the returned AST to recover the right line.
+        # If the string start at line 1, tha AST says 2 so we need to decrement by 1
+        # hence the -2.
         ast.increment_lineno(node, line_offset - 2)
         return node
 
@@ -362,6 +370,9 @@ class Parser(Parser):
                 self._tokenizer.get_lines(list(range(start[0], end[0] + 1)))
             )
 
+        # tokenize.py index column offset from 0 while Cpython index column
+        # offset at 1 when reporting SyntaxError, so we need to increment
+        # the column offset when reporting the error.
         args = (self.filename, start[0], start[1] + 1, line)
         if sys.version_info >= (3, 10):
             args += (end[0], end[1] + 1)
