@@ -72,7 +72,7 @@ def make_parser(source: str) -> Type[Parser]:
 
 
 def print_memstats() -> bool:
-    MiB: Final = 2 ** 20
+    MiB: Final = 2**20
     try:
         import psutil  # type: ignore
     except ImportError:

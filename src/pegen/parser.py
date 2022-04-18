@@ -273,8 +273,10 @@ def simple_parser_main(parser_class: Type[Parser]) -> None:
         default=0,
         help="Print timing stats; repeat for more debug output",
     )
-    argparser.add_argument("-q", "--quiet", action="store_true", help="Don't print the parsed program")
-    argparser.add_argument("-r", "--run",   action="store_true", help="Run the parsed program")
+    argparser.add_argument(
+        "-q", "--quiet", action="store_true", help="Don't print the parsed program"
+    )
+    argparser.add_argument("-r", "--run", action="store_true", help="Run the parsed program")
     argparser.add_argument("filename", help="Input file ('-' to use stdin)")
 
     args = argparser.parse_args()
