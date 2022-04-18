@@ -1,27 +1,121 @@
 import token
-import tokenize
-from typing import Dict, Iterator, List
+from abc import abstractmethod
+from typing import Dict, Generic, Iterator, List, Protocol, Sequence, TypeVar
 
 Mark = int  # NewType('Mark', int)
 
-exact_token_types = token.EXACT_TOKEN_TYPES
+
+TokenType = TypeVar(
+    "TokenType",
+)
 
 
-def shorttok(tok: tokenize.TokenInfo) -> str:
-    return "%-25.25s" % f"{tok.start[0]}.{tok.start[1]}: {token.tok_name[tok.type]}:{tok.string!r}"
+class TokenInfo(Protocol[TokenType]):
+    """Expected interface for element yielded by the token generator."""
+
+    type: TokenType
+    string: str
+    start: tuple[int, int]
+    end: tuple[int, int]
+    line: str
 
 
-class Tokenizer:
-    """Caching wrapper for the tokenize module.
+class TokenTypes(Generic[TokenType]):
+    """Token types that the system requires to know to operate.
 
-    This is pretty tied to Python's syntax.
+    In addition to the token types listed below, we expect all hard keyword and
+    any token used as is in the grammar to be associated with a unique token type
+    listed in the subclass used by the parser.
+
+    Among the five tokens listed below, any token that is not used in the grammar
+    and hence never looked up by the parser can be omitted or given an arbitrary
+    value.
+
     """
 
-    _tokens: List[tokenize.TokenInfo]
+    NAME: TokenType
+    NUMBER: TokenType
+    STRING: TokenType
+    OP: TokenType
+    TYPE_COMMENT: TokenType
+
+    def __init__(self) -> None:
+        ttype = type(self.NAME)
+        self.__dict__ |= {k: v for k, v in type(self).__dict__.items() if isinstance(v, ttype)}
+
+    @abstractmethod
+    def get_name_from_type(self, ttype: TokenType) -> str:
+        pass
+
+    @abstractmethod
+    def is_whitespace_token(self, tok: TokenInfo[TokenType]) -> bool:
+        pass
+
+    @abstractmethod
+    def is_relevant_token(
+        self, tok: TokenInfo[TokenType], seen_tokens: Sequence[TokenInfo[TokenType]]
+    ) -> bool:
+        """Is the token relevant to the parser."""
+        pass
+
+    def format_tok(self, tok: TokenInfo[TokenType]) -> str:
+        return f"{tok.start[0]}.{tok.start[1]}: {self.get_name_from_type(tok.type)}:{tok.string!r}"
+
+    def shorttok(self, tok: TokenInfo[TokenType]) -> str:
+        return "%-25.25s" % self.format_tok(tok)
+
+
+class PythonTokenTypes(TokenTypes[int]):
+    """Token types corresponding to the Python lexers."""
+
+    NAME = token.NAME
+    NUMBER = token.NUMBER
+    STRING = token.STRING
+    OP = token.OP
+    TYPE_COMMENT = token.TYPE_COMMENT
+    ENDMARKER = token.ENDMARKER
+    NEWLINE = token.NEWLINE
+    INDENT = token.INDENT
+    DEDENT = token.DEDENT
+
+    def get_name_from_type(self, ttype: int) -> str:
+        return token.tok_name[ttype]
+
+    def is_whitespace_token(self, tok: TokenInfo[int]) -> bool:
+        return tok.type == self.ENDMARKER or (tok.type >= self.NEWLINE and tok.type <= self.DEDENT)
+
+    def is_relevant_token(
+        self, tok: TokenInfo[TokenType], seen_tokens: Sequence[TokenInfo[TokenType]]
+    ) -> bool:
+        if tok.type in (token.NL, token.COMMENT):
+            return False
+        if tok.type == token.ERRORTOKEN and tok.string.isspace():
+            return False
+        if tok.type == self.NEWLINE and seen_tokens and seen_tokens[-1].type == self.NEWLINE:
+            return False
+        return True
+
+
+class Tokenizer(Generic[TokenType]):
+    """Caching wrapper for the token generator.
+
+    The peek method makes some assumptions on which tokens should be skipped
+    based on their types. On should overwrite it in a subclass if those
+    hypothesis do not match the parsed language.
+
+    """
+
+    _tokens: List[TokenInfo[TokenType]]
 
     def __init__(
-        self, tokengen: Iterator[tokenize.TokenInfo], *, path: str = "", verbose: bool = False
+        self,
+        tokengen: Iterator[TokenInfo[TokenType]],
+        token_types: TokenTypes[TokenType],
+        *,
+        path: str = "",
+        verbose: bool = False,
     ):
+        self.token_types = token_types
         self._tokengen = tokengen
         self._tokens = []
         self._index = 0
@@ -31,7 +125,7 @@ class Tokenizer:
         if verbose:
             self.report(False, False)
 
-    def getnext(self) -> tokenize.TokenInfo:
+    def getnext(self) -> TokenInfo[TokenType]:
         """Return the next token and updates the index."""
         cached = not self._index == len(self._tokens)
         tok = self.peek()
@@ -40,35 +134,25 @@ class Tokenizer:
             self.report(cached, False)
         return tok
 
-    def peek(self) -> tokenize.TokenInfo:
+    def peek(self) -> TokenInfo[TokenType]:
         """Return the next token *without* updating the index."""
         while self._index == len(self._tokens):
             tok = next(self._tokengen)
-            if tok.type in (tokenize.NL, tokenize.COMMENT):
-                continue
-            if tok.type == token.ERRORTOKEN and tok.string.isspace():
-                continue
-            if (
-                tok.type == token.NEWLINE
-                and self._tokens
-                and self._tokens[-1].type == token.NEWLINE
-            ):
+            if not self.token_types.is_relevant_token(tok, self._tokens):
                 continue
             self._tokens.append(tok)
             if not self._path and tok.start[0] not in self._lines:
                 self._lines[tok.start[0]] = tok.line
         return self._tokens[self._index]
 
-    def diagnose(self) -> tokenize.TokenInfo:
+    def diagnose(self) -> TokenInfo[TokenType]:
         if not self._tokens:
             self.getnext()
         return self._tokens[-1]
 
-    def get_last_non_whitespace_token(self) -> tokenize.TokenInfo:
+    def get_last_non_whitespace_token(self) -> TokenInfo[TokenType]:
         for tok in reversed(self._tokens[: self._index]):
-            if tok.type != tokenize.ENDMARKER and (
-                tok.type < tokenize.NEWLINE or tok.type > tokenize.DEDENT
-            ):
+            if not self.token_types.is_whitespace_token(tok):
                 break
         return tok
 
@@ -115,4 +199,4 @@ class Tokenizer:
             print(f"{fill} (Bof)")
         else:
             tok = self._tokens[self._index - 1]
-            print(f"{fill} {shorttok(tok)}")
+            print(f"{fill} {self.token_types.shorttok(tok)}")
