@@ -1,6 +1,53 @@
+
+[project]
+name = "pegen"
+description = "CPython's PEG parser generator"
+readme = "README.md"
+requires-python = ">=3.8, <4"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Guido van Rossum"},
+  {name = "Pablo Galindo", email = "pablogsal@gmail.com"},
+  {name = "Lysandros Nikolaou"}
+]
+maintainers = [
+  {name = "Matthieu C. Dartiailh", email = "m.dartiailh@gmail.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Compilers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3 :: Only",
+]
+keywords = ["parser", "CPython", "PEG", "pegen"]
+dynamic=["version"]
+
+
+[project.optional-dependencies]
+docs = ["sphinx", "sphinx-copybutton", "furo"]
+lint = ["black", "flake8", "mypy"]
+test = ["pytest", "pytest-cov"]
+memory = ["psutil"]
+web = ["flask", "flask-wtf"]
+
+
+[project.urls]
+homepage = "https://github.com/we-like-parsers/pegen"
+documentation = "https://we-like-parsers.github.io/pegen/"
+source = "https://github.com/we-like-parsers/pegen"
+changelog = "https://github.com/we-like-parsers/pegen/releasenotes.rst"
+bug_reports = "https://github.com/we-like-parsers/pegen/issues"
+
+
 [build-system]
-requires = ["setuptools >= 40.6.0", "wheel"]
+requires = ["setuptools>=61.2", "wheel", "setuptools_scm[toml]>=3.4.3"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
 
 [tool.black]
 line-length = 99
@@ -12,3 +59,39 @@ exclude = '''
         | /tests/python_parser/parser_cache/  # generated parser
 )
 '''
+
+
+[tool.pytest.ini_options]
+norecursedirs = [
+  "data/failset",
+  "cpython"
+]
+
+[tool.mypy]
+files = ["pegen", "scripts", "tests"]
+
+follow_imports = "error"
+no_implicit_optional = true
+strict_optional = true
+
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+
+disallow_any_generics = true
+disallow_any_unimported = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_no_return = true
+
+show_traceback = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pegen.grammar_parser"
+]
+strict_optional = false
