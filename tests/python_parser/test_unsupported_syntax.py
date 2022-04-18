@@ -8,7 +8,8 @@ import io
 import tokenize
 
 import pytest
-from pegen.tokenizer import Tokenizer
+
+from pegen.tokenizer import Tokenizer, PythonTokenTypes
 
 
 # matrix mul 3.5
@@ -16,7 +17,7 @@ from pegen.tokenizer import Tokenizer
 def test_mat_mult(python_parser_cls, source):
     temp = io.StringIO(source)
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 4))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")
@@ -28,7 +29,7 @@ def test_mat_mult(python_parser_cls, source):
 def test_await(python_parser_cls):
     temp = io.StringIO("await b")
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 4))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")
@@ -48,7 +49,7 @@ def test_await(python_parser_cls):
 def test_async(python_parser_cls, source, message):
     temp = io.StringIO(source)
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 4))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")
@@ -60,7 +61,7 @@ def test_async(python_parser_cls, source, message):
 def test_async_comprehension(python_parser_cls):
     temp = io.StringIO("""[a async for a in b if c]""")
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 5))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")
@@ -72,7 +73,7 @@ def test_async_comprehension(python_parser_cls):
 def test_variable_annotation(python_parser_cls, source):
     temp = io.StringIO(source)
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 5))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")
@@ -85,7 +86,7 @@ def test_variable_annotation(python_parser_cls, source):
 def test_pos_only_args(python_parser_cls, source):
     temp = io.StringIO(source)
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 7))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")
@@ -111,7 +112,7 @@ def test_assignment_operator(python_parser_cls, source):
 def test_generic_decorators(python_parser_cls, source):
     temp = io.StringIO(source)
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 8))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")
@@ -124,7 +125,7 @@ def test_generic_decorators(python_parser_cls, source):
 def test_parenthesized_with_items(python_parser_cls, source):
     temp = io.StringIO(source)
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 8))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")
@@ -139,7 +140,7 @@ def test_parenthesized_with_items(python_parser_cls, source):
 def test_match_statement(python_parser_cls, source):
     temp = io.StringIO(source)
     tokengen = tokenize.generate_tokens(temp.readline)
-    tokenizer = Tokenizer(tokengen, verbose=False)
+    tokenizer = Tokenizer(tokengen, PythonTokenTypes(), verbose=False)
     pp = python_parser_cls(tokenizer, py_version=(3, 9))
     with pytest.raises(SyntaxError) as e:
         pp.parse("file")

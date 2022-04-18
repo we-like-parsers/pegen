@@ -2,16 +2,27 @@ import argparse
 import ast
 import sys
 import time
-import token
 import tokenize
 import traceback
 from abc import ABC, abstractmethod
-from typing import Any, Callable, ClassVar, Dict, Optional, Tuple, Type, TypeVar, cast
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Generic,
+    Iterator,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    cast,
+)
 
-from pegen.tokenizer import Mark, Tokenizer, exact_token_types
+from pegen.tokenizer import Mark, Tokenizer, TokenType, TokenInfo, PythonTokenTypes
 
 T = TypeVar("T")
-P = TypeVar("P", bound="Parser")
+P = TypeVar("P", bound="Parser[Any]")
 F = TypeVar("F", bound=Callable[..., Any])
 
 
@@ -157,15 +168,16 @@ def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Option
     return memoize_left_rec_wrapper
 
 
-class Parser(ABC):
+class Parser(ABC, Generic[TokenType]):
     """Parsing base class."""
 
     KEYWORDS: ClassVar[Tuple[str, ...]]
 
     SOFT_KEYWORDS: ClassVar[Tuple[str, ...]]
 
-    def __init__(self, tokenizer: Tokenizer, *, verbose: bool = False):
+    def __init__(self, tokenizer: Tokenizer[TokenType], *, verbose: bool = False):
         self._tokenizer = tokenizer
+        self._tok_types = tokenizer.token_types
         self._verbose = verbose
         self._level = 0
         self._cache: Dict[Tuple[Mark, str, Tuple[Any, ...]], Tuple[Any, Mark]] = {}
@@ -193,66 +205,62 @@ class Parser(ABC):
 
     def showpeek(self) -> str:
         tok = self._tokenizer.peek()
-        return f"{tok.start[0]}.{tok.start[1]}: {token.tok_name[tok.type]}:{tok.string!r}"
+        return self._tokenizer.token_types.format_tok(tok)
 
     @memoize
-    def name(self) -> Optional[tokenize.TokenInfo]:
+    def name(self) -> Optional[TokenInfo[TokenType]]:
         tok = self._tokenizer.peek()
-        if tok.type == token.NAME and tok.string not in self.KEYWORDS:
+        if tok.type == self._tok_types.NAME and tok.string not in self.KEYWORDS:
             return self._tokenizer.getnext()
         return None
 
     @memoize
-    def number(self) -> Optional[tokenize.TokenInfo]:
+    def number(self) -> Optional[TokenInfo[TokenType]]:
         tok = self._tokenizer.peek()
-        if tok.type == token.NUMBER:
+        if tok.type == self._tok_types.NUMBER:
             return self._tokenizer.getnext()
         return None
 
     @memoize
-    def string(self) -> Optional[tokenize.TokenInfo]:
+    def string(self) -> Optional[TokenInfo[TokenType]]:
         tok = self._tokenizer.peek()
-        if tok.type == token.STRING:
+        if tok.type == self._tok_types.STRING:
             return self._tokenizer.getnext()
         return None
 
     @memoize
-    def op(self) -> Optional[tokenize.TokenInfo]:
+    def op(self) -> Optional[TokenInfo[TokenType]]:
         tok = self._tokenizer.peek()
-        if tok.type == token.OP:
+        if tok.type == self._tok_types.OP:
             return self._tokenizer.getnext()
         return None
 
     @memoize
-    def type_comment(self) -> Optional[tokenize.TokenInfo]:
+    def type_comment(self) -> Optional[TokenInfo[TokenType]]:
         tok = self._tokenizer.peek()
-        if tok.type == token.TYPE_COMMENT:
+        if tok.type == self._tok_types.TYPE_COMMENT:
             return self._tokenizer.getnext()
         return None
 
     @memoize
-    def soft_keyword(self) -> Optional[tokenize.TokenInfo]:
+    def soft_keyword(self) -> Optional[TokenInfo[TokenType]]:
         tok = self._tokenizer.peek()
-        if tok.type == token.NAME and tok.string in self.SOFT_KEYWORDS:
+        if tok.type == self._tok_types.NAME and tok.string in self.SOFT_KEYWORDS:
             return self._tokenizer.getnext()
         return None
 
     @memoize
-    def expect(self, type: str) -> Optional[tokenize.TokenInfo]:
+    def expect(self, type: str) -> Optional[TokenInfo[TokenType]]:
         tok = self._tokenizer.peek()
+
         if tok.string == type:
             return self._tokenizer.getnext()
-        if type in exact_token_types:
-            if tok.type == exact_token_types[type]:
+        if type in self._tok_types.__dict__:
+            if tok.type == self._tok_types.__dict__[type]:
                 return self._tokenizer.getnext()
-        if type in token.__dict__:
-            if tok.type == token.__dict__[type]:
-                return self._tokenizer.getnext()
-        if tok.type == token.OP and tok.string == type:
-            return self._tokenizer.getnext()
         return None
 
-    def expect_forced(self, res: Any, expectation: str) -> Optional[tokenize.TokenInfo]:
+    def expect_forced(self, res: Any, expectation: str) -> Optional[TokenInfo[TokenType]]:
         if res is None:
             raise self.make_syntax_error(f"expected {expectation}")
         return res
@@ -274,7 +282,8 @@ class Parser(ABC):
         return SyntaxError(message, (filename, tok.start[0], 1 + tok.start[1], tok.line))
 
 
-def simple_parser_main(parser_class: Type[Parser]) -> None:
+# XXX to fix
+def simple_parser_main(parser_class: Type[Parser[int]]) -> None:
     argparser = argparse.ArgumentParser()
     argparser.add_argument(
         "-v",
@@ -303,10 +312,14 @@ def simple_parser_main(parser_class: Type[Parser]) -> None:
     else:
         file = open(args.filename)
     try:
-        tokengen = tokenize.generate_tokens(file.readline)
-        tokenizer = Tokenizer(tokengen, verbose=verbose_tokenizer)
+        # XXX I would expect mypy to accept this...
+        tokengen: Iterator[TokenInfo[int]] = tokenize.generate_tokens(file.readline)  # type: ignore
+        tokenizer = Tokenizer(tokengen, token_types=PythonTokenTypes(), verbose=verbose_tokenizer)
         parser = parser_class(tokenizer, verbose=verbose_parser)
-        tree = parser.start()
+        assert hasattr(
+            parser, "start"
+        ), "Parser classes used with 'simple_parser_main' are expected to have a start rule"
+        tree = parser.start()  # type: ignore
         try:
             if file.isatty():
                 endpos = 0
@@ -334,7 +347,7 @@ def simple_parser_main(parser_class: Type[Parser]) -> None:
         dt = t1 - t0
         diag = tokenizer.diagnose()
         nlines = diag.end[0]
-        if diag.type == token.ENDMARKER:
+        if diag.type == PythonTokenTypes.ENDMARKER:
             nlines -= 1
         print(f"Total time: {dt:.3f} sec; {nlines} lines", end="")
         if endpos:
@@ -344,6 +357,5 @@ def simple_parser_main(parser_class: Type[Parser]) -> None:
         else:
             print()
         print("Caches sizes:")
-        print(f"  token array : {len(tokenizer._tokens):10}")
         print(f"        cache : {len(parser._cache):10}")
         ## print_memstats()
