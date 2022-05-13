@@ -3,6 +3,7 @@
 @class PythonParser
 
 @subheader'''
+import enum
 import io
 import itertools
 import os
@@ -96,6 +97,12 @@ def parse_string(
     return parser.parse(mode if mode == "eval" else "file")
 
 
+class Target(enum.Enum):
+    FOR_TARGETS = enum.auto()
+    STAR_TARGETS = enum.auto()
+    DEL_TARGETS = enum.auto()
+
+
 class Parser(Parser):
 
     #: Name of the source file, used in error reports
@@ -132,7 +139,7 @@ class Parser(Parser):
 
                 res = getattr(self, rule)()
 
-            self.raise_syntax_error_starting_from("invalid syntax", last_token)
+            self.raise_raw_syntax_error("invalid syntax", last_token.start, last_token.end)
 
         return res
 
@@ -147,9 +154,13 @@ class Parser(Parser):
                 f"{error_msg} is only supported in Python {min_version} and above."
             )
 
-    def raise_indentation_error(self, msg) -> None:
+    def raise_indentation_error(self, msg: str) -> None:
         """Raise an indentation error."""
-        raise IndentationError(msg)
+        last_token = self._tokenizer.diagnose()
+        args = (self.filename, last_token.start[0], last_token.start[1] + 1, last_token.line)
+        if sys.version_info >= (3, 10):
+            args += (last_token.end[0], last_token.end[1] + 1)
+        raise IndentationError(msg, args)
 
     def get_expr_name(self, node) -> str:
         """Get a descriptive name for an expression."""
@@ -158,7 +169,14 @@ class Parser(Parser):
         node_t = type(node)
         if node_t is ast.Constant:
             v = node.value
-            if v in (None, True, False, Ellipsis):
+            if v is Ellipsis:
+                return "ellipsis"
+            elif v is None:
+                return str(v)
+            # Avoid treating 1 as True through == comparison
+            elif v is True:
+                return str(v)
+            elif v is False:
                 return str(v)
             else:
                 return "literal"
@@ -171,59 +189,94 @@ class Parser(Parser):
                 f"(line {node.lineno})."
             )
 
+    def get_invalid_target(self, target: Target, node: Optional[ast.AST]) -> Optional[ast.AST]:
+        """Get the meaningful invalid target for different assignment type."""
+        if node is None:
+            return None
+
+        # We only need to visit List and Tuple nodes recursively as those
+        # are the only ones that can contain valid names in targets when
+        # they are parsed as expressions. Any other kind of expression
+        # that is a container (like Sets or Dicts) is directly invalid and
+        # we do not need to visit it recursively.
+        if isinstance(node, (ast.List, ast.Tuple)):
+            for e in node.elts:
+                if (inv := self.get_invalid_target(target, e)) is not None:
+                    return inv
+        elif isinstance(node, ast.Starred):
+            if target is Target.DEL_TARGETS:
+                return node
+            return self.get_invalid_target(target, node.value)
+        elif isinstance(node, ast.Compare):
+            # This is needed, because the `a in b` in `for a in b` gets parsed
+            # as a comparison, and so we need to search the left side of the comparison
+            # for invalid targets.
+            if target is Target.FOR_TARGETS:
+                if isinstance(node.ops[0], ast.In):
+                    return self.get_invalid_target(target, node.left)
+                return None
+
+            return node
+        elif isinstance(node, (ast.Name, ast.Subscript, ast.Attribute)):
+            return None
+        else:
+            return node
+
     def set_expr_context(self, node, context):
         """Set the context (Load, Store, Del) of an ast node."""
         node.ctx = context
         return node
 
-    def ensure_real(self, number_str: str):
-        number = ast.literal_eval(number_str)
-        if type(number) is complex:
-            self.raise_syntax_error("real number required in complex literal")
-        return number
+    def ensure_real(self, number: ast.Constant):
+        value = ast.literal_eval(number.string)
+        if type(value) is complex:
+            self.raise_syntax_error_known_location("real number required in complex literal", number)
+        return value
 
-    def ensure_imaginary(self, number_str: str):
-        number = ast.literal_eval(number_str)
-        if type(number) is not complex:
-            self.raise_syntax_error("imaginary number required in complex literal")
-        return number
+    def ensure_imaginary(self, number:  ast.Constant):
+        value = ast.literal_eval(number.string)
+        if type(value) is not complex:
+            self.raise_syntax_error_known_location("imaginary number required in complex literal", number)
+        return value
 
     def generate_ast_for_string(self, tokens):
         """Generate AST nodes for strings."""
-        err_msg = ''
-        line = 1
+        err_args = None
+        line_offset = tokens[0].start[0]
+        line = line_offset
         col_offset = 0
-        source = ''
+        source = "(\\n"
         for t in tokens:
             n_line = t.start[0] - line
             if n_line:
                 col_offset = 0
-            source += """\n""" * n_line + ' ' * (t.start[1] - col_offset) + t.string
+            source += """\\n""" * n_line + ' ' * (t.start[1] - col_offset) + t.string
             line, col_offset = t.end
-        if source[0] == ' ':
-            source = '(' + source[1:]
-        else:
-            source = '(' + source
-        source += ')'
+        source += "\\n)"
         try:
             m = ast.parse(source)
-        except SyntaxError as e:
-            err_msg = e.args[0]
-            # Identify the line at which the error occurred to get a more
-            # accurate line number
-            for t in tokens:
-                try:
-                    m = ast.parse(t.string)
-                except SyntaxError:
-                    break
+        except SyntaxError as err:
+            args = (err.filename, err.lineno + line_offset - 2, err.offset, err.text)
+            if sys.version_info >= (3, 10):
+                args += (err.end_lineno + line_offset - 2, err.end_offset)
+            err_args = (err.msg, args)
+            # Ensure we do not keep the frame alive longer than necessary
+            # by explicitely deleting the error once we got what we needed out
+            # of it
+            del err
 
         # Avoid getting a triple nesting in the error report that does not
         # bring anything relevant to the traceback.
-        if err_msg:
-            self.raise_syntax_error_known_location(err_msg, t)
-            raise self._exception
+        if err_args is not None:
+            raise SyntaxError(*err_args)
 
-        return m.body[0].value
+        node = m.body[0].value
+        # Since we asked Python to parse an alterred source starting at line 2
+        # we alter the lineno of the returned AST to recover the right line.
+        # If the string start at line 1, tha AST says 2 so we need to decrement by 1
+        # hence the -2.
+        ast.increment_lineno(node, line_offset - 2)
+        return node
 
     def extract_import_level(self, tokens: List[tokenize.TokenInfo]) -> int:
         """Extract the relative import level from the tokens preceding the module name.
@@ -317,27 +370,42 @@ class Parser(Parser):
                 self._tokenizer.get_lines(list(range(start[0], end[0] + 1)))
             )
 
-        return  SyntaxError(
-            message,
-            (self.filename, start[0], start[1], line)
-        )
+        # tokenize.py index column offset from 0 while Cpython index column
+        # offset at 1 when reporting SyntaxError, so we need to increment
+        # the column offset when reporting the error.
+        args = (self.filename, start[0], start[1] + 1, line)
+        if sys.version_info >= (3, 10):
+            args += (end[0], end[1] + 1)
+
+        return SyntaxError(message, args)
 
     def raise_raw_syntax_error(
         self,
         message: str,
         start: Optional[Tuple[int, int]] = None,
         end: Optional[Tuple[int, int]] = None
-    ) -> None:
+    ) -> NoReturn:
         raise self._build_syntax_error(message, start, end)
 
     def make_syntax_error(self, message: str) -> None:
         return self._build_syntax_error(message)
 
-    def raise_syntax_error(self, message: str) -> None:
-        """Raise a syntax error."""
-        raise self._build_syntax_error(message)
+    def expect_forced(self, res: Any, expectation: str) -> Optional[tokenize.TokenInfo]:
+        if res is None:
+            last_token = self._tokenizer.diagnose()
+            self.raise_raw_syntax_error(
+                f"expected {expectation}", last_token.start, last_token.start
+            )
+        return res
 
-    def raise_syntax_error_known_location(self, message: str, node) -> None:
+    def raise_syntax_error(self, message: str) -> NoReturn:
+        """Raise a syntax error."""
+        tok = self._tokenizer.diagnose()
+        raise self._build_syntax_error(message, tok.start, tok.end if tok.type != 4 else tok.start)
+
+    def raise_syntax_error_known_location(
+        self, message: str, node: Union[ast.AST, tokenize.TokenInfo]
+    ) -> NoReturn:
         """Raise a syntax error that occured at a given AST node."""
         if isinstance(node, tokenize.TokenInfo):
             start = node.start
@@ -353,7 +421,7 @@ class Parser(Parser):
         message: str,
         start_node: Union[ast.AST, tokenize.TokenInfo],
         end_node: Union[ast.AST, tokenize.TokenInfo]
-    ) -> None:
+    ) -> NoReturn:
         if isinstance(start_node, tokenize.TokenInfo):
             start = start_node.start
         else:
@@ -370,13 +438,30 @@ class Parser(Parser):
         self,
         message: str,
         start_node: Union[ast.AST, tokenize.TokenInfo]
-    ) -> None:
+    ) -> NoReturn:
         if isinstance(start_node, tokenize.TokenInfo):
             start = start_node.start
         else:
             start = start_node.lineno, start_node.col_offset
 
-        raise self._build_syntax_error(message, start, None)
+        last_token = self._tokenizer.diagnose()
+
+        raise self._build_syntax_error(message, start, last_token.start)
+
+    def raise_syntax_error_invalid_target(
+        self, target: Target, node: Optional[ast.AST]
+    ) -> NoReturn:
+        invalid_target = self.get_invalid_target(target, node)
+
+        if invalid_target is None:
+            return None
+
+        if target in (Target.STAR_TARGETS, Target.FOR_TARGETS):
+            msg = f"cannot assign to {self.get_expr_name(invalid_target)}"
+        else:
+            msg = f"cannot delete {self.get_expr_name(invalid_target)}"
+
+        self.raise_syntax_error_known_location(msg, invalid_target)
 
 '''
 
@@ -920,10 +1005,10 @@ signed_real_number:
     | '-' real=real_number { ast.UnaryOp(op=ast.USub(), operand=real, LOCATIONS) }
 
 real_number[ast.Constant]:
-    | real=NUMBER { ast.Constant(value=self.ensure_real(real.string), LOCATIONS) }
+    | real=NUMBER { ast.Constant(value=self.ensure_real(real), LOCATIONS) }
 
 imaginary_number[ast.Constant]:
-    | imag=NUMBER { ast.Constant(value=self.ensure_imaginary(imag.string), LOCATIONS) }
+    | imag=NUMBER { ast.Constant(value=self.ensure_imaginary(imag), LOCATIONS) }
 
 capture_pattern:
     | target=pattern_capture_target {
@@ -1564,7 +1649,9 @@ invalid_arguments[NoReturn]:
      }
     | a=expression b=for_if_clauses ',' [args | expression for_if_clauses] {
         self.raise_syntax_error_known_range(
-            "Generator expression must be parenthesized", a, b[-1].target
+            "Generator expression must be parenthesized",
+            a,
+            (b[-1].ifs[-1] if b[-1].ifs else b[-1].iter)
         )
      }
     | a=NAME b='=' expression for_if_clauses {
@@ -1576,14 +1663,14 @@ invalid_arguments[NoReturn]:
         self.raise_syntax_error_known_range(
             "Generator expression must be parenthesized",
             a[0][-1],
-            b[-1].target
+            (b[-1].ifs[-1] if b[-1].ifs else b[-1].iter),
         ) if len(a[0]) > 1 else None
      }
     | args ',' a=expression b=for_if_clauses {
         self.raise_syntax_error_known_range(
             "Generator expression must be parenthesized",
             a,
-            b[-1].target,
+            (b[-1].ifs[-1] if b[-1].ifs else b[-1].iter),
         )
      }
     | a=args ',' args {
@@ -1646,8 +1733,8 @@ invalid_named_expression[NoReturn]:
         (
             None
             if self.in_recursive_rule else
-            self.raise_syntax_error_known_range(
-                f"cannot assign to {self.get_expr_name(a)} here. Maybe you meant '==' instead of '='?", a, b
+            self.raise_syntax_error_known_location(
+                f"cannot assign to {self.get_expr_name(a)} here. Maybe you meant '==' instead of '='?", a
             )
         )
      }
@@ -1663,14 +1750,14 @@ invalid_assignment[NoReturn]:
     | a=expression ':' expression {
         self.raise_syntax_error_known_location("illegal target for annotation", a) }
     | (star_targets '=')* a=star_expressions '=' {
-        self.raise_syntax_error_known_location(f"cannot assign to {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_invalid_target(Target.STAR_TARGETS, a)
      }
     | (star_targets '=')* a=yield_expr '=' {
         self.raise_syntax_error_known_location("assignment to yield expression not possible", a)
      }
     | a=star_expressions augassign (yield_expr | star_expressions) {
         self.raise_syntax_error_known_location(
-            f"{self.get_expr_name(a)} is an illegal expression for augmented assignment", a
+            f"'{self.get_expr_name(a)}' is an illegal expression for augmented assignment", a
         )
      }
 invalid_ann_assign_target[ast.AST]:
@@ -1679,7 +1766,7 @@ invalid_ann_assign_target[ast.AST]:
     | '(' a=invalid_ann_assign_target ')' { a }
 invalid_del_stmt[NoReturn]:
     | 'del' a=star_expressions {
-        self.raise_syntax_error_known_location(f"cannot delete {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_invalid_target(Target.DEL_TARGETS, a)
      }
 invalid_block[NoReturn]:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
@@ -1730,12 +1817,12 @@ invalid_double_type_comments[NoReturn]:
      }
 invalid_with_item[NoReturn]:
     | expression 'as' a=expression &(',' | ')' | ':') {
-        self.raise_syntax_error_known_location(f"cannot assign to {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_invalid_target(Target.STAR_TARGETS, a)
      }
 
 invalid_for_target[NoReturn]:
     | 'async'? 'for' a=star_expressions {
-        self.raise_syntax_error_known_location(f"cannot assign to {self.get_expr_name(a)}", a)
+        self.raise_syntax_error_invalid_target(Target.FOR_TARGETS, a)
      }
 
 invalid_group[NoReturn]:
@@ -1776,7 +1863,7 @@ invalid_try_stmt[NoReturn]:
      }
 invalid_except_stmt[None]:
     | 'except' a=expression ',' expressions ['as' NAME ] ':' {
-        self.raise_syntax_error_starting_from("exception group must be parenthesized", a)
+        self.raise_syntax_error_starting_from("multiple exception types must be parenthesized", a)
      }
     | a='except' expression ['as' NAME ] NEWLINE { self.raise_syntax_error("expected ':'") }
     | a='except' NEWLINE { self.raise_syntax_error("expected ':'") }
@@ -1894,8 +1981,8 @@ invalid_kvpair[None]:
     | a=expression !(':') {
         self.raise_raw_syntax_error(
             "':' expected after dictionary key",
-            (a.lineno, a.col_offset - 1),
-            (a.end_lineno, a.end_col_offset, -1)
+            (a.lineno, a.col_offset),
+            (a.end_lineno, a.end_col_offset)
         )
      }
     | expression ':' a='*' bitwise_or {
