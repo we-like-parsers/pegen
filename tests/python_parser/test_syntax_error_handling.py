@@ -5,7 +5,15 @@ import pytest
 
 
 def parse_invalid_syntax(
-    python_parse_file, python_parse_str, tmp_path, source, exc_cls, message, start, end
+    python_parse_file,
+    python_parse_str,
+    tmp_path,
+    source,
+    exc_cls,
+    message,
+    start,
+    end,
+    min_python_version=(3, 10),
 ):
 
     # Check we obtain the expected error from Python
@@ -35,7 +43,7 @@ def parse_invalid_syntax(
         python_parse_file(str(test_file))
 
     # Check Python message but do not expect message to match for earlier Python versions
-    if sys.version_info >= (3, 10):
+    if sys.version_info >= min_python_version:
         # NOTE ugly hack for 1 CPython bug
         if exc_cls is SyntaxError and e.type is IndentationError:
             assert message.replace("'", "") in py_exc.args[0]
@@ -46,19 +54,35 @@ def parse_invalid_syntax(
     assert message in str(e.exconly())
 
     # Check start/end line/column on Python 3.10
-    if sys.version_info >= (3, 10):
-        for parser, exc in [("Python", py_exc), ("pegen", e.value)]:
-            if (
-                exc.lineno != start[0]
-                or exc.offset != start[1]
-                # Do not check end for indentation errors
-                or (not isinstance(e, IndentationError) and exc.end_lineno != end[0])
-                or (not isinstance(e, IndentationError) and (end[1] is not None and exc.end_offset != end[1]))
-            ):
+
+    for parser, exc in ([("Python", py_exc)] if sys.version_info >= min_python_version else []) + [
+        ("pegen", e.value)
+    ]:
+        if (
+            exc.lineno != start[0]
+            or exc.offset != start[1]
+            # Do not check end for indentation errors
+            or (
+                sys.version_info >= (3, 10)
+                and not isinstance(e, IndentationError)
+                and exc.end_lineno != end[0]
+            )
+            or (
+                sys.version_info >= (3, 10)
+                and not isinstance(e, IndentationError)
+                and (end[1] is not None and exc.end_offset != end[1])
+            )
+        ):
+            if sys.version_info >= (3, 10):
                 raise ValueError(
                     f"Expected locations of {start} and {end}, but got "
                     f"{(exc.lineno, exc.offset)} and {(exc.end_lineno, exc.end_offset)} "
                     f"from {parser}"
+                )
+            else:
+                raise ValueError(
+                    f"Expected locations of {start}, but got "
+                    f"{(exc.lineno, exc.offset)} from {parser}"
                 )
 
 
@@ -84,6 +108,7 @@ def test_syntax_error_in_str(
         ("2 if 4", "expected 'else' after 'if' expression", (1, 1), (1, 7)),
         ("(a 1 if b else 2)", "invalid syntax. Perhaps you forgot a comma?", (1, 2), (1, 17)),
         ("(a lambda: 1)", "invalid syntax. Perhaps you forgot a comma?", (1, 2), (1, 13)),
+        ("(a b)", "invalid syntax. Perhaps you forgot a comma?", (1, 2), (1, 5)),
         ("print 1", "Missing parentheses in call to 'print'", (1, 1), (1, 8)),
         ("exec 1", "Missing parentheses in call to 'exec'", (1, 1), (1, 7)),
         ("a if b", "expected 'else' after 'if' expression", (1, 1), (1, 7)),
@@ -135,7 +160,12 @@ def test_invalid_statements(
         # NOTE CPython bug, should report 15 as expected (we use None to omit the check)
         ("f(a for a in b, c)", "Generator expression must be parenthesized", (1, 3), (1, None)),
         # NOTE CPython bug, should report 20 as expected (we use None to omit the check)
-        ("f(a for a in b if a, c)", "Generator expression must be parenthesized", (1, 3), (1, None)),
+        (
+            "f(a for a in b if a, c)",
+            "Generator expression must be parenthesized",
+            (1, 3),
+            (1, None),
+        ),
         # NOTE CPython bug, should report 15 as expected (we use None to omit the check)
         (
             "f(a for a in b, c for c in d)",
@@ -168,13 +198,24 @@ def test_invalid_statements(
             (1, 3),
             (1, 9),
         ),
+        ("f(True=1)", "cannot assign to True", (1, 3), (1, 8)),
+        ("f(False=1)", "cannot assign to False", (1, 3), (1, 9)),
+        ("f(None=1)", "cannot assign to None", (1, 3), (1, 8)),
     ],
 )
 def test_invalid_call_arguments(
     python_parse_file, python_parse_str, tmp_path, source, message, start, end
 ):
     parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message, start, end
+        python_parse_file,
+        python_parse_str,
+        tmp_path,
+        source,
+        SyntaxError,
+        message,
+        start,
+        end,
+        (3, 11) if "cannot assign" in message else (3, 10),
     )
 
 
@@ -325,24 +366,314 @@ def test_invalid_comprehension(
 
 
 @pytest.mark.parametrize(
-    "source, start, end",
+    "source, message, start, end, py_version",
     [
-        ("def f(a=1, b):\n\tpass", (1, 12), (1, 13)),
-        ("def f(a=1, /, b):\n\tpass", (1, 15), (1, 16)),
-        ("lambda x=1, y: x", (1, 13), (1, 14)),
-        ("lambda x=1, /, y: x", (1, 16), (1, 17)),
+        (
+            "def f(a=1, b):\n\tpass",
+            "non-default argument follows default argument",
+            (1, 12),
+            (1, 13),
+            (3, 10),
+        ),
+        (
+            "def f(a=1, /, b):\n\tpass",
+            "non-default argument follows default argument",
+            (1, 15),
+            (1, 16),
+            (3, 10),
+        ),
+        (
+            "def f(x, (y, z), w):\n\tpass",
+            "parameters cannot be parenthesized",
+            (1, 10),
+            (1, 16),
+            (3, 11),
+        ),
+        (
+            "def f((x, y, z, w)):\n\tpass",
+            "parameters cannot be parenthesized",
+            (1, 7),
+            (1, 19),
+            (3, 11),
+        ),
+        (
+            "def f(x, (y, z, w)):\n\tpass",
+            "parameters cannot be parenthesized",
+            (1, 10),
+            (1, 19),
+            (3, 11),
+        ),
+        (
+            "def f((x, y, z), w):\n\tpass",
+            "parameters cannot be parenthesized",
+            (1, 7),
+            (1, 16),
+            (3, 11),
+        ),
+        (
+            "def foo(/,a,b=,c):\n\tpass",
+            "at least one argument must precede /",
+            (1, 9),
+            (1, 10),
+            (3, 11),
+        ),
+        ("def foo(a,/,/,b,c):\n\tpass", "/ may appear only once", (1, 13), (1, 14), (3, 11)),
+        ("def foo(a,/,a1,/,b,c):\n\tpass", "/ may appear only once", (1, 16), (1, 17), (3, 11)),
+        ("def foo(a=1,/,/,*b,/,c):\n\tpass", "/ may appear only once", (1, 15), (1, 16), (3, 11)),
+        ("def foo(a,/,a1=1,/,b,c):\n\tpass", "/ may appear only once", (1, 18), (1, 19), (3, 11)),
+        ("def foo(a,*b,c,/,d,e):\n\tpass", "/ must be ahead of *", (1, 16), (1, 17), (3, 11)),
+        ("def foo(a=1,*b,c=3,/,d,e):\n\tpass", "/ must be ahead of *", (1, 20), (1, 21), (3, 11)),
+        (
+            "def foo(a,*b=3,c):\n\tpass",
+            "var-positional argument cannot have default value",
+            (1, 13),
+            (1, 14),
+            (3, 11),
+        ),
+        (
+            "def foo(a,*b: int=,c):\n\tpass",
+            "var-positional argument cannot have default value",
+            (1, 18),
+            (1, 19),
+            (3, 11),
+        ),
+        (
+            "def foo(a,**b=3):\n\tpass",
+            "var-keyword argument cannot have default value",
+            (1, 14),
+            (1, 15),
+            (3, 11),
+        ),
+        (
+            "def foo(a,**b: int=3):\n\tpass",
+            "var-keyword argument cannot have default value",
+            (1, 19),
+            (1, 20),
+            (3, 11),
+        ),
+        (
+            "def foo(a,*a, b, **c, d):\n\tpass",
+            "arguments cannot follow var-keyword argument",
+            (1, 23),
+            (1, 24),
+            (3, 11),
+        ),
+        (
+            "def foo(a,*a, b, **c, d=4):\n\tpass",
+            "arguments cannot follow var-keyword argument",
+            (1, 23),
+            (1, 24),
+            (3, 11),
+        ),
+        (
+            "def foo(a,*a, b, **c, *d):\n\tpass",
+            "arguments cannot follow var-keyword argument",
+            (1, 23),
+            (1, 24),
+            (3, 11),
+        ),
+        (
+            "def foo(a,*a, b, **c, **d):\n\tpass",
+            "arguments cannot follow var-keyword argument",
+            (1, 23),
+            (1, 25),
+            (3, 11),
+        ),
+        (
+            "def foo(a=1,/,**b,/,c):\n\tpass",
+            "arguments cannot follow var-keyword argument",
+            (1, 19),
+            (1, 20),
+            (3, 11),
+        ),
+        ("def foo(*b,*d):\n\tpass", "* argument may appear only once", (1, 12), (1, 13), (3, 11)),
+        (
+            "def foo(a,*b,c,*d,*e,c):\n\tpass",
+            "* argument may appear only once",
+            (1, 16),
+            (1, 17),
+            (3, 11),
+        ),
+        (
+            "def foo(a,b,/,c,*b,c,*d,*e,c):\n\tpass",
+            "* argument may appear only once",
+            (1, 22),
+            (1, 23),
+            (3, 11),
+        ),
+        (
+            "def foo(a,b,/,c,*b,c,*d,**e):\n\tpass",
+            "* argument may appear only once",
+            (1, 22),
+            (1, 23),
+            (3, 11),
+        ),
+        (
+            "def foo(a=1,/*,b,c):\n\tpass",
+            "expected comma between / and *",
+            (1, 14),
+            (1, 15),
+            (3, 11),
+        ),
+        (
+            "def foo(a=1,d=,c):\n\tpasss",
+            "expected default value expression",
+            (1, 14),
+            (1, 15),
+            (3, 11),
+        ),
+        (
+            "def foo(a,d=,c):\n\tpass",
+            "expected default value expression",
+            (1, 12),
+            (1, 13),
+            (3, 11),
+        ),
+        (
+            "def foo(a,d: int=,c):\n\tpass",
+            "expected default value expression",
+            (1, 17),
+            (1, 18),
+            (3, 11),
+        ),
+        (
+            "lambda x=1, y: x",
+            "non-default argument follows default argument",
+            (1, 13),
+            (1, 14),
+            (3, 10),
+        ),
+        (
+            "lambda x=1, /, y: x",
+            "non-default argument follows default argument",
+            (1, 16),
+            (1, 17),
+            (3, 10),
+        ),
+        (
+            "lambda x, (y, z), w: None",
+            "parameters cannot be parenthesized",
+            (1, 11),
+            (1, 17),
+            (3, 11),
+        ),
+        (
+            "lambda (x, y, z, w): None",
+            "parameters cannot be parenthesized",
+            (1, 8),
+            (1, 20),
+            (3, 11),
+        ),
+        (
+            "lambda x, (y, z, w): None",
+            "parameters cannot be parenthesized",
+            (1, 11),
+            (1, 20),
+            (3, 11),
+        ),
+        (
+            "lambda (x, y, z), w: None",
+            "parameters cannot be parenthesized",
+            (1, 8),
+            (1, 17),
+            (3, 11),
+        ),
+        ("lambda /,a,b,c: None", "at least one argument must precede /", (1, 8), (1, 9), (3, 11)),
+        ("lambda a,/,/,b,c: None", "/ may appear only once", (1, 12), (1, 13), (3, 11)),
+        ("lambda a,/,a1,/,b,c: None", "/ may appear only once", (1, 15), (1, 16), (3, 11)),
+        ("lambda a=1,/,/,*b,/,c: None", "/ may appear only once", (1, 14), (1, 15), (3, 11)),
+        ("lambda a,/,a1=1,/,b,c: None", "/ may appear only once", (1, 17), (1, 18), (3, 11)),
+        ("lambda a,*b,c,/,d,e: None", "/ must be ahead of *", (1, 15), (1, 16), (3, 11)),
+        ("lambda a=1,*b,c=3,/,d,e: None", "/ must be ahead of *", (1, 19), (1, 20), (3, 11)),
+        ("lambda a=1,/*,b,c: None", "expected comma between / and *", (1, 13), (1, 14), (3, 11)),
+        (
+            "lambda a,*b=3,c: None",
+            "var-positional argument cannot have default value",
+            (1, 12),
+            (1, 13),
+            (3, 11),
+        ),
+        (
+            "lambda a,**b=3: None",
+            "var-keyword argument cannot have default value",
+            (1, 13),
+            (1, 14),
+            (3, 11),
+        ),
+        (
+            "lambda a, *a, b, **c, d: None",
+            "arguments cannot follow var-keyword argument",
+            (1, 23),
+            (1, 24),
+            (3, 11),
+        ),
+        (
+            "lambda a,*a, b, **c, d=4: None",
+            "arguments cannot follow var-keyword argument",
+            (1, 22),
+            (1, 23),
+            (3, 11),
+        ),
+        (
+            "lambda a,*a, b, **c, *d: None",
+            "arguments cannot follow var-keyword argument",
+            (1, 22),
+            (1, 23),
+            (3, 11),
+        ),
+        (
+            "lambda a,*a, b, **c, **d: None",
+            "arguments cannot follow var-keyword argument",
+            (1, 22),
+            (1, 24),
+            (3, 11),
+        ),
+        (
+            "lambda a=1,/,**b,/,c: None",
+            "arguments cannot follow var-keyword argument",
+            (1, 18),
+            (1, 19),
+            (3, 11),
+        ),
+        ("lambda *b,*d: None", "* argument may appear only once", (1, 11), (1, 12), (3, 11)),
+        (
+            "lambda a,*b,c,*d,*e,c: None",
+            "* argument may appear only once",
+            (1, 15),
+            (1, 16),
+            (3, 11),
+        ),
+        (
+            "lambda a,b,/,c,*b,c,*d,*e,c: None",
+            "* argument may appear only once",
+            (1, 21),
+            (1, 22),
+            (3, 11),
+        ),
+        (
+            "lambda a,b,/,c,*b,c,*d,**e: None",
+            "* argument may appear only once",
+            (1, 21),
+            (1, 22),
+            (3, 11),
+        ),
+        ("lambda a=1,d=,c: None", "expected default value expression", (1, 13), (1, 14), (3, 11)),
+        ("lambda a,d=,c: None", "expected default value expression", (1, 11), (1, 12), (3, 11)),
     ],
 )
-def test_invalid_parameters(python_parse_file, python_parse_str, tmp_path, source, start, end):
+def test_invalid_parameters(
+    python_parse_file, python_parse_str, tmp_path, source, message, start, end, py_version
+):
     parse_invalid_syntax(
         python_parse_file,
         python_parse_str,
         tmp_path,
         source,
         SyntaxError,
-        "non-default argument follows default argument",
+        message,
         start,
         end,
+        py_version,
     )
 
 
@@ -878,6 +1209,8 @@ def test_invalid_for_stmt(
             (2, 1),
             (2, 5),
         ),
+        ("def f:", SyntaxError, "expected '('", (1, 6), (1, 6)),
+        ("async def f:", SyntaxError, "expected '('", (1, 12), (1, 12)),
         # (
         #     "def f():\n# type: () -> int\n# type: () -> str\n\tpass",
         #     SyntaxError,
@@ -889,7 +1222,15 @@ def test_invalid_def_stmt(
     python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
 ):
     parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
+        python_parse_file,
+        python_parse_str,
+        tmp_path,
+        source,
+        exception,
+        message,
+        start,
+        end,
+        (3, 11) if exception is SyntaxError else (3, 10),
     )
 
 
