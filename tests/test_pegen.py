@@ -369,6 +369,9 @@ def test_nullable() -> None:
     sign: ['-' | '+']
     """
     grammar: Grammar = parse_string(grammar_source, GrammarParser)
+    out = io.StringIO()
+    # Called to visit the grammar which updates the rules
+    PythonParserGenerator(grammar, out)
     rules = grammar.rules
     assert rules["start"].nullable is False  # Not None!
     assert rules["sign"].nullable
@@ -380,6 +383,9 @@ def test_advanced_left_recursive() -> None:
     sign: ['-']
     """
     grammar: Grammar = parse_string(grammar_source, GrammarParser)
+    out = io.StringIO()
+    # Called to visit the grammar which updates the rules
+    PythonParserGenerator(grammar, out)
     rules = grammar.rules
     assert rules["start"].nullable is False  # Not None!
     assert rules["sign"].nullable
