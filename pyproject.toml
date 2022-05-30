@@ -95,3 +95,9 @@ module = [
     "pegen.grammar_parser"
 ]
 strict_optional = false
+
+[[tool.mypy.overrides]]
+module = [
+    "psutil"
+]
+ignore_missing_imports = true

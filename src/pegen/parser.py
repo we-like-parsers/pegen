@@ -181,6 +181,16 @@ class Parser:
         # Are we looking for syntax error ? When true enable matching on invalid rules
         self.call_invalid_rules = False
 
+    @abstractmethod
+    def start(self) -> Any:
+        """Expected grammar entry point.
+
+        This is not strictly necessary but is assumed to exist in most utility
+        functions consuming parser instances.
+
+        """
+        pass
+
     def showpeek(self) -> str:
         tok = self._tokenizer.peek()
         return f"{tok.start[0]}.{tok.start[1]}: {token.tok_name[tok.type]}:{tok.string!r}"

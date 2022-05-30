@@ -1,7 +1,7 @@
 import ast
 import re
 import token
-from typing import IO, Any, Dict, Optional, Sequence, Set, Text, Tuple
+from typing import IO, Any, Dict, List, Optional, Sequence, Set, Text, Tuple
 
 from pegen import grammar
 from pegen.grammar import (
@@ -217,7 +217,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             or "lineno=start_lineno, col_offset=start_col_offset, "
             "end_lineno=end_lineno, end_col_offset=end_col_offset"
         )
-        self.cleanup_statements = []
+        self.cleanup_statements: List[str] = []
 
     def generate(self, filename: str) -> None:
         header = self.grammar.metas.get("header", MODULE_PREFIX)
@@ -363,7 +363,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
                 if is_loop:
                     self.print(f"children.append({action})")
-                    self.print(f"mark = self._mark()")
+                    self.print("mark = self._mark()")
                 else:
                     if "UNREACHABLE" in action:
                         action = action.replace("UNREACHABLE", self.unreachable_formatting)
