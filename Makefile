@@ -42,6 +42,7 @@ format: ## Format all files
 .PHONY: lint
 lint: ## Lint all files
 	$(PYTHON) -m black --check src tests
+	$(PYTHON) -m flake8 src tests
 	$(PYTHON) -m mypy src/pegen
 
 .PHONY: clean

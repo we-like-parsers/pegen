@@ -453,10 +453,10 @@ class Cut:
         pass
 
     def __repr__(self) -> str:
-        return f"Cut()"
+        return "Cut()"
 
     def __str__(self) -> str:
-        return f"~"
+        return "~"
 
     def __iter__(self) -> Iterator[Tuple[str, str]]:
         if False:
