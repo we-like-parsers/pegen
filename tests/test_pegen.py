@@ -369,8 +369,6 @@ def test_nullable() -> None:
     sign: ['-' | '+']
     """
     grammar: Grammar = parse_string(grammar_source, GrammarParser)
-    out = io.StringIO()
-    genr = PythonParserGenerator(grammar, out)
     rules = grammar.rules
     assert rules["start"].nullable is False  # Not None!
     assert rules["sign"].nullable
@@ -382,8 +380,6 @@ def test_advanced_left_recursive() -> None:
     sign: ['-']
     """
     grammar: Grammar = parse_string(grammar_source, GrammarParser)
-    out = io.StringIO()
-    genr = PythonParserGenerator(grammar, out)
     rules = grammar.rules
     assert rules["start"].nullable is False  # Not None!
     assert rules["sign"].nullable
@@ -423,7 +419,7 @@ def test_mutually_left_recursive() -> None:
         TokenInfo(type=NAME, string="E", start=(1, 8), end=(1, 9), line="D A C A E"),
     ]
     node = parse_string("B C A E", parser_class)
-    assert node != None
+    assert node is not None
     assert node == [
         [
             [
@@ -550,7 +546,7 @@ def test_dangling_reference() -> None:
     foo: bar NAME
     """
     with pytest.raises(GrammarError):
-        parser_class = make_parser(grammar)
+        make_parser(grammar)
 
 
 def test_bad_token_reference() -> None:
@@ -559,7 +555,7 @@ def test_bad_token_reference() -> None:
     foo: NAMEE
     """
     with pytest.raises(GrammarError):
-        parser_class = make_parser(grammar)
+        make_parser(grammar)
 
 
 def test_missing_start() -> None:
@@ -567,7 +563,7 @@ def test_missing_start() -> None:
     foo: NAME
     """
     with pytest.raises(GrammarError):
-        parser_class = make_parser(grammar)
+        make_parser(grammar)
 
 
 def test_soft_keyword() -> None:

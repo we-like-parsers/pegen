@@ -6,6 +6,8 @@ exclude =
     build,
     dist,
     src/pegen/grammar_parser.py,
+    tests/python_parser/data,
+    tests/python_parser/parser_cache,
 ignore = E203, E266, E501, W503, E731
 # line length is intentionally set to 80 here because pegen uses Bugbear
 # See https://github.com/psf/black/blob/master/README.md#line-length for more details
