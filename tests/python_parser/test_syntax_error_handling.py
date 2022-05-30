@@ -797,7 +797,7 @@ def test_invalid_import_from_as_names(
             "expected an indented block after 'with' statement on line 2",
             (3, 1),
             (3, 5),
-            marks=pytest.mark.skipif(sys.version_info < (3, 9), "Unsupported syntax on Python 3.8")
+            marks=pytest.mark.skipif(sys.version_info < (3, 9), reason="Unsupported syntax on Python 3.8")
         ),
         ("with open(a) as f, b as d\npass", SyntaxError, "expected ':'", (1, 26), (1, 26)),
         (
