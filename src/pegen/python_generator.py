@@ -198,6 +198,25 @@ class PythonCallMakerVisitor(GrammarVisitor):
             )
 
 
+Used = Set[str]
+
+
+class UsedNamesVisitor(ast.NodeVisitor):
+    def generic_visit(self, node: ast.AST) -> Used:
+        result = set()
+        for _, value in ast.iter_fields(node):
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, ast.AST):
+                        result.update(self.visit(item))
+            elif isinstance(value, ast.AST):
+                result.update(self.visit(value))
+        return result
+
+    def visit_Name(self, node: ast.Name) -> Used:
+        return {node.id}
+
+
 class PythonParserGenerator(ParserGenerator, GrammarVisitor):
     def __init__(
         self,
@@ -211,6 +230,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         super().__init__(grammar, tokens, file)
         self.callmakervisitor: PythonCallMakerVisitor = PythonCallMakerVisitor(self)
         self.invalidvisitor: InvalidNodeVisitor = InvalidNodeVisitor()
+        self.usednamesvisitor: UsedNamesVisitor = UsedNamesVisitor()
         self.unreachable_formatting = unreachable_formatting or "None  # pragma: no cover"
         self.location_formatting = (
             location_formatting
@@ -299,12 +319,19 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         if node.name.endswith("without_invalid"):
             self.cleanup_statements.pop()
 
-    def visit_NamedItem(self, node: NamedItem) -> None:
+    def visit_NamedItem(self, node: NamedItem, used: Optional[Used], unreachable: bool) -> None:
         name, call = self.callmakervisitor.visit(node.item)
-        if node.name:
+        if unreachable:
+            name = None
+        elif node.name:
             name = node.name
+
+        if used is not None and name not in used:
+            name = None
+
         if not name:
-            self.print(call)
+            # Parentheses are needed because the trailing comma may appear :>
+            self.print(f"({call})")
         else:
             if name != "cut":
                 name = self.dedupe(name)
@@ -319,6 +346,18 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
     def visit_Alt(self, node: Alt, is_loop: bool, is_gather: bool) -> None:
         has_cut = any(isinstance(item.item, Cut) for item in node.items)
         has_invalid = self.invalidvisitor.visit(node)
+
+        used = None
+        if node.action:
+            # Those should be kw arguments
+            code = node.action.replace("LOCATIONS", "LOCATIONS=LOCATIONS")
+            code = code.replace("UNREACHABLE", "UNREACHABLE=UNREACHABLE")
+            used = self.usednamesvisitor.visit(ast.parse(code))
+
+        unreachable = node.action == "UNREACHABLE"
+        if not node.action and not is_gather and has_invalid:
+            unreachable = True
+
         with self.local_variable_context():
             if has_cut:
                 self.print("cut = False")
@@ -336,7 +375,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                         first = False
                     else:
                         self.print("and")
-                    self.visit(item)
+                    self.visit(item, used=used, unreachable=unreachable)
                     if is_gather:
                         self.print("is not None")
 
@@ -351,6 +390,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                         )
                     else:
                         if has_invalid:
+                            assert unreachable
                             action = "UNREACHABLE"
                         elif len(self.local_variable_names) == 1:
                             action = f"{self.local_variable_names[0]}"
