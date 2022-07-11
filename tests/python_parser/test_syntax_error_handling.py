@@ -86,6 +86,9 @@ def parse_invalid_syntax(
                 )
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="Python 3.8 diagnostic is subpar in this case."
+)
 @pytest.mark.parametrize(
     "source, message, start, end",
     [
@@ -790,12 +793,16 @@ def test_invalid_import_from_as_names(
             (2, 1),
             (2, 5),
         ),
-        (
+        # Python 3.9+ only
+        pytest.param(
             "\nasync with (open(a) as f, b as d):\npass",
             IndentationError,
             "expected an indented block after 'with' statement on line 2",
             (3, 1),
             (3, 5),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 9), reason="Unsupported syntax on Python 3.8"
+            ),
         ),
         ("with open(a) as f, b as d\npass", SyntaxError, "expected ':'", (1, 26), (1, 26)),
         (

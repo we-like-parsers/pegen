@@ -55,7 +55,7 @@ def index() -> None:
             parser_class = make_parser(grammar_source)
             result = parse_string(program_source, parser_class, verbose=False)
             print(result, file=output)
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=output)
         output_text += output.getvalue()
     return render_template("index.html", form=form, output=output_text)

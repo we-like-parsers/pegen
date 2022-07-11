@@ -16,6 +16,7 @@ def import_file(full_name: str, path: str) -> Any:
     """Import a python module from a path"""
 
     spec = importlib.util.spec_from_file_location(full_name, path)
+    assert spec
     mod = importlib.util.module_from_spec(spec)
 
     # We assume this is not None and has an exec_module() method.
@@ -72,9 +73,9 @@ def make_parser(source: str) -> Type[Parser]:
 
 
 def print_memstats() -> bool:
-    MiB: Final = 2 ** 20
+    MiB: Final = 2**20
     try:
-        import psutil  # type: ignore
+        import psutil
     except ImportError:
         return False
     print("Memory stats:")
