@@ -300,16 +300,16 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         if node.name.endswith("without_invalid"):
             self.cleanup_statements.pop()
 
-    def visit_NamedItem(self, node: NamedItem) -> None:
+    def visit_NamedItem(self, node: NamedItem) -> str:
         name, call = self.callmakervisitor.visit(node.item)
         if node.name:
             name = node.name
         if not name:
-            self.print(call)
+            return call
         else:
             if name != "cut":
                 name = self.dedupe(name)
-            self.print(f"({name} := {call})")
+            return f"({name} := {call})"
 
     def visit_Rhs(self, node: Rhs, is_loop: bool = False, is_gather: bool = False) -> None:
         if is_loop:
@@ -337,7 +337,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                         first = False
                     else:
                         self.print("and")
-                    self.visit(item)
+                    self.print(self.visit(item))
                     if is_gather:
                         self.print("is not None")
 
