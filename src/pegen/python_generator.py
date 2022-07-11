@@ -35,7 +35,7 @@ import tokenize
 
 from typing import Any, Optional
 
-from pegen.parser import memoize, memoize_left_rec, logger, Parser
+from pegen.parser import memoize, memoize_left_rec, logger, Parser as {parser_name}
 
 """
 MODULE_SUFFIX = """
@@ -222,7 +222,8 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
     def generate(self, filename: str) -> None:
         header = self.grammar.metas.get("header", MODULE_PREFIX)
         if header is not None:
-            self.print(header.rstrip("\n").format(filename=filename))
+            parser_name = self.grammar.metas.get("pegenclass", "Parser")
+            self.print(header.rstrip("\n").format(filename=filename, parser_name=parser_name))
         subheader = self.grammar.metas.get("subheader", "")
         if subheader:
             self.print(subheader)
