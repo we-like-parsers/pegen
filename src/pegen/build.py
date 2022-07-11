@@ -6,7 +6,7 @@ from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser
 from pegen.parser import Parser
 from pegen.parser_generator import ParserGenerator
-from pegen.python_generator import PythonParserGenerator
+from pegen.python_generator import PythonParserGenerator, PxdGenerator
 from pegen.tokenizer import Tokenizer
 
 MOD_DIR = pathlib.Path(__file__).resolve().parent
@@ -38,6 +38,12 @@ def build_python_generator(
     with open(output_file, "w") as file:
         gen: ParserGenerator = PythonParserGenerator(grammar, file)  # TODO: skip_actions
         gen.generate(grammar_file)
+
+    if generate_pxd:
+        pxd_path = pathlib.Path(output_file).with_suffix(".pxd")
+        with pxd_path.open("w") as file:
+            PxdGenerator(grammar, file).generate(grammar_file)
+
     return gen
 
 
