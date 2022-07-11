@@ -11,6 +11,7 @@ import pytest
 
 from pegen.tokenizer import Tokenizer
 
+
 # matrix mul 3.5
 @pytest.mark.parametrize("source", ["a @ b", "a @= b"])
 def test_mat_mult(python_parser_cls, source):

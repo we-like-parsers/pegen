@@ -82,11 +82,11 @@ class Tokenizer:
             count = 0
             seen = 0
             with open(self._path) as f:
-                for l in f:
+                for line in f:
                     count += 1
                     if count in line_numbers:
                         seen += 1
-                        lines[count] = l
+                        lines[count] = line
                         if seen == n:
                             break
 

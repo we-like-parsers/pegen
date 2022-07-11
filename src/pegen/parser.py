@@ -5,7 +5,7 @@ import time
 import token
 import tokenize
 import traceback
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Any, Callable, ClassVar, Dict, Optional, Tuple, Type, TypeVar, cast
 
 from pegen.tokenizer import Mark, Tokenizer, exact_token_types
@@ -157,7 +157,7 @@ def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Option
     return memoize_left_rec_wrapper
 
 
-class Parser:
+class Parser(ABC):
     """Parsing base class."""
 
     KEYWORDS: ClassVar[Tuple[str, ...]]
@@ -180,6 +180,16 @@ class Parser:
 
         # Are we looking for syntax error ? When true enable matching on invalid rules
         self.call_invalid_rules = False
+
+    @abstractmethod
+    def start(self) -> Any:
+        """Expected grammar entry point.
+
+        This is not strictly necessary but is assumed to exist in most utility
+        functions consuming parser instances.
+
+        """
+        pass
 
     def showpeek(self) -> str:
         tok = self._tokenizer.peek()
@@ -273,8 +283,10 @@ def simple_parser_main(parser_class: Type[Parser]) -> None:
         default=0,
         help="Print timing stats; repeat for more debug output",
     )
-    argparser.add_argument("-q", "--quiet", action="store_true", help="Don't print the parsed program")
-    argparser.add_argument("-r", "--run",   action="store_true", help="Run the parsed program")
+    argparser.add_argument(
+        "-q", "--quiet", action="store_true", help="Don't print the parsed program"
+    )
+    argparser.add_argument("-r", "--run", action="store_true", help="Run the parsed program")
     argparser.add_argument("filename", help="Input file ('-' to use stdin)")
 
     args = argparser.parse_args()

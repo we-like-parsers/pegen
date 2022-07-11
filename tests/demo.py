@@ -1,4 +1,5 @@
 def foo():
-  print(__file__ + ": parsed and executed.")
+    print(__file__ + ": parsed and executed.")
+
 
 foo()
