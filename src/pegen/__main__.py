@@ -36,6 +36,7 @@ def generate_python_code(
             verbose_tokenizer,
             verbose_parser,
             skip_actions=args.skip_actions,
+            generate_pxd=args.generate_pxd,
         )
         return grammar, parser, tokenizer, gen
     except Exception as err:
@@ -70,6 +71,11 @@ argparser.add_argument(
     "--skip-actions",
     action="store_true",
     help="Suppress code emission for rule actions",
+)
+argparser.add_argument(
+    "--generate-pxd",
+    action="store_true",
+    help="Generate additional .pxd file for cython compilation",
 )
 
 

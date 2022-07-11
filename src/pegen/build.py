@@ -33,6 +33,7 @@ def build_python_generator(
     grammar_file: str,
     output_file: str,
     skip_actions: bool = False,
+    generate_pxd: bool = False,
 ) -> ParserGenerator:
     with open(output_file, "w") as file:
         gen: ParserGenerator = PythonParserGenerator(grammar, file)  # TODO: skip_actions
@@ -46,6 +47,7 @@ def build_python_parser_and_generator(
     verbose_tokenizer: bool = False,
     verbose_parser: bool = False,
     skip_actions: bool = False,
+    generate_pxd: bool = False,
 ) -> Tuple[Grammar, Parser, Tokenizer, ParserGenerator]:
     """Generate rules, python parser, tokenizer, parser generator for a given grammar
 
@@ -57,6 +59,8 @@ def build_python_parser_and_generator(
         verbose_parser (bool, optional): Whether to display additional output
           when generating the parser. Defaults to False.
         skip_actions (bool, optional): Whether to pretend no rule has any actions.
+        generate_pxd (bool, optional): Whether to generate additional .pxd file
+          for cython compilation.
     """
     grammar, parser, tokenizer = build_parser(grammar_file, verbose_tokenizer, verbose_parser)
     gen = build_python_generator(
@@ -64,5 +68,6 @@ def build_python_parser_and_generator(
         grammar_file,
         output_file,
         skip_actions=skip_actions,
+        generate_pxd=generate_pxd,
     )
     return grammar, parser, tokenizer, gen
