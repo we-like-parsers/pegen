@@ -1,5 +1,5 @@
 import token
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Dict, Generic, Iterator, List, Protocol, Sequence, TypeVar
 
 Mark = int  # NewType('Mark', int)
@@ -20,7 +20,7 @@ class TokenInfo(Protocol[TokenType]):
     line: str
 
 
-class TokenTypes(Generic[TokenType]):
+class TokenTypes(ABC, Generic[TokenType]):
     """Token types that the system requires to know to operate.
 
     In addition to the token types listed below, we expect all hard keyword and
