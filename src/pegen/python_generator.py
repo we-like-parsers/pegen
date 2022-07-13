@@ -250,8 +250,11 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
         self.print()
         with self.indent():
-            self.print(f"KEYWORDS = {tuple(sorted(self.callmakervisitor.keywords))}")
-            self.print(f"SOFT_KEYWORDS = {tuple(sorted(self.callmakervisitor.soft_keywords))}")
+            self.print("def __init__(self, *args, **kwargs):")
+            with self.indent():
+                self.print("super().__init__(*args, **kwargs)")
+                self.print(f"KEYWORDS = {tuple(sorted(self.callmakervisitor.keywords))}")
+                self.print(f"SOFT_KEYWORDS = {tuple(sorted(self.callmakervisitor.soft_keywords))}")
 
         trailer = self.grammar.metas.get("trailer", MODULE_SUFFIX.format(class_name=cls_name))
         if trailer is not None:
@@ -311,16 +314,34 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         if node.name.endswith("without_invalid"):
             self.cleanup_statements.pop()
 
-    def visit_NamedItem(self, node: NamedItem) -> str:
+    def visit_NamedItem(self, node: NamedItem, is_gather: bool, print: bool = True) -> None:
         name, call = self.callmakervisitor.visit(node.item)
         if node.name:
             name = node.name
+
+        if is_gather:
+            condition = "if {test} is None: break"
+        else:
+            condition = "if not {test}: break"
+
         if not name:
-            return call
+            if not print:
+                return
+
+            self.print(condition.format(test=call))
         else:
             if name != "cut":
                 name = self.dedupe(name)
-            return f"({name} := {call})"
+
+            if not print:
+                return
+
+            if call[-1] == ",":
+                # condition is never run, because 'call' is in form '(X,)'
+                self.print(f"{name} = {call[:-1]}")
+            else:
+                self.print(f"{name} = {call}")
+                self.print(condition.format(test=name))
 
     def visit_Rhs(self, node: Rhs, is_loop: bool = False, is_gather: bool = False) -> None:
         if is_loop:
@@ -331,28 +352,18 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
     def visit_Alt(self, node: Alt, is_loop: bool, is_gather: bool) -> None:
         has_cut = any(isinstance(item.item, Cut) for item in node.items)
         has_invalid = self.invalidvisitor.visit(node)
+
         with self.local_variable_context():
             if has_cut:
                 self.print("cut = False")
-            if is_loop:
-                self.print("while (")
-            else:
-                self.print("if (")
-            with self.indent():
-                first = True
-                if has_invalid:
-                    self.print("self.call_invalid_rules")
-                    first = False
-                for item in node.items:
-                    if first:
-                        first = False
-                    else:
-                        self.print("and")
-                    self.print(self.visit(item))
-                    if is_gather:
-                        self.print("is not None")
 
-            self.print("):")
+            self.print("while 1:" + is_loop*"  # recursive")
+            with self.indent():
+                if has_invalid:
+                    self.print("if not self.call_invalid_rules: break")
+                for item in node.items:
+                    self.visit(item, is_gather=is_gather)
+
             with self.indent():
                 action = node.action
                 if not action:
@@ -380,6 +391,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     if "UNREACHABLE" in action:
                         action = action.replace("UNREACHABLE", self.unreachable_formatting)
                     self.add_return(f"{action}")
+                    self.print("break")  # XXX: probably can be removed
 
             self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
@@ -442,7 +454,7 @@ class PxdGenerator(PythonParserGenerator):
             if has_cut:
                 self.print("cut=cython.bint,")
             for item in node.items:
-                self.visit(item)
+                self.visit(item, is_gather=is_gather, print=False)
 
             for name in self.local_variable_names:
                 if name not in self.defined_variables:
