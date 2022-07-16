@@ -44,17 +44,14 @@ def parse_invalid_syntax(
 
     # Check Python message but do not expect message to match for earlier Python versions
     if sys.version_info >= min_python_version:
-        # NOTE ugly hack for 1 CPython bug
-        if exc_cls is SyntaxError and e.type is IndentationError:
-            assert message.replace("'", "") in py_exc.args[0]
-        else:
-            assert message in py_exc.args[0]
+        # This fails for Python < 3.10.5 but keeping the fix for a patch version is not
+        # worth it
+        assert message in py_exc.args[0]
 
     print(str(e.exconly()))
     assert message in str(e.exconly())
 
     # Check start/end line/column on Python 3.10
-
     for parser, exc in ([("Python", py_exc)] if sys.version_info >= min_python_version else []) + [
         ("pegen", e.value)
     ]:
