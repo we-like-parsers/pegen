@@ -237,7 +237,7 @@ class GeneratedParser(Parser):
             (name := self.name())
             and (annotation := self.annotation())
             and (self.expect("="))
-            and (True)
+            and (cut := True)
             and (item := self.item())
         ):
             return NamedItem(name.string, item, annotation)
@@ -245,7 +245,12 @@ class GeneratedParser(Parser):
         if cut:
             return None
         cut = False
-        if (name := self.name()) and (self.expect("=")) and (True) and (item := self.item()):
+        if (
+            (name := self.name())
+            and (self.expect("="))
+            and (cut := True)
+            and (item := self.item())
+        ):
             return NamedItem(name.string, item)
         self._reset(mark)
         if cut:
@@ -266,7 +271,7 @@ class GeneratedParser(Parser):
         # forced_atom: '&' '&' ~ atom
         mark = self._mark()
         cut = False
-        if (self.expect("&")) and (self.expect("&")) and (True) and (atom := self.atom()):
+        if (self.expect("&")) and (self.expect("&")) and (cut := True) and (atom := self.atom()):
             return Forced(atom)
         self._reset(mark)
         if cut:
@@ -278,13 +283,13 @@ class GeneratedParser(Parser):
         # lookahead: '&' ~ atom | '!' ~ atom | '~'
         mark = self._mark()
         cut = False
-        if (self.expect("&")) and (True) and (atom := self.atom()):
+        if (self.expect("&")) and (cut := True) and (atom := self.atom()):
             return PositiveLookahead(atom)
         self._reset(mark)
         if cut:
             return None
         cut = False
-        if (self.expect("!")) and (True) and (atom := self.atom()):
+        if (self.expect("!")) and (cut := True) and (atom := self.atom()):
             return NegativeLookahead(atom)
         self._reset(mark)
         if cut:
@@ -299,7 +304,7 @@ class GeneratedParser(Parser):
         # item: '[' ~ alts ']' | atom '?' | atom '*' | atom '+' | atom '.' atom '+' | atom
         mark = self._mark()
         cut = False
-        if (self.expect("[")) and (True) and (alts := self.alts()) and (self.expect("]")):
+        if (self.expect("[")) and (cut := True) and (alts := self.alts()) and (self.expect("]")):
             return Opt(alts)
         self._reset(mark)
         if cut:
@@ -331,7 +336,7 @@ class GeneratedParser(Parser):
         # atom: '(' ~ alts ')' | NAME | STRING
         mark = self._mark()
         cut = False
-        if (self.expect("(")) and (True) and (alts := self.alts()) and (self.expect(")")):
+        if (self.expect("(")) and (cut := True) and (alts := self.alts()) and (self.expect(")")):
             return Group(alts)
         self._reset(mark)
         if cut:
@@ -351,7 +356,7 @@ class GeneratedParser(Parser):
         cut = False
         if (
             (self.expect("{"))
-            and (True)
+            and (cut := True)
             and (target_atoms := self.target_atoms())
             and (self.expect("}"))
         ):
@@ -368,7 +373,7 @@ class GeneratedParser(Parser):
         cut = False
         if (
             (self.expect("["))
-            and (True)
+            and (cut := True)
             and (target_atoms := self.target_atoms())
             and (self.expect("]"))
         ):
@@ -397,7 +402,7 @@ class GeneratedParser(Parser):
         cut = False
         if (
             (self.expect("{"))
-            and (True)
+            and (cut := True)
             and (atoms := self.target_atoms(),)
             and (self.expect("}"))
         ):
@@ -408,7 +413,7 @@ class GeneratedParser(Parser):
         cut = False
         if (
             (self.expect("["))
-            and (True)
+            and (cut := True)
             and (atoms := self.target_atoms(),)
             and (self.expect("]"))
         ):
