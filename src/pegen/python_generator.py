@@ -348,18 +348,25 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         has_cut = any(isinstance(item.item, Cut) for item in node.items)
         has_invalid = self.invalidvisitor.visit(node)
 
+        action = node.action
+        if not action and not is_gather and has_invalid:
+            action = "UNREACHABLE"
+
+        locations = False
+        unreachable = False
+        if action:
+            if "LOCATIONS" in action:
+                locations = True
+                action = action.replace("LOCATIONS", self.location_formatting)
+            if "UNREACHABLE" in action:
+                unreachable = True
+                action = action.replace("UNREACHABLE", self.unreachable_formatting)
+
         used = None
-        if node.action:
-            # Those should be kw arguments
-            code = node.action.replace("LOCATIONS", "LOCATIONS=LOCATIONS")
-            code = code.replace("UNREACHABLE", "UNREACHABLE=UNREACHABLE")
-            used = self.usednamesvisitor.visit(ast.parse(code))
+        if action:
+            used = self.usednamesvisitor.visit(ast.parse(action))
             if has_cut:
                 used.add("cut")
-
-        unreachable = node.action == "UNREACHABLE"
-        if not node.action and not is_gather and has_invalid:
-            unreachable = True
 
         with self.local_variable_context():
             if has_cut:
@@ -384,7 +391,6 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
             self.print("):")
             with self.indent():
-                action = node.action
                 if not action:
                     if is_gather:
                         assert len(self.local_variable_names) == 2
@@ -394,22 +400,20 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     else:
                         if has_invalid:
                             assert unreachable
-                            action = "UNREACHABLE"
+                            assert isinstance(action, str)  # for type checker
                         elif len(self.local_variable_names) == 1:
                             action = f"{self.local_variable_names[0]}"
                         else:
                             action = f"[{', '.join(self.local_variable_names)}]"
-                elif "LOCATIONS" in action:
+
+                if locations:
                     self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
                     self.print("end_lineno, end_col_offset = tok.end")
-                    action = action.replace("LOCATIONS", self.location_formatting)
 
                 if is_loop:
                     self.print(f"children.append({action})")
                     self.print("mark = self._mark()")
                 else:
-                    if "UNREACHABLE" in action:
-                        action = action.replace("UNREACHABLE", self.unreachable_formatting)
                     self.add_return(f"{action}")
 
             self.print("self._reset(mark)")
