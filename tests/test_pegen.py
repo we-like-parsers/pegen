@@ -613,15 +613,18 @@ def test_forced_with_group() -> None:
     assert "expected (':' | ';')" in e.value.args[0]
 
 
+UNREACHABLE = "None  # This is a test"
+
+
 def test_unreachable_explicit() -> None:
     source = """
     start: NAME { UNREACHABLE }
     """
     grammar = parse_string(source, GrammarParser)
     out = io.StringIO()
-    genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
+    genr = PythonParserGenerator(grammar, out, unreachable_formatting=UNREACHABLE)
     genr.generate("<string>")
-    assert "This is a test" in out.getvalue()
+    assert UNREACHABLE in out.getvalue()
 
 
 def test_unreachable_implicit1() -> None:
@@ -631,9 +634,9 @@ def test_unreachable_implicit1() -> None:
     """
     grammar = parse_string(source, GrammarParser)
     out = io.StringIO()
-    genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
+    genr = PythonParserGenerator(grammar, out, unreachable_formatting=UNREACHABLE)
     genr.generate("<string>")
-    assert "This is a test" in out.getvalue()
+    assert UNREACHABLE in out.getvalue()
 
 
 def test_unreachable_implicit2() -> None:
@@ -643,9 +646,9 @@ def test_unreachable_implicit2() -> None:
     """
     grammar = parse_string(source, GrammarParser)
     out = io.StringIO()
-    genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
+    genr = PythonParserGenerator(grammar, out, unreachable_formatting=UNREACHABLE)
     genr.generate("<string>")
-    assert "This is a test" in out.getvalue()
+    assert UNREACHABLE in out.getvalue()
 
 
 def test_unreachable_implicit3() -> None:
@@ -655,9 +658,9 @@ def test_unreachable_implicit3() -> None:
     """
     grammar = parse_string(source, GrammarParser)
     out = io.StringIO()
-    genr = PythonParserGenerator(grammar, out, unreachable_formatting="This is a test")
+    genr = PythonParserGenerator(grammar, out, unreachable_formatting=UNREACHABLE)
     genr.generate("<string>")
-    assert "This is a test" not in out.getvalue()
+    assert UNREACHABLE not in out.getvalue()
 
 
 def test_locations_in_alt_action_and_group() -> None:
