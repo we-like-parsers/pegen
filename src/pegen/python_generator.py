@@ -342,6 +342,38 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         for alt in node.alts:
             self.visit(alt, is_loop=is_loop, is_gather=is_gather)
 
+    def print_action(
+        self,
+        action: Optional[str],
+        locations: bool,
+        unreachable: bool,
+        is_gather: bool,
+        is_loop: bool,
+        has_invalid: bool,
+    ) -> None:
+        if not action:
+            if is_gather:
+                assert len(self.local_variable_names) == 2
+                action = f"[{self.local_variable_names[0]}] + {self.local_variable_names[1]}"
+            else:
+                if has_invalid:
+                    assert unreachable
+                    assert isinstance(action, str)  # for type checker
+                elif len(self.local_variable_names) == 1:
+                    action = f"{self.local_variable_names[0]}"
+                else:
+                    action = f"[{', '.join(self.local_variable_names)}]"
+
+        if locations:
+            self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
+            self.print("end_lineno, end_col_offset = tok.end")
+
+        if is_loop:
+            self.print(f"children.append({action})")
+            self.print("mark = self._mark()")
+        else:
+            self.add_return(f"{action}")
+
     def visit_Alt(self, node: Alt, is_loop: bool, is_gather: bool) -> None:
         has_cut = any(isinstance(item.item, Cut) for item in node.items)
         has_invalid = self.invalidvisitor.visit(node)
@@ -389,30 +421,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
             self.print("):")
             with self.indent():
-                if not action:
-                    if is_gather:
-                        assert len(self.local_variable_names) == 2
-                        action = (
-                            f"[{self.local_variable_names[0]}] + {self.local_variable_names[1]}"
-                        )
-                    else:
-                        if has_invalid:
-                            assert unreachable
-                            assert isinstance(action, str)  # for type checker
-                        elif len(self.local_variable_names) == 1:
-                            action = f"{self.local_variable_names[0]}"
-                        else:
-                            action = f"[{', '.join(self.local_variable_names)}]"
-
-                if locations:
-                    self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
-                    self.print("end_lineno, end_col_offset = tok.end")
-
-                if is_loop:
-                    self.print(f"children.append({action})")
-                    self.print("mark = self._mark()")
-                else:
-                    self.add_return(f"{action}")
+                self.print_action(action, locations, unreachable, is_gather, is_loop, has_invalid)
 
             self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
