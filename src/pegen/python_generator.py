@@ -198,11 +198,10 @@ class PythonCallMakerVisitor(GrammarVisitor):
             )
 
 
-Used = Set[str]
 
 
 class UsedNamesVisitor(ast.NodeVisitor):
-    def generic_visit(self, node: ast.AST) -> Used:
+    def generic_visit(self, node: ast.AST) -> Set[str]:
         result = set()
         for _, value in ast.iter_fields(node):
             if isinstance(value, list):
@@ -213,7 +212,7 @@ class UsedNamesVisitor(ast.NodeVisitor):
                 result.update(self.visit(value))
         return result
 
-    def visit_Name(self, node: ast.Name) -> Used:
+    def visit_Name(self, node: ast.Name) -> Set[str]:
         return {node.id}
 
 
@@ -319,7 +318,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         if node.name.endswith("without_invalid"):
             self.cleanup_statements.pop()
 
-    def visit_NamedItem(self, node: NamedItem, used: Optional[Used], unreachable: bool) -> None:
+    def visit_NamedItem(self, node: NamedItem, used: Optional[Set[str]], unreachable: bool) -> None:
         name, call = self.callmakervisitor.visit(node.item)
         if unreachable:
             name = None
