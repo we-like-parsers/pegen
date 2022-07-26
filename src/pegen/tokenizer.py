@@ -1,6 +1,6 @@
 import token
 from abc import ABC, abstractmethod
-from typing import Dict, Generic, Iterator, List, Protocol, Sequence, TypeVar
+from typing import Dict, Generic, Iterator, List, Protocol, Sequence, Tuple, TypeVar
 
 Mark = int  # NewType('Mark', int)
 
@@ -15,8 +15,8 @@ class TokenInfo(Protocol[TokenType]):
 
     type: TokenType
     string: str
-    start: tuple[int, int]
-    end: tuple[int, int]
+    start: Tuple[int, int]
+    end: Tuple[int, int]
     line: str
 
 
