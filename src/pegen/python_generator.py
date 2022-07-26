@@ -198,8 +198,6 @@ class PythonCallMakerVisitor(GrammarVisitor):
             )
 
 
-
-
 class UsedNamesVisitor(ast.NodeVisitor):
     def generic_visit(self, node: ast.AST) -> Set[str]:
         result = set()
