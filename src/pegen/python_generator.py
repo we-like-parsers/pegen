@@ -421,6 +421,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
             self.print("):")
             with self.indent():
+                # flake8 complains that visit_Alt is too complicated, so here we are :P
                 self.print_action(action, locations, unreachable, is_gather, is_loop, has_invalid)
 
             self.print("self._reset(mark)")
