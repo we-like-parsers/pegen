@@ -318,7 +318,9 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         if node.name.endswith("without_invalid"):
             self.cleanup_statements.pop()
 
-    def visit_NamedItem(self, node: NamedItem, used: Optional[Set[str]], unreachable: bool) -> None:
+    def visit_NamedItem(
+        self, node: NamedItem, used: Optional[Set[str]], unreachable: bool
+    ) -> None:
         name, call = self.callmakervisitor.visit(node.item)
         if unreachable:
             name = None
