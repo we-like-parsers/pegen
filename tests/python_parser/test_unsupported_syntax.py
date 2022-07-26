@@ -146,3 +146,7 @@ def test_match_statement(python_parser_cls, source):
         pp.parse("file")
 
     assert "Pattern matching is" in e.exconly()
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

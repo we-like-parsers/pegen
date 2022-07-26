@@ -1,5 +1,7 @@
 from typing import Any
 
+import pytest
+
 from pegen.grammar import GrammarVisitor
 from pegen.grammar_parser import GeneratedParser as GrammarParser
 from pegen.utils import parse_string
@@ -84,3 +86,7 @@ def test_parse_optional_grammar() -> None:
     #                      NamedItem/Opt/Rhs/Alt/NamedItem/Stringleaf -> 6
 
     assert visitor.n_nodes == 12
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

@@ -94,3 +94,7 @@ def test_parser(python_parse_file, python_parse_str, filename):
     p = ast.dump(python_parse_file(path), **kwargs)
     diff = "\n".join(difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen"))
     assert not diff
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

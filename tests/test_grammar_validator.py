@@ -1,9 +1,11 @@
 import unittest
 
+import pytest
+
 from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser
-from pegen.validator import SubRuleValidator, ValidationError
 from pegen.utils import parse_string
+from pegen.validator import SubRuleValidator, ValidationError
 
 
 class TestPegen(unittest.TestCase):
@@ -46,3 +48,7 @@ class TestPegen(unittest.TestCase):
         with self.assertRaises(ValidationError):
             for rule_name, rule in grammar.rules.items():
                 validator.validate_rule(rule_name, rule)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

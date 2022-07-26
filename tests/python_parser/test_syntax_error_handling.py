@@ -1315,3 +1315,7 @@ def test_invalid_dict_key_value(
     parse_invalid_syntax(
         python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
     )
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

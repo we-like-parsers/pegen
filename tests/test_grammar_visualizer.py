@@ -1,6 +1,8 @@
 import textwrap
 from typing import List
 
+import pytest
+
 from pegen.grammar_parser import GeneratedParser as GrammarParser
 from pegen.grammar_visualizer import ASTGrammarPrinter
 from pegen.utils import parse_string
@@ -114,3 +116,7 @@ def test_deep_nested_rule() -> None:
     )
 
     assert output == expected_output
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

@@ -1,4 +1,6 @@
-from typing import Set, Dict
+from typing import Dict, Set
+
+import pytest
 
 from pegen.first_sets import FirstSetCalculator
 from pegen.grammar import Grammar
@@ -238,3 +240,7 @@ def test_multiple_nullable_rules() -> None:
         "other": {"'*'"},
         "another": {"'/'"},
     }
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

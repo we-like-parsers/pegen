@@ -5,7 +5,7 @@ import textwrap
 from tokenize import NAME, NEWLINE, NUMBER, OP, TokenInfo
 from typing import Any, Dict, Type
 
-import pytest  # type: ignore
+import pytest
 
 from pegen.grammar import Grammar, GrammarError
 from pegen.grammar_parser import GeneratedParser as GrammarParser
@@ -692,3 +692,7 @@ def test_keywords() -> None:
     parser_class = make_parser(grammar)
     assert parser_class.KEYWORDS == ("five", "four", "one", "three", "two")
     assert parser_class.SOFT_KEYWORDS == ("eight", "nine", "seven", "six", "ten")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
