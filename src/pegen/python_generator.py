@@ -352,6 +352,8 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             code = node.action.replace("LOCATIONS", "LOCATIONS=LOCATIONS")
             code = code.replace("UNREACHABLE", "UNREACHABLE=UNREACHABLE")
             used = self.usednamesvisitor.visit(ast.parse(code))
+            if has_cut:
+                used.add("cut")
 
         unreachable = node.action == "UNREACHABLE"
         if not node.action and not is_gather and has_invalid:
