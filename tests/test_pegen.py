@@ -5,8 +5,7 @@ import textwrap
 from tokenize import NAME, NEWLINE, NUMBER, OP, TokenInfo
 from typing import Any, Dict, Type
 
-import pytest  # type: ignore
-
+import pytest
 from pegen.grammar import Grammar, GrammarError
 from pegen.grammar_parser import GeneratedParser as GrammarParser
 from pegen.parser import Parser

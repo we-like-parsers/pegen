@@ -2,8 +2,8 @@ import unittest
 
 from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser
-from pegen.validator import SubRuleValidator, ValidationError
 from pegen.utils import parse_string
+from pegen.validator import SubRuleValidator, ValidationError
 
 
 class TestPegen(unittest.TestCase):

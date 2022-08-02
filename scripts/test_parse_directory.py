@@ -8,12 +8,12 @@ import time
 import traceback
 from glob import glob
 from pathlib import PurePath
-
-from typing import List, Optional, Any
+from typing import Any, List, Optional
 
 sys.path.insert(0, os.getcwd())
 from pegen.build import build_parser
-from pegen.utils import print_memstats, generate_parser
+from pegen.utils import generate_parser, print_memstats
+
 from scripts import show_parse
 
 SUCCESS = "\033[92m"
@@ -170,6 +170,7 @@ def parse_directory(
 
     try:
         import tokenize
+
         from pegen.tokenizer import Tokenizer
 
         def parse(filepath):

@@ -20,7 +20,6 @@
 
 import argparse
 import sys
-
 from typing import Any, List
 
 sys.path.insert(0, ".")
@@ -34,12 +33,12 @@ from pegen.grammar import (
     Group,
     Leaf,
     Lookahead,
-    Rule,
-    NameLeaf,
     NamedItem,
+    NameLeaf,
     Opt,
     Repeat,
     Rhs,
+    Rule,
 )
 
 argparser = argparse.ArgumentParser(

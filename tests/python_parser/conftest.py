@@ -2,7 +2,6 @@
 from pathlib import Path
 
 import pytest
-
 from pegen.build import build_parser
 from pegen.utils import generate_parser
 

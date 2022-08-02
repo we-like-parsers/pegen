@@ -1,4 +1,4 @@
-from typing import Set, Dict
+from typing import Dict, Set
 
 from pegen.first_sets import FirstSetCalculator
 from pegen.grammar import Grammar

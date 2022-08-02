@@ -1,10 +1,9 @@
 #!/usr/bin/env python3.8
 
 import argparse
-import os
 import json
-
-from typing import Dict, Any
+import os
+from typing import Any, Dict
 from urllib.request import urlretrieve
 
 argparser = argparse.ArgumentParser(
