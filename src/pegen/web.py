@@ -6,7 +6,7 @@ from flask_wtf import FlaskForm  # type: ignore
 from wtforms import SubmitField, TextAreaField  # type: ignore
 from wtforms.validators import DataRequired  # type: ignore
 
-from pegen.utils import parse_string, make_parser
+from pegen.utils import make_parser, parse_string
 
 DEFAULT_GRAMMAR = """\
 start: expr NEWLINE? ENDMARKER { expr }

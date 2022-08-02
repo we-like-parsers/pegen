@@ -12,7 +12,6 @@ There should also be something to recognize left-recursive rules.
 import os
 import re
 import sys
-
 from typing import Dict
 
 reporoot = os.path.dirname(os.path.dirname(__file__))

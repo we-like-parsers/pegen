@@ -29,7 +29,6 @@ import difflib
 import os
 import sys
 import tempfile
-
 from typing import List
 
 parser = argparse.ArgumentParser()

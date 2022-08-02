@@ -8,7 +8,6 @@ import io
 import tokenize
 
 import pytest
-
 from pegen.tokenizer import Tokenizer
 
 

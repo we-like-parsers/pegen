@@ -14,8 +14,8 @@ INITIAL_NESTING_DEPTH, or NESTED_INCR_AMT variables.
 Usage: python -m scripts.find_max_nesting
 """
 import sys
-from tempfile import TemporaryDirectory
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 sys.path.insert(0, ".")
