@@ -198,6 +198,22 @@ class PythonCallMakerVisitor(GrammarVisitor):
             )
 
 
+class UsedNamesVisitor(ast.NodeVisitor):
+    def generic_visit(self, node: ast.AST) -> Set[str]:
+        result = set()
+        for _, value in ast.iter_fields(node):
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, ast.AST):
+                        result.update(self.visit(item))
+            elif isinstance(value, ast.AST):
+                result.update(self.visit(value))
+        return result
+
+    def visit_Name(self, node: ast.Name) -> Set[str]:
+        return {node.id}
+
+
 class PythonParserGenerator(ParserGenerator, GrammarVisitor):
     def __init__(
         self,
@@ -211,6 +227,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         super().__init__(grammar, tokens, file)
         self.callmakervisitor: PythonCallMakerVisitor = PythonCallMakerVisitor(self)
         self.invalidvisitor: InvalidNodeVisitor = InvalidNodeVisitor()
+        self.usednamesvisitor: UsedNamesVisitor = UsedNamesVisitor()
         self.unreachable_formatting = unreachable_formatting or "None  # pragma: no cover"
         self.location_formatting = (
             location_formatting
@@ -299,12 +316,21 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         if node.name.endswith("without_invalid"):
             self.cleanup_statements.pop()
 
-    def visit_NamedItem(self, node: NamedItem) -> None:
+    def visit_NamedItem(
+        self, node: NamedItem, used: Optional[Set[str]], unreachable: bool
+    ) -> None:
         name, call = self.callmakervisitor.visit(node.item)
-        if node.name:
+        if unreachable:
+            name = None
+        elif node.name:
             name = node.name
+
+        if used is not None and name not in used:
+            name = None
+
         if not name:
-            self.print(call)
+            # Parentheses are needed because the trailing comma may appear :>
+            self.print(f"({call})")
         else:
             if name != "cut":
                 name = self.dedupe(name)
@@ -316,9 +342,61 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         for alt in node.alts:
             self.visit(alt, is_loop=is_loop, is_gather=is_gather)
 
+    def print_action(
+        self,
+        action: Optional[str],
+        locations: bool,
+        unreachable: bool,
+        is_gather: bool,
+        is_loop: bool,
+        has_invalid: bool,
+    ) -> None:
+        if not action:
+            if is_gather:
+                assert len(self.local_variable_names) == 2
+                action = f"[{self.local_variable_names[0]}] + {self.local_variable_names[1]}"
+            else:
+                if has_invalid:
+                    assert unreachable
+                    assert isinstance(action, str)  # for type checker
+                elif len(self.local_variable_names) == 1:
+                    action = f"{self.local_variable_names[0]}"
+                else:
+                    action = f"[{', '.join(self.local_variable_names)}]"
+
+        if locations:
+            self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
+            self.print("end_lineno, end_col_offset = tok.end")
+
+        if is_loop:
+            self.print(f"children.append({action})")
+            self.print("mark = self._mark()")
+        else:
+            self.add_return(f"{action}")
+
     def visit_Alt(self, node: Alt, is_loop: bool, is_gather: bool) -> None:
         has_cut = any(isinstance(item.item, Cut) for item in node.items)
         has_invalid = self.invalidvisitor.visit(node)
+
+        action = node.action
+        if not action and not is_gather and has_invalid:
+            action = "UNREACHABLE"
+
+        locations = False
+        unreachable = False
+        used = None
+        if action:
+            if "LOCATIONS" in action:
+                locations = True
+                action = action.replace("LOCATIONS", self.location_formatting)
+            if "UNREACHABLE" in action:
+                unreachable = True
+                action = action.replace("UNREACHABLE", self.unreachable_formatting)
+
+            used = self.usednamesvisitor.visit(ast.parse(action))
+            if has_cut:
+                used.add("cut")
+
         with self.local_variable_context():
             if has_cut:
                 self.print("cut = False")
@@ -336,38 +414,14 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                         first = False
                     else:
                         self.print("and")
-                    self.visit(item)
+                    self.visit(item, used=used, unreachable=unreachable)
                     if is_gather:
                         self.print("is not None")
 
             self.print("):")
             with self.indent():
-                action = node.action
-                if not action:
-                    if is_gather:
-                        assert len(self.local_variable_names) == 2
-                        action = (
-                            f"[{self.local_variable_names[0]}] + {self.local_variable_names[1]}"
-                        )
-                    else:
-                        if has_invalid:
-                            action = "UNREACHABLE"
-                        elif len(self.local_variable_names) == 1:
-                            action = f"{self.local_variable_names[0]}"
-                        else:
-                            action = f"[{', '.join(self.local_variable_names)}]"
-                elif "LOCATIONS" in action:
-                    self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
-                    self.print("end_lineno, end_col_offset = tok.end")
-                    action = action.replace("LOCATIONS", self.location_formatting)
-
-                if is_loop:
-                    self.print(f"children.append({action})")
-                    self.print("mark = self._mark()")
-                else:
-                    if "UNREACHABLE" in action:
-                        action = action.replace("UNREACHABLE", self.unreachable_formatting)
-                    self.add_return(f"{action}")
+                # flake8 complains that visit_Alt is too complicated, so here we are :P
+                self.print_action(action, locations, unreachable, is_gather, is_loop, has_invalid)
 
             self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
