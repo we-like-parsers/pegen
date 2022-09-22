@@ -386,6 +386,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         unreachable = False
         used = None
         if action:
+            # Replace magic name in the action rule
             if "LOCATIONS" in action:
                 locations = True
                 action = action.replace("LOCATIONS", self.location_formatting)
@@ -393,6 +394,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 unreachable = True
                 action = action.replace("UNREACHABLE", self.unreachable_formatting)
 
+            # Extract the names actually used in the action.
             used = self.usednamesvisitor.visit(ast.parse(action))
             if has_cut:
                 used.add("cut")
