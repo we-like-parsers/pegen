@@ -55,7 +55,7 @@ class Tokenizer:
             ):
                 continue
             self._tokens.append(tok)
-            if not self._path:
+            if not self._path and tok.start[0] not in self._lines:
                 self._lines[tok.start[0]] = tok.line
         return self._tokens[self._index]
 
