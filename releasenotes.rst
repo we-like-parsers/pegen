@@ -11,6 +11,7 @@ unreleased: Version 0.2.0
 - add documentation PR #43 #52
 - sort KEYWORDS to make output deterministic PR #44
 - update grammar_grapher with the new forced (&&) directive PR #57
+- fixed bug where tokenizer reported the last line of source as empty #77
 
 09/06/2021: Version 0.1.0
 -------------------------
