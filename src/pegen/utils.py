@@ -50,7 +50,7 @@ def run_parser(file: IO[bytes], parser_class: Type[Parser[int]], *, verbose: boo
     """Run a parser on a file (stream) tokenized by the Python tokenizer."""
     tokenizer = Tokenizer(tokenize.generate_tokens(file.readline), token_types=PythonTokenTypes())  # type: ignore # typeshed issue #3515
     parser = parser_class(tokenizer, verbose=True)
-    result = parser.start()  # type: ignore
+    result = parser.start()
     if result is None:
         raise parser.make_syntax_error("invalid syntax")
     return result

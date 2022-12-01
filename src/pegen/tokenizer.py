@@ -5,9 +5,7 @@ from typing import Dict, Generic, Iterator, List, Protocol, Sequence, Tuple, Typ
 Mark = int  # NewType('Mark', int)
 
 
-TokenType = TypeVar(
-    "TokenType",
-)
+TokenType = TypeVar("TokenType")
 
 
 class TokenInfo(Protocol[TokenType]):
@@ -41,7 +39,9 @@ class TokenTypes(ABC, Generic[TokenType]):
 
     def __init__(self) -> None:
         ttype = type(self.NAME)
-        self.__dict__ |= {k: v for k, v in type(self).__dict__.items() if isinstance(v, ttype)}
+        self.__dict__.update(
+            {k: v for k, v in type(self).__dict__.items() if isinstance(v, ttype)}
+        )
 
     @abstractmethod
     def get_name_from_type(self, ttype: TokenType) -> str:

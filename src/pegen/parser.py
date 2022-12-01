@@ -319,7 +319,7 @@ def simple_parser_main(parser_class: Type[Parser[int]]) -> None:
         assert hasattr(
             parser, "start"
         ), "Parser classes used with 'simple_parser_main' are expected to have a start rule"
-        tree = parser.start()  # type: ignore
+        tree = parser.start()
         try:
             if file.isatty():
                 endpos = 0
