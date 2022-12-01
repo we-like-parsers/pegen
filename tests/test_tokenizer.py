@@ -35,7 +35,7 @@ def test_last_non_whitespace() -> None:
 
 def test_get_lines():
     source = io.StringIO("1\n2\n3")
-    t = Tokenizer(generate_tokens(source.readline))
+    t = Tokenizer(generate_tokens(source.readline), PythonTokenTypes())
     while True:
         if t.getnext().type == ENDMARKER:
             break
