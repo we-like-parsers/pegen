@@ -9,7 +9,7 @@ from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser
 from pegen.parser import Parser
 from pegen.python_generator import PythonParserGenerator
-from pegen.tokenizer import Tokenizer
+from pegen.tokenizer import Tokenizer, PythonTokenTypes
 
 
 def import_file(full_name: str, path: str) -> Any:
@@ -28,7 +28,7 @@ def import_file(full_name: str, path: str) -> Any:
 
 def generate_parser(
     grammar: Grammar, parser_path: Optional[str] = None, parser_name: str = "GeneratedParser"
-) -> Type[Parser]:
+) -> Type[Parser[Any]]:
     # Generate a parser.
     out = io.StringIO()
     genr = PythonParserGenerator(grammar, out)
@@ -46,10 +46,10 @@ def generate_parser(
         return ns[parser_name]
 
 
-def run_parser(file: IO[bytes], parser_class: Type[Parser], *, verbose: bool = False) -> Any:
-    # Run a parser on a file (stream).
-    tokenizer = Tokenizer(tokenize.generate_tokens(file.readline))  # type: ignore # typeshed issue #3515
-    parser = parser_class(tokenizer, verbose=verbose)
+def run_parser(file: IO[bytes], parser_class: Type[Parser[int]], *, verbose: bool = False) -> Any:
+    """Run a parser on a file (stream) tokenized by the Python tokenizer."""
+    tokenizer = Tokenizer(tokenize.generate_tokens(file.readline), token_types=PythonTokenTypes())  # type: ignore # typeshed issue #3515
+    parser = parser_class(tokenizer, verbose=True)
     result = parser.start()
     if result is None:
         raise parser.make_syntax_error("invalid syntax")
@@ -57,16 +57,16 @@ def run_parser(file: IO[bytes], parser_class: Type[Parser], *, verbose: bool = F
 
 
 def parse_string(
-    source: str, parser_class: Type[Parser], *, dedent: bool = True, verbose: bool = False
+    source: str, parser_class: Type[Parser[int]], *, dedent: bool = True, verbose: bool = False
 ) -> Any:
-    # Run the parser on a string.
+    """Run a parser on a string tokenized by the Python tokenizer."""
     if dedent:
         source = textwrap.dedent(source)
     file = io.StringIO(source)
     return run_parser(file, parser_class, verbose=verbose)  # type: ignore # typeshed issue #3515
 
 
-def make_parser(source: str) -> Type[Parser]:
+def make_parser(source: str) -> Type[Parser[Any]]:
     # Combine parse_string() and generate_parser().
     grammar = parse_string(source, GrammarParser)
     return generate_parser(grammar)

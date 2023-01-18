@@ -681,7 +681,7 @@ def test_locations_in_alt_action_and_group() -> None:
     p = ast.dump(ast.parse(source).body[0].value, include_attributes=True).replace(
         " kind=None,", ""
     )
-    diff = "\n".join(difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen"))
+    diff = "\n".join(difflib.unified_diff(o.split("\n"), p.split("\n"), "python-pegen", "cpython"))
     if diff:
         print(diff)
     assert not diff

@@ -8,12 +8,11 @@ import io
 import itertools
 import os
 import sys
-import token
 from typing import (
-    Any, Callable, Iterator, List, Literal, Tuple, TypeVar, Union, NoReturn
+    Any, Callable, Iterator, List, Literal, NoReturn, Sequence, Tuple, TypeVar, Union
 )
 
-from pegen.tokenizer import Tokenizer
+from pegen.tokenizer import Tokenizer, PythonTokenTypes, TokenInfo
 
 # Singleton ast nodes, created once for efficiency
 Load = ast.Load()
@@ -67,7 +66,7 @@ def parse_file(
             if token_stream_factory else
             tokenize.generate_tokens(f.readline)
         )
-        tokenizer = Tokenizer(tok_stream, verbose=verbose, path=path)
+        tokenizer = Tokenizer(tok_stream, PythonTokenTypes(), verbose=verbose, path=path)
         parser = PythonParser(
             tokenizer,
             verbose=verbose,
@@ -92,7 +91,7 @@ def parse_string(
         if token_stream_factory else
         tokenize.generate_tokens(io.StringIO(source).readline)
     )
-    tokenizer = Tokenizer(tok_stream, verbose=verbose)
+    tokenizer = Tokenizer(tok_stream, PythonTokenTypes(), verbose=verbose)
     parser = PythonParser(tokenizer, verbose=verbose, py_version=py_version)
     return parser.parse(mode if mode == "eval" else "file")
 
@@ -103,13 +102,20 @@ class Target(enum.Enum):
     DEL_TARGETS = enum.auto()
 
 
-class Parser(Parser):
+T = TypeVar("T")
+A = TypeVar(
+    "A",
+    bound=Union[ast.Name, ast.Attribute, ast.Subscript, ast.List, ast.Tuple, ast.Starred]
+)
+
+
+class Parser(Parser[T]):
 
     #: Name of the source file, used in error reports
     filename : str
 
     def __init__(self,
-        tokenizer: Tokenizer, *,
+        tokenizer: Tokenizer[T], *,
         verbose: bool = False,
         filename: str = "<unknown>",
         py_version: Optional[tuple] = None,
@@ -162,7 +168,7 @@ class Parser(Parser):
             args += (last_token.end[0], last_token.end[1] + 1)
         raise IndentationError(msg, args)
 
-    def get_expr_name(self, node) -> str:
+    def get_expr_name(self, node: ast.AST) -> str:
         """Get a descriptive name for an expression."""
         # See https://github.com/python/cpython/blob/master/Parser/pegen.c#L161
         assert node is not None
@@ -222,24 +228,24 @@ class Parser(Parser):
         else:
             return node
 
-    def set_expr_context(self, node, context):
+    def set_expr_context(self, node: A, context: Union[ast.Load, ast.Store, ast.Del]) -> A:
         """Set the context (Load, Store, Del) of an ast node."""
         node.ctx = context
         return node
 
-    def ensure_real(self, number: ast.Constant):
+    def ensure_real(self, number: TokenInfo) -> float:
         value = ast.literal_eval(number.string)
         if type(value) is complex:
             self.raise_syntax_error_known_location("real number required in complex literal", number)
         return value
 
-    def ensure_imaginary(self, number:  ast.Constant):
+    def ensure_imaginary(self, number:  TokenInfo) -> complex:
         value = ast.literal_eval(number.string)
         if type(value) is not complex:
             self.raise_syntax_error_known_location("imaginary number required in complex literal", number)
         return value
 
-    def generate_ast_for_string(self, tokens):
+    def generate_ast_for_string(self, tokens: Sequence[TokenInfo[T]]) -> ast.AST:
         """Generate AST nodes for strings."""
         err_args = None
         line_offset = tokens[0].start[0]
