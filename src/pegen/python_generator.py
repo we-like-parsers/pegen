@@ -330,11 +330,11 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
         if not name:
             # Parentheses are needed because the trailing comma may appear :>
-            self.print(f"({call})")
+            self.print(f"({call}) is not None")
         else:
             if name != "cut":
                 name = self.dedupe(name)
-            self.print(f"({name} := {call})")
+            self.print(f"({name} := {call}) is not None")
 
     def visit_Rhs(self, node: Rhs, is_loop: bool = False, is_gather: bool = False) -> None:
         if is_loop:
