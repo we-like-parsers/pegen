@@ -278,6 +278,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
     def visit_Rule(self, node: Rule) -> None:
         is_loop = node.is_loop()
+        is_loop1 = node.is_loop1()
         is_gather = node.is_gather()
         rhs = node.flatten()
         if node.left_recursive:
@@ -309,6 +310,10 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 self.print("children = []")
             self.visit(rhs, is_loop=is_loop, is_gather=is_gather)
             if is_loop:
+                if is_loop1:
+                    self.print("self._matched = bool(children)")
+                else:
+                    self.print("self._matched = True")
                 self.add_return("children")
             else:
                 self.add_return("None")
@@ -320,6 +325,11 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         self, node: NamedItem, used: Optional[Set[str]], unreachable: bool
     ) -> None:
         name, call = self.callmakervisitor.visit(node.item)
+
+        # Essentially make all calls evaluate to True
+        if not call.endswith(","):
+            call += ","
+
         if unreachable:
             name = None
         elif node.name:
@@ -330,11 +340,13 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
         if not name:
             # Parentheses are needed because the trailing comma may appear :>
-            self.print(f"({call})")
+            code = f"({call})"
         else:
             if name != "cut":
                 name = self.dedupe(name)
-            self.print(f"({name} := {call})")
+            code = f"({name} := {call})"
+
+        self.print(f"({code} and self._matched)")
 
     def visit_Rhs(self, node: Rhs, is_loop: bool = False, is_gather: bool = False) -> None:
         if is_loop:
@@ -417,8 +429,6 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     else:
                         self.print("and")
                     self.visit(item, used=used, unreachable=unreachable)
-                    if is_gather:
-                        self.print("is not None")
 
             self.print("):")
             with self.indent():
