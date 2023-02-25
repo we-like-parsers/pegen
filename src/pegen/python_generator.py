@@ -33,9 +33,9 @@ import ast
 import sys
 import tokenize
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
-from pegen.parser import memoize, memoize_left_rec, logger, Parser
+from pegen.parser import memoize, memoize_left_rec, logger, Parser, not_parsed, NotParsedMarker
 
 """
 MODULE_SUFFIX = """
@@ -155,23 +155,20 @@ class PythonCallMakerVisitor(GrammarVisitor):
         # Note trailing comma (the call may already have one comma
         # at the end, for example when rules have both repeat0 and optional
         # markers, e.g: [rule*])
-        if call.endswith(","):
-            return "opt", call
-        else:
-            return "opt", f"{call},"
+        return "opt", f"self.make_opt({call})"
 
     def visit_Repeat0(self, node: Repeat0) -> Tuple[str, str]:
         if node in self.cache:
             return self.cache[node]
         name = self.gen.name_loop(node.node, False)
-        self.cache[node] = name, f"self.{name}(),"  # Also a trailing comma!
+        self.cache[node] = name, f"self.{name}()"
         return self.cache[node]
 
     def visit_Repeat1(self, node: Repeat1) -> Tuple[str, str]:
         if node in self.cache:
             return self.cache[node]
         name = self.gen.name_loop(node.node, True)
-        self.cache[node] = name, f"self.{name}()"  # But no trailing comma here!
+        self.cache[node] = name, f"self.{name}()"
         return self.cache[node]
 
     def visit_Gather(self, node: Gather) -> Tuple[str, str]:
@@ -278,6 +275,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
     def visit_Rule(self, node: Rule) -> None:
         is_loop = node.is_loop()
+        is_loop1 = node.is_loop1()
         is_gather = node.is_gather()
         rhs = node.flatten()
         if node.left_recursive:
@@ -290,7 +288,8 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         else:
             self.print("@memoize")
         node_type = node.type or "Any"
-        self.print(f"def {node.name}(self) -> Optional[{node_type}]:")
+        return_type = f"Optional[{node_type}]" if node.nullable else node_type
+        self.print(f"def {node.name}(self) -> Union[{return_type}, NotParsedMarker]:")
         with self.indent():
             self.print(f"# {node.name}: {rhs}")
             if node.nullable:
@@ -309,9 +308,15 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 self.print("children = []")
             self.visit(rhs, is_loop=is_loop, is_gather=is_gather)
             if is_loop:
-                self.add_return("children")
+                if is_loop1:
+                    self.print("if len(children) >= 1:")
+                    with self.indent():
+                        self.add_return("children")
+                    self.add_return("not_parsed")
+                else:
+                    self.add_return("children")
             else:
-                self.add_return("None")
+                self.add_return("not_parsed")
 
         if node.name.endswith("without_invalid"):
             self.cleanup_statements.pop()
@@ -330,11 +335,11 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
         if not name:
             # Parentheses are needed because the trailing comma may appear :>
-            self.print(f"({call})")
+            self.print(f"({call}) is not not_parsed")
         else:
             if name != "cut":
                 name = self.dedupe(name)
-            self.print(f"({name} := {call})")
+            self.print(f"({name} := {call}) is not not_parsed")
 
     def visit_Rhs(self, node: Rhs, is_loop: bool = False, is_gather: bool = False) -> None:
         if is_loop:
@@ -417,8 +422,6 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     else:
                         self.print("and")
                     self.visit(item, used=used, unreachable=unreachable)
-                    if is_gather:
-                        self.print("is not None")
 
             self.print("):")
             with self.indent():
@@ -430,4 +433,4 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             if has_cut:
                 self.print("if cut:")
                 with self.indent():
-                    self.add_return("None")
+                    self.add_return("not_parsed")

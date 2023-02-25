@@ -6,13 +6,22 @@ import token
 import tokenize
 import traceback
 from abc import ABC, abstractmethod
-from typing import Any, Callable, ClassVar, Dict, Optional, Tuple, Type, TypeVar, cast
+from enum import Enum
+from typing import Any, Callable, ClassVar, Dict, Optional, Tuple, Type, TypeVar, cast, Union, Literal, final
 
 from pegen.tokenizer import Mark, Tokenizer, exact_token_types
 
 T = TypeVar("T")
 P = TypeVar("P", bound="Parser")
 F = TypeVar("F", bound=Callable[..., Any])
+
+
+@final
+class NotParsedMarker(Enum):
+    marker = 0
+
+
+not_parsed = NotParsedMarker.marker
 
 
 def logger(method: F) -> F:
@@ -75,11 +84,11 @@ def memoize(method: F) -> F:
     return cast(F, memoize_wrapper)
 
 
-def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Optional[T]]:
+def memoize_left_rec(method: Callable[[P], Union[T, NotParsedMarker]]) -> Callable[[P], Union[T, NotParsedMarker]]:
     """Memoize a left-recursive symbol method."""
     method_name = method.__name__
 
-    def memoize_left_rec_wrapper(self: P) -> Optional[T]:
+    def memoize_left_rec_wrapper(self: P) -> Union[T, NotParsedMarker]:
         mark = self._mark()
         key = mark, method_name, ()
         # Fast path: cache hit, and not verbose.
@@ -104,8 +113,8 @@ def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Option
             # (http://web.cs.ucla.edu/~todd/research/pub.php?id=pepm08).
 
             # Prime the cache with a failure.
-            self._cache[key] = None, mark
-            lastresult, lastmark = None, mark
+            self._cache[key] = not_parsed, mark
+            lastresult, lastmark = not_parsed, mark  # type: Union[T, NotParsedMarker], int
             depth = 0
             if verbose:
                 print(f"{fill}Recursive {method_name} at {mark} depth {depth}")
@@ -196,49 +205,49 @@ class Parser(ABC):
         return f"{tok.start[0]}.{tok.start[1]}: {token.tok_name[tok.type]}:{tok.string!r}"
 
     @memoize
-    def name(self) -> Optional[tokenize.TokenInfo]:
+    def name(self) -> Union[tokenize.TokenInfo, NotParsedMarker]:
         tok = self._tokenizer.peek()
         if tok.type == token.NAME and tok.string not in self.KEYWORDS:
             return self._tokenizer.getnext()
-        return None
+        return not_parsed
 
     @memoize
-    def number(self) -> Optional[tokenize.TokenInfo]:
+    def number(self) -> Union[tokenize.TokenInfo, NotParsedMarker]:
         tok = self._tokenizer.peek()
         if tok.type == token.NUMBER:
             return self._tokenizer.getnext()
-        return None
+        return not_parsed
 
     @memoize
-    def string(self) -> Optional[tokenize.TokenInfo]:
+    def string(self) -> Union[tokenize.TokenInfo, NotParsedMarker]:
         tok = self._tokenizer.peek()
         if tok.type == token.STRING:
             return self._tokenizer.getnext()
-        return None
+        return not_parsed
 
     @memoize
-    def op(self) -> Optional[tokenize.TokenInfo]:
+    def op(self) -> Union[tokenize.TokenInfo, NotParsedMarker]:
         tok = self._tokenizer.peek()
         if tok.type == token.OP:
             return self._tokenizer.getnext()
-        return None
+        return not_parsed
 
     @memoize
-    def type_comment(self) -> Optional[tokenize.TokenInfo]:
+    def type_comment(self) -> Union[tokenize.TokenInfo, NotParsedMarker]:
         tok = self._tokenizer.peek()
         if tok.type == token.TYPE_COMMENT:
             return self._tokenizer.getnext()
-        return None
+        return not_parsed
 
     @memoize
-    def soft_keyword(self) -> Optional[tokenize.TokenInfo]:
+    def soft_keyword(self) -> Union[tokenize.TokenInfo, NotParsedMarker]:
         tok = self._tokenizer.peek()
         if tok.type == token.NAME and tok.string in self.SOFT_KEYWORDS:
             return self._tokenizer.getnext()
-        return None
+        return not_parsed
 
     @memoize
-    def expect(self, type: str) -> Optional[tokenize.TokenInfo]:
+    def expect(self, type: str) -> Union[tokenize.TokenInfo, NotParsedMarker]:
         tok = self._tokenizer.peek()
         if tok.string == type:
             return self._tokenizer.getnext()
@@ -250,10 +259,10 @@ class Parser(ABC):
                 return self._tokenizer.getnext()
         if tok.type == token.OP and tok.string == type:
             return self._tokenizer.getnext()
-        return None
+        return not_parsed
 
-    def expect_forced(self, res: Any, expectation: str) -> Optional[tokenize.TokenInfo]:
-        if res is None:
+    def expect_forced(self, res: Any, expectation: str) -> Union[tokenize.TokenInfo, NotParsedMarker]:
+        if res is not_parsed:
             raise self.make_syntax_error(f"expected {expectation}")
         return res
 
@@ -263,15 +272,18 @@ class Parser(ABC):
         self._reset(mark)
         return ok
 
-    def negative_lookahead(self, func: Callable[..., object], *args: object) -> bool:
+    def negative_lookahead(self, func: Callable[..., object], *args: object) -> Union[Literal[True], NotParsedMarker]:
         mark = self._mark()
         ok = func(*args)
         self._reset(mark)
-        return not ok
+        return not_parsed if ok is not not_parsed else True
 
     def make_syntax_error(self, message: str, filename: str = "<unknown>") -> SyntaxError:
         tok = self._tokenizer.diagnose()
         return SyntaxError(message, (filename, tok.start[0], 1 + tok.start[1], tok.line))
+
+    def make_opt(self, result: Union[T, NotParsedMarker]) -> Optional[T]:
+        return None if result is not_parsed else result
 
 
 def simple_parser_main(parser_class: Type[Parser]) -> None:
@@ -320,7 +332,7 @@ def simple_parser_main(parser_class: Type[Parser]) -> None:
 
     t1 = time.time()
 
-    if not tree:
+    if tree is not_parsed:
         err = parser.make_syntax_error(filename)
         traceback.print_exception(err.__class__, err, None)
         sys.exit(1)

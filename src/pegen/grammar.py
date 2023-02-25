@@ -80,6 +80,9 @@ class Rule:
     def is_loop(self) -> bool:
         return self.name.startswith("_loop")
 
+    def is_loop1(self) -> bool:
+        return self.name.startswith("_loop1")
+
     def is_gather(self) -> bool:
         return self.name.startswith("_gather")
 

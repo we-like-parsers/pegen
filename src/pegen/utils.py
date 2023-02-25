@@ -7,7 +7,7 @@ from typing import IO, Any, Dict, Final, Optional, Type, cast
 
 from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser
-from pegen.parser import Parser
+from pegen.parser import Parser, not_parsed
 from pegen.python_generator import PythonParserGenerator
 from pegen.tokenizer import Tokenizer
 
@@ -51,7 +51,7 @@ def run_parser(file: IO[bytes], parser_class: Type[Parser], *, verbose: bool = F
     tokenizer = Tokenizer(tokenize.generate_tokens(file.readline))  # type: ignore # typeshed issue #3515
     parser = parser_class(tokenizer, verbose=verbose)
     result = parser.start()
-    if result is None:
+    if result is not_parsed:
         raise parser.make_syntax_error("invalid syntax")
     return result
 

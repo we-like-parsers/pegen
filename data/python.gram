@@ -123,7 +123,7 @@ class Parser(Parser):
         self.call_invalid_rules = call_invalid_rules
         res = getattr(self, rule)()
 
-        if res is None:
+        if res is not_parsed:
 
             # Grab the last token that was parsed in the first run to avoid
             # polluting a generic error reports with progress made by invalid rules.
@@ -391,7 +391,7 @@ class Parser(Parser):
         return self._build_syntax_error(message)
 
     def expect_forced(self, res: Any, expectation: str) -> Optional[tokenize.TokenInfo]:
-        if res is None:
+        if res is not_parsed:
             last_token = self._tokenizer.diagnose()
             self.raise_raw_syntax_error(
                 f"expected {expectation}", last_token.start, last_token.start
@@ -488,7 +488,7 @@ statement_newline[list]:
     | a=compound_stmt NEWLINE { [a] }
     | simple_stmts
     | NEWLINE { [ast.Pass(LOCATIONS)] }
-    | ENDMARKER { None }
+    | ENDMARKER { [] }
 
 simple_stmts[list]:
     | a=simple_stmt !';' NEWLINE { [a] } # Not needed, there for speedup
@@ -1669,7 +1669,7 @@ invalid_arguments[NoReturn]:
             "Generator expression must be parenthesized",
             a[0][-1],
             (b[-1].ifs[-1] if b[-1].ifs else b[-1].iter),
-        ) if len(a[0]) > 1 else None
+        ) if len(a[0]) > 1 else not_parsed
      }
     | args ',' a=expression b=for_if_clauses {
         self.raise_syntax_error_known_range(
@@ -1709,7 +1709,7 @@ invalid_legacy_expression:
         self.raise_syntax_error_known_range(
             f"Missing parentheses in call to '{a.string}' . Did you mean {a.string}(...)?", a, b,
         ) if a.string in ("exec", "print") else
-        None
+        not_parsed
      }
 invalid_expression[NoReturn]:
     # !(NAME STRING) is not matched so we don't show this error with some invalid string prefixes like: kf"dsfsdf"
@@ -1718,7 +1718,7 @@ invalid_expression[NoReturn]:
         (
             self.raise_syntax_error_known_range("invalid syntax. Perhaps you forgot a comma?", a, b)
             if not isinstance(a, ast.Name) or a.id not in ("print", "exec")
-            else None
+            else not_parsed
         )
      }
     | a=disjunction 'if' b=disjunction !('else'|':') {
