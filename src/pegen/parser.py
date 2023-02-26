@@ -181,9 +181,6 @@ class Parser(ABC):
         # Are we looking for syntax error ? When true enable matching on invalid rules
         self.call_invalid_rules = False
 
-        # Was the last rule matched
-        self._matched = True
-
     @abstractmethod
     def start(self) -> Any:
         """Expected grammar entry point.
@@ -200,61 +197,48 @@ class Parser(ABC):
 
     @memoize
     def name(self) -> Optional[tokenize.TokenInfo]:
-        self._matched = True
         tok = self._tokenizer.peek()
         if tok.type == token.NAME and tok.string not in self.KEYWORDS:
             return self._tokenizer.getnext()
-        self._matched = False
         return None
 
     @memoize
     def number(self) -> Optional[tokenize.TokenInfo]:
-        self._matched = True
         tok = self._tokenizer.peek()
         if tok.type == token.NUMBER:
             return self._tokenizer.getnext()
-        self._matched = False
         return None
 
     @memoize
     def string(self) -> Optional[tokenize.TokenInfo]:
-        self._matched = True
         tok = self._tokenizer.peek()
         if tok.type == token.STRING:
             return self._tokenizer.getnext()
-        self._matched = False
         return None
 
     @memoize
     def op(self) -> Optional[tokenize.TokenInfo]:
-        self._matched = True
         tok = self._tokenizer.peek()
         if tok.type == token.OP:
             return self._tokenizer.getnext()
-        self._matched = False
         return None
 
     @memoize
     def type_comment(self) -> Optional[tokenize.TokenInfo]:
-        self._matched = True
         tok = self._tokenizer.peek()
         if tok.type == token.TYPE_COMMENT:
             return self._tokenizer.getnext()
-        self._matched = False
         return None
 
     @memoize
     def soft_keyword(self) -> Optional[tokenize.TokenInfo]:
-        self._matched = True
         tok = self._tokenizer.peek()
         if tok.type == token.NAME and tok.string in self.SOFT_KEYWORDS:
             return self._tokenizer.getnext()
-        self._matched = False
         return None
 
     @memoize
     def expect(self, type: str) -> Optional[tokenize.TokenInfo]:
-        self._matched = True
         tok = self._tokenizer.peek()
         if tok.string == type:
             return self._tokenizer.getnext()
@@ -266,7 +250,6 @@ class Parser(ABC):
                 return self._tokenizer.getnext()
         if tok.type == token.OP and tok.string == type:
             return self._tokenizer.getnext()
-        self._matched = False
         return None
 
     def expect_forced(self, res: Any, expectation: str) -> Optional[tokenize.TokenInfo]:

@@ -312,7 +312,6 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 self.print("self.call_invalid_rules = False")
                 self.cleanup_statements.append("self.call_invalid_rules = _prev_call_invalid")
 
-            self.print("self._matched = False")
             self.print("mark = self._mark()")
             if self.alts_uses_locations(node.rhs.alts):
                 self.print("tok = self._tokenizer.peek()")
@@ -321,13 +320,8 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 self.print("children = []")
             self.visit(rhs, properties=properties)
             if properties.is_loop:
-                if properties.is_loop1:
-                    self.print("self._matched = bool(children)")
-                else:
-                    self.print("self._matched = True")
                 self.add_return("children")
             else:
-                # self.print("self._matched = False")
                 self.add_return("None")
 
         if node.name.endswith("without_invalid"):
@@ -337,10 +331,6 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         self, node: NamedItem, used: Optional[Set[str]], unreachable: bool
     ) -> None:
         name, call = self.callmakervisitor.visit(node.item)
-
-        # Essentially make all calls evaluate to True
-        if not call.endswith(","):
-            call += ","
 
         if unreachable:
             name = None
@@ -358,7 +348,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 name = self.dedupe(name)
             code = f"({name} := {call})"
 
-        self.print(f"({code} and self._matched)")
+        self.print(code)
 
     def visit_Rhs(self, node: Rhs, properties: RuleProperties = RuleProperties()) -> None:
         if properties.is_loop:
@@ -440,6 +430,8 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                     else:
                         self.print("and")
                     self.visit(item, used=used, unreachable=unreachable)
+                    if properties.is_gather:
+                        self.print("is not None")
 
             self.print("):")
             with self.indent():
