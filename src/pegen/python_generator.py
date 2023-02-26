@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import ast
 import re
 import token
-from typing import IO, Any, Dict, List, Optional, Sequence, Set, Text, Tuple
+from typing import IO, Any, Dict, List, NamedTuple, Optional, Sequence, Set, Text, Tuple
 
 from pegen import grammar
 from pegen.grammar import (
@@ -214,6 +216,16 @@ class UsedNamesVisitor(ast.NodeVisitor):
         return {node.id}
 
 
+class RuleProperties(NamedTuple):
+    is_loop: bool = False
+    is_loop1: bool = False
+    is_gather: bool = False
+
+    @classmethod
+    def make(cls, rule: Rule) -> RuleProperties:
+        return cls(is_loop=rule.is_loop(), is_loop1=rule.is_loop1(), is_gather=rule.is_gather())
+
+
 class PythonParserGenerator(ParserGenerator, GrammarVisitor):
     def __init__(
         self,
@@ -277,9 +289,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         self.print(f"return {ret_val};")
 
     def visit_Rule(self, node: Rule) -> None:
-        is_loop = node.is_loop()
-        is_loop1 = node.is_loop1()
-        is_gather = node.is_gather()
+        properties = RuleProperties.make(node)
         rhs = node.flatten()
         if node.left_recursive:
             if node.leader:
@@ -302,20 +312,22 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 self.print("self.call_invalid_rules = False")
                 self.cleanup_statements.append("self.call_invalid_rules = _prev_call_invalid")
 
+            self.print("self._matched = False")
             self.print("mark = self._mark()")
             if self.alts_uses_locations(node.rhs.alts):
                 self.print("tok = self._tokenizer.peek()")
                 self.print("start_lineno, start_col_offset = tok.start")
-            if is_loop:
+            if properties.is_loop:
                 self.print("children = []")
-            self.visit(rhs, is_loop=is_loop, is_gather=is_gather)
-            if is_loop:
-                if is_loop1:
+            self.visit(rhs, properties=properties)
+            if properties.is_loop:
+                if properties.is_loop1:
                     self.print("self._matched = bool(children)")
                 else:
                     self.print("self._matched = True")
                 self.add_return("children")
             else:
+                # self.print("self._matched = False")
                 self.add_return("None")
 
         if node.name.endswith("without_invalid"):
@@ -348,23 +360,22 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
         self.print(f"({code} and self._matched)")
 
-    def visit_Rhs(self, node: Rhs, is_loop: bool = False, is_gather: bool = False) -> None:
-        if is_loop:
+    def visit_Rhs(self, node: Rhs, properties: RuleProperties = RuleProperties()) -> None:
+        if properties.is_loop:
             assert len(node.alts) == 1
         for alt in node.alts:
-            self.visit(alt, is_loop=is_loop, is_gather=is_gather)
+            self.visit(alt, properties=properties)
 
     def print_action(
         self,
         action: Optional[str],
         locations: bool,
         unreachable: bool,
-        is_gather: bool,
-        is_loop: bool,
+        properties: RuleProperties,
         has_invalid: bool,
     ) -> None:
         if not action:
-            if is_gather:
+            if properties.is_gather:
                 assert len(self.local_variable_names) == 2
                 action = f"[{self.local_variable_names[0]}] + {self.local_variable_names[1]}"
             else:
@@ -380,18 +391,18 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
             self.print("end_lineno, end_col_offset = tok.end")
 
-        if is_loop:
+        if properties.is_loop:
             self.print(f"children.append({action})")
             self.print("mark = self._mark()")
         else:
             self.add_return(f"{action}")
 
-    def visit_Alt(self, node: Alt, is_loop: bool, is_gather: bool) -> None:
+    def visit_Alt(self, node: Alt, properties: RuleProperties) -> None:
         has_cut = any(isinstance(item.item, Cut) for item in node.items)
         has_invalid = self.invalidvisitor.visit(node)
 
         action = node.action
-        if not action and not is_gather and has_invalid:
+        if not action and not properties.is_gather and has_invalid:
             action = "UNREACHABLE"
 
         locations = False
@@ -414,7 +425,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         with self.local_variable_context():
             if has_cut:
                 self.print("cut = False")
-            if is_loop:
+            if properties.is_loop:
                 self.print("while (")
             else:
                 self.print("if (")
@@ -433,7 +444,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print("):")
             with self.indent():
                 # flake8 complains that visit_Alt is too complicated, so here we are :P
-                self.print_action(action, locations, unreachable, is_gather, is_loop, has_invalid)
+                self.print_action(action, locations, unreachable, properties, has_invalid)
 
             self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.
