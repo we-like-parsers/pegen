@@ -32,7 +32,7 @@ from pegen.grammar import (
     Rule,
     RuleList,
     RuleName,
-    StringLeaf
+    StringLeaf,
 )
 from pegen.parser import Parser, logger, memoize, memoize_left_rec
 
@@ -43,7 +43,7 @@ class GeneratedParser(Parser):
     def start(self) -> Optional[Grammar]:
         # start: grammar $
         mark = self._mark()
-        if (grammar := self.grammar()) and (self.expect("ENDMARKER")):
+        if (grammar := self.grammar()) is not None and (self.expect("ENDMARKER")):
             return grammar
         self._reset(mark)
         return None
@@ -52,10 +52,10 @@ class GeneratedParser(Parser):
     def grammar(self) -> Optional[Grammar]:
         # grammar: metas rules | rules
         mark = self._mark()
-        if (metas := self.metas()) and (rules := self.rules()):
+        if (metas := self.metas()) is not None and (rules := self.rules()) is not None:
             return Grammar(rules, metas)
         self._reset(mark)
-        if rules := self.rules():
+        if (rules := self.rules()) is not None:
             return Grammar(rules, [])
         self._reset(mark)
         return None
@@ -64,10 +64,10 @@ class GeneratedParser(Parser):
     def metas(self) -> Optional[MetaList]:
         # metas: meta metas | meta
         mark = self._mark()
-        if (meta := self.meta()) and (metas := self.metas()):
+        if (meta := self.meta()) is not None and (metas := self.metas()) is not None:
             return [meta] + metas
         self._reset(mark)
-        if meta := self.meta():
+        if (meta := self.meta()) is not None:
             return [meta]
         self._reset(mark)
         return None
@@ -101,10 +101,10 @@ class GeneratedParser(Parser):
     def rules(self) -> Optional[RuleList]:
         # rules: rule rules | rule
         mark = self._mark()
-        if (rule := self.rule()) and (rules := self.rules()):
+        if (rule := self.rule()) is not None and (rules := self.rules()) is not None:
             return [rule] + rules
         self._reset(mark)
-        if rule := self.rule():
+        if (rule := self.rule()) is not None:
             return [rule]
         self._reset(mark)
         return None
@@ -114,33 +114,33 @@ class GeneratedParser(Parser):
         # rule: rulename memoflag? ":" alts NEWLINE INDENT more_alts DEDENT | rulename memoflag? ":" NEWLINE INDENT more_alts DEDENT | rulename memoflag? ":" alts NEWLINE
         mark = self._mark()
         if (
-            (rulename := self.rulename())
-            and (opt := self.memoflag(),)
+            (rulename := self.rulename()) is not None
+            and (opt := self.memoflag(),) is not None
             and (self.expect(":"))
-            and (alts := self.alts())
+            and (alts := self.alts()) is not None
             and (self.expect("NEWLINE"))
             and (self.expect("INDENT"))
-            and (more_alts := self.more_alts())
+            and (more_alts := self.more_alts()) is not None
             and (self.expect("DEDENT"))
         ):
             return Rule(rulename[0], rulename[1], Rhs(alts.alts + more_alts.alts), memo=opt)
         self._reset(mark)
         if (
-            (rulename := self.rulename())
-            and (opt := self.memoflag(),)
+            (rulename := self.rulename()) is not None
+            and (opt := self.memoflag(),) is not None
             and (self.expect(":"))
             and (self.expect("NEWLINE"))
             and (self.expect("INDENT"))
-            and (more_alts := self.more_alts())
+            and (more_alts := self.more_alts()) is not None
             and (self.expect("DEDENT"))
         ):
             return Rule(rulename[0], rulename[1], more_alts, memo=opt)
         self._reset(mark)
         if (
-            (rulename := self.rulename())
-            and (opt := self.memoflag(),)
+            (rulename := self.rulename()) is not None
+            and (opt := self.memoflag(),) is not None
             and (self.expect(":"))
-            and (alts := self.alts())
+            and (alts := self.alts()) is not None
             and (self.expect("NEWLINE"))
         ):
             return Rule(rulename[0], rulename[1], alts, memo=opt)
@@ -151,7 +151,7 @@ class GeneratedParser(Parser):
     def rulename(self) -> Optional[RuleName]:
         # rulename: NAME annotation | NAME
         mark = self._mark()
-        if (name := self.name()) and (annotation := self.annotation()):
+        if (name := self.name()) and (annotation := self.annotation()) is not None:
             return (name.string, annotation)
         self._reset(mark)
         if name := self.name():
@@ -172,10 +172,14 @@ class GeneratedParser(Parser):
     def alts(self) -> Optional[Rhs]:
         # alts: alt "|" alts | alt
         mark = self._mark()
-        if (alt := self.alt()) and (self.expect("|")) and (alts := self.alts()):
+        if (
+            (alt := self.alt()) is not None
+            and (self.expect("|"))
+            and (alts := self.alts()) is not None
+        ):
             return Rhs([alt] + alts.alts)
         self._reset(mark)
-        if alt := self.alt():
+        if (alt := self.alt()) is not None:
             return Rhs([alt])
         self._reset(mark)
         return None
@@ -186,13 +190,13 @@ class GeneratedParser(Parser):
         mark = self._mark()
         if (
             (self.expect("|"))
-            and (alts := self.alts())
+            and (alts := self.alts()) is not None
             and (self.expect("NEWLINE"))
-            and (more_alts := self.more_alts())
+            and (more_alts := self.more_alts()) is not None
         ):
             return Rhs(alts.alts + more_alts.alts)
         self._reset(mark)
-        if (self.expect("|")) and (alts := self.alts()) and (self.expect("NEWLINE")):
+        if (self.expect("|")) and (alts := self.alts()) is not None and (self.expect("NEWLINE")):
             return Rhs(alts.alts)
         self._reset(mark)
         return None
@@ -201,16 +205,20 @@ class GeneratedParser(Parser):
     def alt(self) -> Optional[Alt]:
         # alt: items '$' action | items '$' | items action | items
         mark = self._mark()
-        if (items := self.items()) and (self.expect("$")) and (action := self.action()):
+        if (
+            (items := self.items()) is not None
+            and (self.expect("$"))
+            and (action := self.action()) is not None
+        ):
             return Alt(items + [NamedItem(None, NameLeaf("ENDMARKER"))], action=action)
         self._reset(mark)
-        if (items := self.items()) and (self.expect("$")):
+        if (items := self.items()) is not None and (self.expect("$")):
             return Alt(items + [NamedItem(None, NameLeaf("ENDMARKER"))], action=None)
         self._reset(mark)
-        if (items := self.items()) and (action := self.action()):
+        if (items := self.items()) is not None and (action := self.action()) is not None:
             return Alt(items, action=action)
         self._reset(mark)
-        if items := self.items():
+        if (items := self.items()) is not None:
             return Alt(items, action=None)
         self._reset(mark)
         return None
@@ -219,10 +227,10 @@ class GeneratedParser(Parser):
     def items(self) -> Optional[NamedItemList]:
         # items: named_item items | named_item
         mark = self._mark()
-        if (named_item := self.named_item()) and (items := self.items()):
+        if (named_item := self.named_item()) is not None and (items := self.items()) is not None:
             return [named_item] + items
         self._reset(mark)
-        if named_item := self.named_item():
+        if (named_item := self.named_item()) is not None:
             return [named_item]
         self._reset(mark)
         return None
@@ -234,10 +242,10 @@ class GeneratedParser(Parser):
         cut = False
         if (
             (name := self.name())
-            and (annotation := self.annotation())
+            and (annotation := self.annotation()) is not None
             and (self.expect("="))
             and (cut := True)
-            and (item := self.item())
+            and (item := self.item()) is not None
         ):
             return NamedItem(name.string, item, annotation)
         self._reset(mark)
@@ -248,19 +256,19 @@ class GeneratedParser(Parser):
             (name := self.name())
             and (self.expect("="))
             and (cut := True)
-            and (item := self.item())
+            and (item := self.item()) is not None
         ):
             return NamedItem(name.string, item)
         self._reset(mark)
         if cut:
             return None
-        if item := self.item():
+        if (item := self.item()) is not None:
             return NamedItem(None, item)
         self._reset(mark)
-        if it := self.forced_atom():
+        if (it := self.forced_atom()) is not None:
             return NamedItem(None, it)
         self._reset(mark)
-        if it := self.lookahead():
+        if (it := self.lookahead()) is not None:
             return NamedItem(None, it)
         self._reset(mark)
         return None
@@ -270,7 +278,12 @@ class GeneratedParser(Parser):
         # forced_atom: '&' '&' ~ atom
         mark = self._mark()
         cut = False
-        if (self.expect("&")) and (self.expect("&")) and (cut := True) and (atom := self.atom()):
+        if (
+            (self.expect("&"))
+            and (self.expect("&"))
+            and (cut := True)
+            and (atom := self.atom()) is not None
+        ):
             return Forced(atom)
         self._reset(mark)
         if cut:
@@ -282,13 +295,13 @@ class GeneratedParser(Parser):
         # lookahead: '&' ~ atom | '!' ~ atom | '~'
         mark = self._mark()
         cut = False
-        if (self.expect("&")) and (cut := True) and (atom := self.atom()):
+        if (self.expect("&")) and (cut := True) and (atom := self.atom()) is not None:
             return PositiveLookahead(atom)
         self._reset(mark)
         if cut:
             return None
         cut = False
-        if (self.expect("!")) and (cut := True) and (atom := self.atom()):
+        if (self.expect("!")) and (cut := True) and (atom := self.atom()) is not None:
             return NegativeLookahead(atom)
         self._reset(mark)
         if cut:
@@ -303,29 +316,34 @@ class GeneratedParser(Parser):
         # item: '[' ~ alts ']' | atom '?' | atom '*' | atom '+' | atom '.' atom '+' | atom
         mark = self._mark()
         cut = False
-        if (self.expect("[")) and (cut := True) and (alts := self.alts()) and (self.expect("]")):
+        if (
+            (self.expect("["))
+            and (cut := True)
+            and (alts := self.alts()) is not None
+            and (self.expect("]"))
+        ):
             return Opt(alts)
         self._reset(mark)
         if cut:
             return None
-        if (atom := self.atom()) and (self.expect("?")):
+        if (atom := self.atom()) is not None and (self.expect("?")):
             return Opt(atom)
         self._reset(mark)
-        if (atom := self.atom()) and (self.expect("*")):
+        if (atom := self.atom()) is not None and (self.expect("*")):
             return Repeat0(atom)
         self._reset(mark)
-        if (atom := self.atom()) and (self.expect("+")):
+        if (atom := self.atom()) is not None and (self.expect("+")):
             return Repeat1(atom)
         self._reset(mark)
         if (
-            (sep := self.atom())
+            (sep := self.atom()) is not None
             and (self.expect("."))
-            and (node := self.atom())
+            and (node := self.atom()) is not None
             and (self.expect("+"))
         ):
             return Gather(sep, node)
         self._reset(mark)
-        if atom := self.atom():
+        if (atom := self.atom()) is not None:
             return atom
         self._reset(mark)
         return None
@@ -335,7 +353,12 @@ class GeneratedParser(Parser):
         # atom: '(' ~ alts ')' | NAME | STRING
         mark = self._mark()
         cut = False
-        if (self.expect("(")) and (cut := True) and (alts := self.alts()) and (self.expect(")")):
+        if (
+            (self.expect("("))
+            and (cut := True)
+            and (alts := self.alts()) is not None
+            and (self.expect(")"))
+        ):
             return Group(alts)
         self._reset(mark)
         if cut:
@@ -356,7 +379,7 @@ class GeneratedParser(Parser):
         if (
             (self.expect("{"))
             and (cut := True)
-            and (target_atoms := self.target_atoms())
+            and (target_atoms := self.target_atoms()) is not None
             and (self.expect("}"))
         ):
             return target_atoms
@@ -373,7 +396,7 @@ class GeneratedParser(Parser):
         if (
             (self.expect("["))
             and (cut := True)
-            and (target_atoms := self.target_atoms())
+            and (target_atoms := self.target_atoms()) is not None
             and (self.expect("]"))
         ):
             return target_atoms
@@ -386,10 +409,12 @@ class GeneratedParser(Parser):
     def target_atoms(self) -> Optional[str]:
         # target_atoms: target_atom target_atoms | target_atom
         mark = self._mark()
-        if (target_atom := self.target_atom()) and (target_atoms := self.target_atoms()):
+        if (target_atom := self.target_atom()) is not None and (
+            target_atoms := self.target_atoms()
+        ) is not None:
             return target_atom + " " + target_atoms
         self._reset(mark)
-        if target_atom := self.target_atom():
+        if (target_atom := self.target_atom()) is not None:
             return target_atom
         self._reset(mark)
         return None
@@ -402,7 +427,7 @@ class GeneratedParser(Parser):
         if (
             (self.expect("{"))
             and (cut := True)
-            and (atoms := self.target_atoms(),)
+            and (atoms := self.target_atoms(),) is not None
             and (self.expect("}"))
         ):
             return "{" + (atoms or "") + "}"
@@ -413,7 +438,7 @@ class GeneratedParser(Parser):
         if (
             (self.expect("["))
             and (cut := True)
-            and (atoms := self.target_atoms(),)
+            and (atoms := self.target_atoms(),) is not None
             and (self.expect("]"))
         ):
             return "[" + (atoms or "") + "]"
