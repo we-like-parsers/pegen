@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import ast
 import re
 import token
-from typing import IO, Any, Dict, List, Optional, Sequence, Set, Text, Tuple
+from typing import IO, Any, Dict, List, NamedTuple, Optional, Sequence, Set, Text, Tuple
 
 from pegen import grammar
 from pegen.grammar import (
@@ -98,103 +100,104 @@ class PythonCallMakerVisitor(GrammarVisitor):
         self.keywords: Set[str] = set()
         self.soft_keywords: Set[str] = set()
 
-    def visit_NameLeaf(self, node: NameLeaf) -> Tuple[Optional[str], str]:
+    def visit_NameLeaf(self, node: NameLeaf) -> Tuple[Optional[str], str, bool]:
         name = node.value
         if name == "SOFT_KEYWORD":
-            return "soft_keyword", "self.soft_keyword()"
+            return "soft_keyword", "self.soft_keyword()", False
         if name in ("NAME", "NUMBER", "STRING", "OP", "TYPE_COMMENT"):
             name = name.lower()
-            return name, f"self.{name}()"
+            return name, f"self.{name}()", False
         if name in ("NEWLINE", "DEDENT", "INDENT", "ENDMARKER", "ASYNC", "AWAIT"):
             # Avoid using names that can be Python keywords
-            return "_" + name.lower(), f"self.expect({name!r})"
-        return name, f"self.{name}()"
+            return "_" + name.lower(), f"self.expect({name!r})", False
+        return name, f"self.{name}()", True
 
-    def visit_StringLeaf(self, node: StringLeaf) -> Tuple[str, str]:
+    def visit_StringLeaf(self, node: StringLeaf) -> Tuple[str, str, bool]:
         val = ast.literal_eval(node.value)
         if re.match(r"[a-zA-Z_]\w*\Z", val):  # This is a keyword
             if node.value.endswith("'"):
                 self.keywords.add(val)
             else:
                 self.soft_keywords.add(val)
-        return "literal", f"self.expect({node.value})"
+        return "literal", f"self.expect({node.value})", False
 
-    def visit_Rhs(self, node: Rhs) -> Tuple[Optional[str], str]:
+    def visit_Rhs(self, node: Rhs) -> Tuple[Optional[str], str, bool]:
         if node in self.cache:
             return self.cache[node]
         if len(node.alts) == 1 and len(node.alts[0].items) == 1:
             self.cache[node] = self.visit(node.alts[0].items[0])
         else:
             name = self.gen.name_node(node)
-            self.cache[node] = name, f"self.{name}()"
+            self.cache[node] = name, f"self.{name}()", False
         return self.cache[node]
 
-    def visit_NamedItem(self, node: NamedItem) -> Tuple[Optional[str], str]:
-        name, call = self.visit(node.item)
+    def visit_NamedItem(self, node: NamedItem) -> Tuple[Optional[str], str, bool]:
+        name, call, not_none = self.visit(node.item)
         if node.name:
             name = node.name
-        return name, call
+        return name, call, not_none
 
-    def lookahead_call_helper(self, node: Lookahead) -> Tuple[str, str]:
-        name, call = self.visit(node.node)
+    def lookahead_call_helper(self, node: Lookahead) -> Tuple[str, str, bool]:
+        name, call, not_none = self.visit(node.node)
         head, tail = call.split("(", 1)
         assert tail[-1] == ")"
         tail = tail[:-1]
-        return head, tail
+        return head, tail, not_none
 
-    def visit_PositiveLookahead(self, node: PositiveLookahead) -> Tuple[None, str]:
-        head, tail = self.lookahead_call_helper(node)
-        return None, f"self.positive_lookahead({head}, {tail})"
+    def visit_PositiveLookahead(self, node: PositiveLookahead) -> Tuple[None, str, bool]:
+        head, tail, not_none = self.lookahead_call_helper(node)
+        return None, f"self.positive_lookahead({head}, {tail})", not_none
 
-    def visit_NegativeLookahead(self, node: NegativeLookahead) -> Tuple[None, str]:
-        head, tail = self.lookahead_call_helper(node)
-        return None, f"self.negative_lookahead({head}, {tail})"
+    def visit_NegativeLookahead(self, node: NegativeLookahead) -> Tuple[None, str, bool]:
+        head, tail, not_none = self.lookahead_call_helper(node)
+        return None, f"self.negative_lookahead({head}, {tail})", not_none
 
-    def visit_Opt(self, node: Opt) -> Tuple[str, str]:
-        name, call = self.visit(node.node)
+    def visit_Opt(self, node: Opt) -> Tuple[str, str, bool]:
+        name, call, not_none = self.visit(node.node)
         # Note trailing comma (the call may already have one comma
         # at the end, for example when rules have both repeat0 and optional
         # markers, e.g: [rule*])
         if call.endswith(","):
-            return "opt", call
+            return "opt", call, not_none
         else:
-            return "opt", f"{call},"
+            return "opt", f"{call},", not_none
 
-    def visit_Repeat0(self, node: Repeat0) -> Tuple[str, str]:
+    def visit_Repeat0(self, node: Repeat0) -> Tuple[str, str, bool]:
         if node in self.cache:
             return self.cache[node]
         name = self.gen.name_loop(node.node, False)
-        self.cache[node] = name, f"self.{name}(),"  # Also a trailing comma!
+        self.cache[node] = name, f"self.{name}(),", False  # Also a trailing comma!
         return self.cache[node]
 
-    def visit_Repeat1(self, node: Repeat1) -> Tuple[str, str]:
+    def visit_Repeat1(self, node: Repeat1) -> Tuple[str, str, bool]:
         if node in self.cache:
             return self.cache[node]
         name = self.gen.name_loop(node.node, True)
-        self.cache[node] = name, f"self.{name}()"  # But no trailing comma here!
+        self.cache[node] = name, f"self.{name}()", False  # But no trailing comma here!
         return self.cache[node]
 
-    def visit_Gather(self, node: Gather) -> Tuple[str, str]:
+    def visit_Gather(self, node: Gather) -> Tuple[str, str, bool]:
         if node in self.cache:
             return self.cache[node]
         name = self.gen.name_gather(node)
-        self.cache[node] = name, f"self.{name}()"  # No trailing comma here either!
+        self.cache[node] = name, f"self.{name}()", False  # No trailing comma here either!
         return self.cache[node]
 
-    def visit_Group(self, node: Group) -> Tuple[Optional[str], str]:
+    def visit_Group(self, node: Group) -> Tuple[Optional[str], str, bool]:
         return self.visit(node.rhs)
 
-    def visit_Cut(self, node: Cut) -> Tuple[str, str]:
-        return "cut", "True"
+    def visit_Cut(self, node: Cut) -> Tuple[str, str, bool]:
+        return "cut", "True", False
 
-    def visit_Forced(self, node: Forced) -> Tuple[str, str]:
+    def visit_Forced(self, node: Forced) -> Tuple[str, str, bool]:
         if isinstance(node.node, Group):
-            _, val = self.visit(node.node.rhs)
-            return "forced", f"self.expect_forced({val}, '''({node.node.rhs!s})''')"
+            _, val, not_none = self.visit(node.node.rhs)
+            return "forced", f"self.expect_forced({val}, '''({node.node.rhs!s})''')", not_none
         else:
             return (
                 "forced",
                 f"self.expect_forced(self.expect({node.node.value}), {node.node.value!r})",
+                False,
             )
 
 
@@ -212,6 +215,16 @@ class UsedNamesVisitor(ast.NodeVisitor):
 
     def visit_Name(self, node: ast.Name) -> Set[str]:
         return {node.id}
+
+
+class RuleProperties(NamedTuple):
+    is_loop: bool = False
+    is_loop1: bool = False
+    is_gather: bool = False
+
+    @classmethod
+    def make(cls, rule: Rule) -> RuleProperties:
+        return cls(is_loop=rule.is_loop(), is_loop1=rule.is_loop1(), is_gather=rule.is_gather())
 
 
 class PythonParserGenerator(ParserGenerator, GrammarVisitor):
@@ -277,8 +290,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         self.print(f"return {ret_val};")
 
     def visit_Rule(self, node: Rule) -> None:
-        is_loop = node.is_loop()
-        is_gather = node.is_gather()
+        properties = RuleProperties.make(node)
         rhs = node.flatten()
         if node.left_recursive:
             if node.leader:
@@ -305,10 +317,10 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             if self.alts_uses_locations(node.rhs.alts):
                 self.print("tok = self._tokenizer.peek()")
                 self.print("start_lineno, start_col_offset = tok.start")
-            if is_loop:
+            if properties.is_loop:
                 self.print("children = []")
-            self.visit(rhs, is_loop=is_loop, is_gather=is_gather)
-            if is_loop:
+            self.visit(rhs, properties=properties)
+            if properties.is_loop:
                 self.add_return("children")
             else:
                 self.add_return("None")
@@ -317,9 +329,14 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.cleanup_statements.pop()
 
     def visit_NamedItem(
-        self, node: NamedItem, used: Optional[Set[str]], unreachable: bool
+        self,
+        node: NamedItem,
+        used: Optional[Set[str]],
+        unreachable: bool,
+        properties: RuleProperties,
     ) -> None:
-        name, call = self.callmakervisitor.visit(node.item)
+        name, call, not_none = self.callmakervisitor.visit(node.item)
+
         if unreachable:
             name = None
         elif node.name:
@@ -330,29 +347,33 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
 
         if not name:
             # Parentheses are needed because the trailing comma may appear :>
-            self.print(f"({call})")
+            code = f"({call})"
         else:
             if name != "cut":
                 name = self.dedupe(name)
-            self.print(f"({name} := {call})")
+            code = f"({name} := {call})"
 
-    def visit_Rhs(self, node: Rhs, is_loop: bool = False, is_gather: bool = False) -> None:
-        if is_loop:
+        if properties.is_gather or not_none:
+            code += " is not None"
+
+        self.print(code)
+
+    def visit_Rhs(self, node: Rhs, properties: RuleProperties = RuleProperties()) -> None:
+        if properties.is_loop:
             assert len(node.alts) == 1
         for alt in node.alts:
-            self.visit(alt, is_loop=is_loop, is_gather=is_gather)
+            self.visit(alt, properties=properties)
 
     def print_action(
         self,
         action: Optional[str],
         locations: bool,
         unreachable: bool,
-        is_gather: bool,
-        is_loop: bool,
+        properties: RuleProperties,
         has_invalid: bool,
     ) -> None:
         if not action:
-            if is_gather:
+            if properties.is_gather:
                 assert len(self.local_variable_names) == 2
                 action = f"[{self.local_variable_names[0]}] + {self.local_variable_names[1]}"
             else:
@@ -368,18 +389,18 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print("tok = self._tokenizer.get_last_non_whitespace_token()")
             self.print("end_lineno, end_col_offset = tok.end")
 
-        if is_loop:
+        if properties.is_loop:
             self.print(f"children.append({action})")
             self.print("mark = self._mark()")
         else:
             self.add_return(f"{action}")
 
-    def visit_Alt(self, node: Alt, is_loop: bool, is_gather: bool) -> None:
+    def visit_Alt(self, node: Alt, properties: RuleProperties) -> None:
         has_cut = any(isinstance(item.item, Cut) for item in node.items)
         has_invalid = self.invalidvisitor.visit(node)
 
         action = node.action
-        if not action and not is_gather and has_invalid:
+        if not action and not properties.is_gather and has_invalid:
             action = "UNREACHABLE"
 
         locations = False
@@ -402,7 +423,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         with self.local_variable_context():
             if has_cut:
                 self.print("cut = False")
-            if is_loop:
+            if properties.is_loop:
                 self.print("while (")
             else:
                 self.print("if (")
@@ -416,14 +437,12 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                         first = False
                     else:
                         self.print("and")
-                    self.visit(item, used=used, unreachable=unreachable)
-                    if is_gather:
-                        self.print("is not None")
+                    self.visit(item, used=used, unreachable=unreachable, properties=properties)
 
             self.print("):")
             with self.indent():
                 # flake8 complains that visit_Alt is too complicated, so here we are :P
-                self.print_action(action, locations, unreachable, is_gather, is_loop, has_invalid)
+                self.print_action(action, locations, unreachable, properties, has_invalid)
 
             self.print("self._reset(mark)")
             # Skip remaining alternatives if a cut was reached.

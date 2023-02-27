@@ -694,3 +694,33 @@ def test_keywords() -> None:
     parser_class = make_parser(grammar)
     assert parser_class.KEYWORDS == ("five", "four", "one", "three", "two")
     assert parser_class.SOFT_KEYWORDS == ("eight", "nine", "seven", "six", "ten")
+
+
+def test_carry_repeat0() -> None:
+    grammar = """
+    start: stmts
+    stmts: stmt*
+    stmt: block
+    block: "{" stmts "}" { stmts }
+    """
+    parser_class = make_parser(grammar)
+    assert parse_string("{ {} }", parser_class) == [[[]]]
+
+
+def test_None_termination() -> None:
+    grammar = """
+    start: n=NUMBER { n if (n := int(n.string)) else None }
+    """
+    parser_class = make_parser(grammar)
+    assert parse_string("1", parser_class) == 1
+    with pytest.raises(SyntaxError):
+        parse_string("0", parser_class)
+
+
+def test_False_return_value() -> None:
+    grammar = """
+    start: n=NUMBER { bool(int(n.string)) }
+    """
+    parser_class = make_parser(grammar)
+    assert parse_string("1", parser_class) is True
+    assert parse_string("0", parser_class) is False
