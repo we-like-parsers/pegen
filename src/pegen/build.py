@@ -4,7 +4,7 @@ from typing import Dict, Set, Tuple
 
 from pegen.grammar import Grammar
 from pegen.grammar_parser import GeneratedParser as GrammarParser
-from pegen.parser import Parser
+from pegen.parser import Parser, not_parsed
 from pegen.parser_generator import ParserGenerator
 from pegen.python_generator import PythonParserGenerator
 from pegen.tokenizer import Tokenizer
@@ -22,7 +22,7 @@ def build_parser(
         parser = GrammarParser(tokenizer, verbose=verbose_parser)
         grammar = parser.start()
 
-        if not grammar:
+        if grammar is not_parsed:
             raise parser.make_syntax_error(grammar_file)
 
     return grammar, parser, tokenizer

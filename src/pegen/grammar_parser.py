@@ -4,24 +4,26 @@
 import ast
 import sys
 import tokenize
+
+from typing import Any, Optional, Union
+
+from pegen.parser import memoize, memoize_left_rec, logger, Parser, not_parsed, NotParsedMarker
 from ast import literal_eval
-from typing import Any, Optional
 
 from pegen.grammar import (
     Alt,
     Cut,
     Forced,
     Gather,
-    Grammar,
     Group,
     Item,
     Lookahead,
     LookaheadOrCut,
-    MetaList,
     MetaTuple,
+    MetaList,
+    NameLeaf,
     NamedItem,
     NamedItemList,
-    NameLeaf,
     NegativeLookahead,
     Opt,
     Plain,
@@ -32,426 +34,633 @@ from pegen.grammar import (
     Rule,
     RuleList,
     RuleName,
-    StringLeaf
+    Grammar,
+    StringLeaf,
 )
-from pegen.parser import Parser, logger, memoize, memoize_left_rec
-
 
 # Keywords and soft keywords are listed at the end of the parser definition.
 class GeneratedParser(Parser):
+
     @memoize
-    def start(self) -> Optional[Grammar]:
+    def start(self) -> Union[Grammar, NotParsedMarker]:
         # start: grammar $
         mark = self._mark()
-        if (grammar := self.grammar()) and (self.expect("ENDMARKER")):
-            return grammar
+        if (
+            (grammar := self.grammar()) is not not_parsed
+            and
+            (self.expect('ENDMARKER')) is not not_parsed
+        ):
+            return grammar;
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def grammar(self) -> Optional[Grammar]:
+    def grammar(self) -> Union[Grammar, NotParsedMarker]:
         # grammar: metas rules | rules
         mark = self._mark()
-        if (metas := self.metas()) and (rules := self.rules()):
-            return Grammar(rules, metas)
+        if (
+            (metas := self.metas()) is not not_parsed
+            and
+            (rules := self.rules()) is not not_parsed
+        ):
+            return Grammar ( rules , metas );
         self._reset(mark)
-        if rules := self.rules():
-            return Grammar(rules, [])
+        if (
+            (rules := self.rules()) is not not_parsed
+        ):
+            return Grammar ( rules , [] );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def metas(self) -> Optional[MetaList]:
+    def metas(self) -> Union[MetaList, NotParsedMarker]:
         # metas: meta metas | meta
         mark = self._mark()
-        if (meta := self.meta()) and (metas := self.metas()):
-            return [meta] + metas
+        if (
+            (meta := self.meta()) is not not_parsed
+            and
+            (metas := self.metas()) is not not_parsed
+        ):
+            return [meta] + metas;
         self._reset(mark)
-        if meta := self.meta():
-            return [meta]
+        if (
+            (meta := self.meta()) is not not_parsed
+        ):
+            return [meta];
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def meta(self) -> Optional[MetaTuple]:
+    def meta(self) -> Union[MetaTuple, NotParsedMarker]:
         # meta: "@" NAME NEWLINE | "@" NAME NAME NEWLINE | "@" NAME STRING NEWLINE
         mark = self._mark()
-        if (self.expect("@")) and (name := self.name()) and (self.expect("NEWLINE")):
-            return (name.string, None)
+        if (
+            (self.expect("@")) is not not_parsed
+            and
+            (name := self.name()) is not not_parsed
+            and
+            (self.expect('NEWLINE')) is not not_parsed
+        ):
+            return ( name . string , None );
         self._reset(mark)
         if (
-            (self.expect("@"))
-            and (a := self.name())
-            and (b := self.name())
-            and (self.expect("NEWLINE"))
+            (self.expect("@")) is not not_parsed
+            and
+            (a := self.name()) is not not_parsed
+            and
+            (b := self.name()) is not not_parsed
+            and
+            (self.expect('NEWLINE')) is not not_parsed
         ):
-            return (a.string, b.string)
+            return ( a . string , b . string );
         self._reset(mark)
         if (
-            (self.expect("@"))
-            and (name := self.name())
-            and (string := self.string())
-            and (self.expect("NEWLINE"))
+            (self.expect("@")) is not not_parsed
+            and
+            (name := self.name()) is not not_parsed
+            and
+            (string := self.string()) is not not_parsed
+            and
+            (self.expect('NEWLINE')) is not not_parsed
         ):
-            return (name.string, literal_eval(string.string))
+            return ( name . string , literal_eval ( string . string ) );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def rules(self) -> Optional[RuleList]:
+    def rules(self) -> Union[RuleList, NotParsedMarker]:
         # rules: rule rules | rule
         mark = self._mark()
-        if (rule := self.rule()) and (rules := self.rules()):
-            return [rule] + rules
+        if (
+            (rule := self.rule()) is not not_parsed
+            and
+            (rules := self.rules()) is not not_parsed
+        ):
+            return [rule] + rules;
         self._reset(mark)
-        if rule := self.rule():
-            return [rule]
+        if (
+            (rule := self.rule()) is not not_parsed
+        ):
+            return [rule];
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def rule(self) -> Optional[Rule]:
+    def rule(self) -> Union[Rule, NotParsedMarker]:
         # rule: rulename memoflag? ":" alts NEWLINE INDENT more_alts DEDENT | rulename memoflag? ":" NEWLINE INDENT more_alts DEDENT | rulename memoflag? ":" alts NEWLINE
         mark = self._mark()
         if (
-            (rulename := self.rulename())
-            and (opt := self.memoflag(),)
-            and (self.expect(":"))
-            and (alts := self.alts())
-            and (self.expect("NEWLINE"))
-            and (self.expect("INDENT"))
-            and (more_alts := self.more_alts())
-            and (self.expect("DEDENT"))
+            (rulename := self.rulename()) is not not_parsed
+            and
+            (opt := self.make_opt(self.memoflag())) is not not_parsed
+            and
+            (self.expect(":")) is not not_parsed
+            and
+            (alts := self.alts()) is not not_parsed
+            and
+            (self.expect('NEWLINE')) is not not_parsed
+            and
+            (self.expect('INDENT')) is not not_parsed
+            and
+            (more_alts := self.more_alts()) is not not_parsed
+            and
+            (self.expect('DEDENT')) is not not_parsed
         ):
-            return Rule(rulename[0], rulename[1], Rhs(alts.alts + more_alts.alts), memo=opt)
+            return Rule ( rulename [0] , rulename [1] , Rhs ( alts . alts + more_alts . alts ) , memo = opt );
         self._reset(mark)
         if (
-            (rulename := self.rulename())
-            and (opt := self.memoflag(),)
-            and (self.expect(":"))
-            and (self.expect("NEWLINE"))
-            and (self.expect("INDENT"))
-            and (more_alts := self.more_alts())
-            and (self.expect("DEDENT"))
+            (rulename := self.rulename()) is not not_parsed
+            and
+            (opt := self.make_opt(self.memoflag())) is not not_parsed
+            and
+            (self.expect(":")) is not not_parsed
+            and
+            (self.expect('NEWLINE')) is not not_parsed
+            and
+            (self.expect('INDENT')) is not not_parsed
+            and
+            (more_alts := self.more_alts()) is not not_parsed
+            and
+            (self.expect('DEDENT')) is not not_parsed
         ):
-            return Rule(rulename[0], rulename[1], more_alts, memo=opt)
+            return Rule ( rulename [0] , rulename [1] , more_alts , memo = opt );
         self._reset(mark)
         if (
-            (rulename := self.rulename())
-            and (opt := self.memoflag(),)
-            and (self.expect(":"))
-            and (alts := self.alts())
-            and (self.expect("NEWLINE"))
+            (rulename := self.rulename()) is not not_parsed
+            and
+            (opt := self.make_opt(self.memoflag())) is not not_parsed
+            and
+            (self.expect(":")) is not not_parsed
+            and
+            (alts := self.alts()) is not not_parsed
+            and
+            (self.expect('NEWLINE')) is not not_parsed
         ):
-            return Rule(rulename[0], rulename[1], alts, memo=opt)
+            return Rule ( rulename [0] , rulename [1] , alts , memo = opt );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def rulename(self) -> Optional[RuleName]:
+    def rulename(self) -> Union[RuleName, NotParsedMarker]:
         # rulename: NAME annotation | NAME
         mark = self._mark()
-        if (name := self.name()) and (annotation := self.annotation()):
-            return (name.string, annotation)
+        if (
+            (name := self.name()) is not not_parsed
+            and
+            (annotation := self.annotation()) is not not_parsed
+        ):
+            return ( name . string , annotation );
         self._reset(mark)
-        if name := self.name():
-            return (name.string, None)
+        if (
+            (name := self.name()) is not not_parsed
+        ):
+            return ( name . string , None );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def memoflag(self) -> Optional[str]:
+    def memoflag(self) -> Union[str, NotParsedMarker]:
         # memoflag: '(' "memo" ')'
         mark = self._mark()
-        if (self.expect("(")) and (self.expect("memo")) and (self.expect(")")):
-            return "memo"
+        if (
+            (self.expect('(')) is not not_parsed
+            and
+            (self.expect("memo")) is not not_parsed
+            and
+            (self.expect(')')) is not not_parsed
+        ):
+            return "memo";
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def alts(self) -> Optional[Rhs]:
+    def alts(self) -> Union[Rhs, NotParsedMarker]:
         # alts: alt "|" alts | alt
         mark = self._mark()
-        if (alt := self.alt()) and (self.expect("|")) and (alts := self.alts()):
-            return Rhs([alt] + alts.alts)
+        if (
+            (alt := self.alt()) is not not_parsed
+            and
+            (self.expect("|")) is not not_parsed
+            and
+            (alts := self.alts()) is not not_parsed
+        ):
+            return Rhs ( [alt] + alts . alts );
         self._reset(mark)
-        if alt := self.alt():
-            return Rhs([alt])
+        if (
+            (alt := self.alt()) is not not_parsed
+        ):
+            return Rhs ( [alt] );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def more_alts(self) -> Optional[Rhs]:
+    def more_alts(self) -> Union[Rhs, NotParsedMarker]:
         # more_alts: "|" alts NEWLINE more_alts | "|" alts NEWLINE
         mark = self._mark()
         if (
-            (self.expect("|"))
-            and (alts := self.alts())
-            and (self.expect("NEWLINE"))
-            and (more_alts := self.more_alts())
+            (self.expect("|")) is not not_parsed
+            and
+            (alts := self.alts()) is not not_parsed
+            and
+            (self.expect('NEWLINE')) is not not_parsed
+            and
+            (more_alts := self.more_alts()) is not not_parsed
         ):
-            return Rhs(alts.alts + more_alts.alts)
+            return Rhs ( alts . alts + more_alts . alts );
         self._reset(mark)
-        if (self.expect("|")) and (alts := self.alts()) and (self.expect("NEWLINE")):
-            return Rhs(alts.alts)
+        if (
+            (self.expect("|")) is not not_parsed
+            and
+            (alts := self.alts()) is not not_parsed
+            and
+            (self.expect('NEWLINE')) is not not_parsed
+        ):
+            return Rhs ( alts . alts );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def alt(self) -> Optional[Alt]:
+    def alt(self) -> Union[Alt, NotParsedMarker]:
         # alt: items '$' action | items '$' | items action | items
         mark = self._mark()
-        if (items := self.items()) and (self.expect("$")) and (action := self.action()):
-            return Alt(items + [NamedItem(None, NameLeaf("ENDMARKER"))], action=action)
+        if (
+            (items := self.items()) is not not_parsed
+            and
+            (self.expect('$')) is not not_parsed
+            and
+            (action := self.action()) is not not_parsed
+        ):
+            return Alt ( items + [NamedItem ( None , NameLeaf ( 'ENDMARKER' ) )] , action = action );
         self._reset(mark)
-        if (items := self.items()) and (self.expect("$")):
-            return Alt(items + [NamedItem(None, NameLeaf("ENDMARKER"))], action=None)
+        if (
+            (items := self.items()) is not not_parsed
+            and
+            (self.expect('$')) is not not_parsed
+        ):
+            return Alt ( items + [NamedItem ( None , NameLeaf ( 'ENDMARKER' ) )] , action = None );
         self._reset(mark)
-        if (items := self.items()) and (action := self.action()):
-            return Alt(items, action=action)
+        if (
+            (items := self.items()) is not not_parsed
+            and
+            (action := self.action()) is not not_parsed
+        ):
+            return Alt ( items , action = action );
         self._reset(mark)
-        if items := self.items():
-            return Alt(items, action=None)
+        if (
+            (items := self.items()) is not not_parsed
+        ):
+            return Alt ( items , action = None );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def items(self) -> Optional[NamedItemList]:
+    def items(self) -> Union[NamedItemList, NotParsedMarker]:
         # items: named_item items | named_item
         mark = self._mark()
-        if (named_item := self.named_item()) and (items := self.items()):
-            return [named_item] + items
+        if (
+            (named_item := self.named_item()) is not not_parsed
+            and
+            (items := self.items()) is not not_parsed
+        ):
+            return [named_item] + items;
         self._reset(mark)
-        if named_item := self.named_item():
-            return [named_item]
+        if (
+            (named_item := self.named_item()) is not not_parsed
+        ):
+            return [named_item];
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def named_item(self) -> Optional[NamedItem]:
+    def named_item(self) -> Union[NamedItem, NotParsedMarker]:
         # named_item: NAME annotation '=' ~ item | NAME '=' ~ item | item | forced_atom | lookahead
         mark = self._mark()
         cut = False
         if (
-            (name := self.name())
-            and (annotation := self.annotation())
-            and (self.expect("="))
-            and (cut := True)
-            and (item := self.item())
+            (name := self.name()) is not not_parsed
+            and
+            (annotation := self.annotation()) is not not_parsed
+            and
+            (self.expect('=')) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (item := self.item()) is not not_parsed
         ):
-            return NamedItem(name.string, item, annotation)
+            return NamedItem ( name . string , item , annotation );
         self._reset(mark)
         if cut:
-            return None
+            return not_parsed;
         cut = False
         if (
-            (name := self.name())
-            and (self.expect("="))
-            and (cut := True)
-            and (item := self.item())
+            (name := self.name()) is not not_parsed
+            and
+            (self.expect('=')) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (item := self.item()) is not not_parsed
         ):
-            return NamedItem(name.string, item)
+            return NamedItem ( name . string , item );
         self._reset(mark)
         if cut:
-            return None
-        if item := self.item():
-            return NamedItem(None, item)
+            return not_parsed;
+        if (
+            (item := self.item()) is not not_parsed
+        ):
+            return NamedItem ( None , item );
         self._reset(mark)
-        if it := self.forced_atom():
-            return NamedItem(None, it)
+        if (
+            (it := self.forced_atom()) is not not_parsed
+        ):
+            return NamedItem ( None , it );
         self._reset(mark)
-        if it := self.lookahead():
-            return NamedItem(None, it)
+        if (
+            (it := self.lookahead()) is not not_parsed
+        ):
+            return NamedItem ( None , it );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def forced_atom(self) -> Optional[LookaheadOrCut]:
+    def forced_atom(self) -> Union[LookaheadOrCut, NotParsedMarker]:
         # forced_atom: '&' '&' ~ atom
         mark = self._mark()
         cut = False
-        if (self.expect("&")) and (self.expect("&")) and (cut := True) and (atom := self.atom()):
-            return Forced(atom)
+        if (
+            (self.expect('&')) is not not_parsed
+            and
+            (self.expect('&')) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (atom := self.atom()) is not not_parsed
+        ):
+            return Forced ( atom );
         self._reset(mark)
         if cut:
-            return None
-        return None
+            return not_parsed;
+        return not_parsed;
 
     @memoize
-    def lookahead(self) -> Optional[LookaheadOrCut]:
+    def lookahead(self) -> Union[LookaheadOrCut, NotParsedMarker]:
         # lookahead: '&' ~ atom | '!' ~ atom | '~'
         mark = self._mark()
         cut = False
-        if (self.expect("&")) and (cut := True) and (atom := self.atom()):
-            return PositiveLookahead(atom)
+        if (
+            (self.expect('&')) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (atom := self.atom()) is not not_parsed
+        ):
+            return PositiveLookahead ( atom );
         self._reset(mark)
         if cut:
-            return None
+            return not_parsed;
         cut = False
-        if (self.expect("!")) and (cut := True) and (atom := self.atom()):
-            return NegativeLookahead(atom)
+        if (
+            (self.expect('!')) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (atom := self.atom()) is not not_parsed
+        ):
+            return NegativeLookahead ( atom );
         self._reset(mark)
         if cut:
-            return None
-        if self.expect("~"):
-            return Cut()
+            return not_parsed;
+        if (
+            (self.expect('~')) is not not_parsed
+        ):
+            return Cut ( );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def item(self) -> Optional[Item]:
+    def item(self) -> Union[Item, NotParsedMarker]:
         # item: '[' ~ alts ']' | atom '?' | atom '*' | atom '+' | atom '.' atom '+' | atom
         mark = self._mark()
         cut = False
-        if (self.expect("[")) and (cut := True) and (alts := self.alts()) and (self.expect("]")):
-            return Opt(alts)
+        if (
+            (self.expect('[')) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (alts := self.alts()) is not not_parsed
+            and
+            (self.expect(']')) is not not_parsed
+        ):
+            return Opt ( alts );
         self._reset(mark)
         if cut:
-            return None
-        if (atom := self.atom()) and (self.expect("?")):
-            return Opt(atom)
-        self._reset(mark)
-        if (atom := self.atom()) and (self.expect("*")):
-            return Repeat0(atom)
-        self._reset(mark)
-        if (atom := self.atom()) and (self.expect("+")):
-            return Repeat1(atom)
+            return not_parsed;
+        if (
+            (atom := self.atom()) is not not_parsed
+            and
+            (self.expect('?')) is not not_parsed
+        ):
+            return Opt ( atom );
         self._reset(mark)
         if (
-            (sep := self.atom())
-            and (self.expect("."))
-            and (node := self.atom())
-            and (self.expect("+"))
+            (atom := self.atom()) is not not_parsed
+            and
+            (self.expect('*')) is not not_parsed
         ):
-            return Gather(sep, node)
+            return Repeat0 ( atom );
         self._reset(mark)
-        if atom := self.atom():
-            return atom
+        if (
+            (atom := self.atom()) is not not_parsed
+            and
+            (self.expect('+')) is not not_parsed
+        ):
+            return Repeat1 ( atom );
         self._reset(mark)
-        return None
+        if (
+            (sep := self.atom()) is not not_parsed
+            and
+            (self.expect('.')) is not not_parsed
+            and
+            (node := self.atom()) is not not_parsed
+            and
+            (self.expect('+')) is not not_parsed
+        ):
+            return Gather ( sep , node );
+        self._reset(mark)
+        if (
+            (atom := self.atom()) is not not_parsed
+        ):
+            return atom;
+        self._reset(mark)
+        return not_parsed;
 
     @memoize
-    def atom(self) -> Optional[Plain]:
+    def atom(self) -> Union[Plain, NotParsedMarker]:
         # atom: '(' ~ alts ')' | NAME | STRING
         mark = self._mark()
         cut = False
-        if (self.expect("(")) and (cut := True) and (alts := self.alts()) and (self.expect(")")):
-            return Group(alts)
+        if (
+            (self.expect('(')) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (alts := self.alts()) is not not_parsed
+            and
+            (self.expect(')')) is not not_parsed
+        ):
+            return Group ( alts );
         self._reset(mark)
         if cut:
-            return None
-        if name := self.name():
-            return NameLeaf(name.string)
+            return not_parsed;
+        if (
+            (name := self.name()) is not not_parsed
+        ):
+            return NameLeaf ( name . string );
         self._reset(mark)
-        if string := self.string():
-            return StringLeaf(string.string)
+        if (
+            (string := self.string()) is not not_parsed
+        ):
+            return StringLeaf ( string . string );
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def action(self) -> Optional[str]:
+    def action(self) -> Union[str, NotParsedMarker]:
         # action: "{" ~ target_atoms "}"
         mark = self._mark()
         cut = False
         if (
-            (self.expect("{"))
-            and (cut := True)
-            and (target_atoms := self.target_atoms())
-            and (self.expect("}"))
+            (self.expect("{")) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (target_atoms := self.target_atoms()) is not not_parsed
+            and
+            (self.expect("}")) is not not_parsed
         ):
-            return target_atoms
+            return target_atoms;
         self._reset(mark)
         if cut:
-            return None
-        return None
+            return not_parsed;
+        return not_parsed;
 
     @memoize
-    def annotation(self) -> Optional[str]:
+    def annotation(self) -> Union[str, NotParsedMarker]:
         # annotation: "[" ~ target_atoms "]"
         mark = self._mark()
         cut = False
         if (
-            (self.expect("["))
-            and (cut := True)
-            and (target_atoms := self.target_atoms())
-            and (self.expect("]"))
+            (self.expect("[")) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (target_atoms := self.target_atoms()) is not not_parsed
+            and
+            (self.expect("]")) is not not_parsed
         ):
-            return target_atoms
+            return target_atoms;
         self._reset(mark)
         if cut:
-            return None
-        return None
+            return not_parsed;
+        return not_parsed;
 
     @memoize
-    def target_atoms(self) -> Optional[str]:
+    def target_atoms(self) -> Union[str, NotParsedMarker]:
         # target_atoms: target_atom target_atoms | target_atom
         mark = self._mark()
-        if (target_atom := self.target_atom()) and (target_atoms := self.target_atoms()):
-            return target_atom + " " + target_atoms
+        if (
+            (target_atom := self.target_atom()) is not not_parsed
+            and
+            (target_atoms := self.target_atoms()) is not not_parsed
+        ):
+            return target_atom + " " + target_atoms;
         self._reset(mark)
-        if target_atom := self.target_atom():
-            return target_atom
+        if (
+            (target_atom := self.target_atom()) is not not_parsed
+        ):
+            return target_atom;
         self._reset(mark)
-        return None
+        return not_parsed;
 
     @memoize
-    def target_atom(self) -> Optional[str]:
+    def target_atom(self) -> Union[str, NotParsedMarker]:
         # target_atom: "{" ~ target_atoms? "}" | "[" ~ target_atoms? "]" | NAME "*" | NAME | NUMBER | STRING | "?" | ":" | !"}" !"]" OP
         mark = self._mark()
         cut = False
         if (
-            (self.expect("{"))
-            and (cut := True)
-            and (atoms := self.target_atoms(),)
-            and (self.expect("}"))
+            (self.expect("{")) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (atoms := self.make_opt(self.target_atoms())) is not not_parsed
+            and
+            (self.expect("}")) is not not_parsed
         ):
-            return "{" + (atoms or "") + "}"
+            return "{" + ( atoms or "" ) + "}";
         self._reset(mark)
         if cut:
-            return None
+            return not_parsed;
         cut = False
         if (
-            (self.expect("["))
-            and (cut := True)
-            and (atoms := self.target_atoms(),)
-            and (self.expect("]"))
+            (self.expect("[")) is not not_parsed
+            and
+            (cut := True) is not not_parsed
+            and
+            (atoms := self.make_opt(self.target_atoms())) is not not_parsed
+            and
+            (self.expect("]")) is not not_parsed
         ):
-            return "[" + (atoms or "") + "]"
+            return "[" + ( atoms or "" ) + "]";
         self._reset(mark)
         if cut:
-            return None
-        if (name := self.name()) and (self.expect("*")):
-            return name.string + "*"
-        self._reset(mark)
-        if name := self.name():
-            return name.string
-        self._reset(mark)
-        if number := self.number():
-            return number.string
-        self._reset(mark)
-        if string := self.string():
-            return string.string
-        self._reset(mark)
-        if self.expect("?"):
-            return "?"
-        self._reset(mark)
-        if self.expect(":"):
-            return ":"
+            return not_parsed;
+        if (
+            (name := self.name()) is not not_parsed
+            and
+            (self.expect("*")) is not not_parsed
+        ):
+            return name . string + "*";
         self._reset(mark)
         if (
-            (self.negative_lookahead(self.expect, "}"))
-            and (self.negative_lookahead(self.expect, "]"))
-            and (op := self.op())
+            (name := self.name()) is not not_parsed
         ):
-            return op.string
+            return name . string;
         self._reset(mark)
-        return None
+        if (
+            (number := self.number()) is not not_parsed
+        ):
+            return number . string;
+        self._reset(mark)
+        if (
+            (string := self.string()) is not not_parsed
+        ):
+            return string . string;
+        self._reset(mark)
+        if (
+            (self.expect("?")) is not not_parsed
+        ):
+            return "?";
+        self._reset(mark)
+        if (
+            (self.expect(":")) is not not_parsed
+        ):
+            return ":";
+        self._reset(mark)
+        if (
+            (self.negative_lookahead(self.expect, "}")) is not not_parsed
+            and
+            (self.negative_lookahead(self.expect, "]")) is not not_parsed
+            and
+            (op := self.op()) is not not_parsed
+        ):
+            return op . string;
+        self._reset(mark)
+        return not_parsed;
 
     KEYWORDS = ()
-    SOFT_KEYWORDS = ("memo",)
+    SOFT_KEYWORDS = ('memo',)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     from pegen.parser import simple_parser_main
-
     simple_parser_main(GeneratedParser)
