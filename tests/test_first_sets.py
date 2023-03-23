@@ -8,7 +8,7 @@ from pegen.utils import parse_string
 
 def calculate_first_sets(grammar_source: str) -> Dict[str, Set[str]]:
     grammar: Grammar = parse_string(grammar_source, GrammarParser)
-    return FirstSetCalculator(grammar.rules).calculate()
+    return FirstSetCalculator(grammar).calculate()
 
 
 def test_alternatives() -> None:

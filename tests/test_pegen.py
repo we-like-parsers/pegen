@@ -372,8 +372,8 @@ def test_nullable() -> None:
     # Called to visit the grammar which updates the rules
     PythonParserGenerator(grammar, out)
     rules = grammar.rules
-    assert rules["start"].nullable is False  # Not None!
-    assert rules["sign"].nullable
+    assert rules["start"] not in grammar.nullables
+    assert rules["sign"] in grammar.nullables
 
 
 def test_advanced_left_recursive() -> None:
@@ -386,8 +386,8 @@ def test_advanced_left_recursive() -> None:
     # Called to visit the grammar which updates the rules
     PythonParserGenerator(grammar, out)
     rules = grammar.rules
-    assert rules["start"].nullable is False  # Not None!
-    assert rules["sign"].nullable
+    assert rules["start"] not in grammar.nullables
+    assert rules["sign"] in grammar.nullables
     assert rules["start"].left_recursive
     assert not rules["sign"].left_recursive
 
@@ -692,5 +692,5 @@ def test_keywords() -> None:
     start: 'one' 'two' 'three' 'four' 'five' "six" "seven" "eight" "nine" "ten"
     """
     parser_class = make_parser(grammar)
-    assert parser_class.KEYWORDS == ("five", "four", "one", "three", "two")
-    assert parser_class.SOFT_KEYWORDS == ("eight", "nine", "seven", "six", "ten")
+    assert parser_class.KEYWORDS == ("one", "two", "three", "four", "five")
+    assert tuple(sorted(parser_class.SOFT_KEYWORDS)) == ("eight", "nine", "seven", "six", "ten")

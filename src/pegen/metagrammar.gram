@@ -86,10 +86,10 @@ named_item[NamedItem]:
     | NAME annotation '=' ~ item {NamedItem(name.string, item, annotation)}
     | NAME '=' ~ item {NamedItem(name.string, item)}
     | item {NamedItem(None, item)}
-    | it=forced_atom {NamedItem(None, it)}
+    | forced=forced_atom {NamedItem(None, forced)}
     | it=lookahead {NamedItem(None, it)}
 
-forced_atom[LookaheadOrCut]:
+forced_atom[Forced]:
     | '&''&' ~ atom {Forced(atom)}
 
 lookahead[LookaheadOrCut]:

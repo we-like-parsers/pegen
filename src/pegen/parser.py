@@ -1,11 +1,11 @@
-import argparse
 import ast
+import argparse
 import sys
 import time
 import token
 import tokenize
 import traceback
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Any, Callable, ClassVar, Dict, Optional, Tuple, Type, TypeVar, cast
 
 from pegen.tokenizer import Mark, Tokenizer, exact_token_types
@@ -157,7 +157,7 @@ def memoize_left_rec(method: Callable[[P], Optional[T]]) -> Callable[[P], Option
     return memoize_left_rec_wrapper
 
 
-class Parser(ABC):
+class Parser:
     """Parsing base class."""
 
     KEYWORDS: ClassVar[Tuple[str, ...]]

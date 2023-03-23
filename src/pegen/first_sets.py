@@ -10,6 +10,7 @@ from pegen.grammar import (
     Alt,
     Cut,
     Gather,
+    Grammar,
     GrammarVisitor,
     Group,
     Lookahead,
@@ -32,10 +33,9 @@ argparser.add_argument("grammar_file", help="The grammar file")
 
 
 class FirstSetCalculator(GrammarVisitor):
-    def __init__(self, rules: Dict[str, Rule]) -> None:
-        self.rules = rules
-        for rule in rules.values():
-            rule.nullable_visit(rules)
+    def __init__(self, grammar: Grammar) -> None:
+        self.rules = grammar.rules
+        self.nullables = grammar.nullables
         self.first_sets: Dict[str, Set[str]] = dict()
         self.in_process: Set[str] = set()
 
@@ -56,7 +56,7 @@ class FirstSetCalculator(GrammarVisitor):
                 result -= to_remove
 
             # If the set of new terminals can start with the empty string,
-            # it means that the item is completelly nullable and we should
+            # it means that the item is completely nullable and we should
             # also considering at least the next item in case the current
             # one fails to parse.
 
@@ -125,7 +125,7 @@ class FirstSetCalculator(GrammarVisitor):
         elif item.name not in self.first_sets:
             self.in_process.add(item.name)
             terminals = self.visit(item.rhs)
-            if item.nullable:
+            if item in self.nullables:
                 terminals.add("")
             self.first_sets[item.name] = terminals
             self.in_process.remove(item.name)
@@ -137,12 +137,12 @@ def main() -> None:
 
     try:
         grammar, parser, tokenizer = build_parser(args.grammar_file)
-    except Exception:
+    except Exception as err:
         print("ERROR: Failed to parse grammar file", file=sys.stderr)
         sys.exit(1)
 
-    firs_sets = FirstSetCalculator(grammar.rules).calculate()
-    pprint.pprint(firs_sets)
+    first_sets = FirstSetCalculator(grammar).calculate()
+    pprint.pprint(first_sets)
 
 
 if __name__ == "__main__":

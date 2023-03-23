@@ -1,20 +1,74 @@
+import ast
 import contextlib
+import re
 from abc import abstractmethod
-from typing import IO, AbstractSet, Dict, Iterator, List, Optional, Set, Text, Tuple
+from typing import (
+    IO,
+    AbstractSet,
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Text,
+    Tuple,
+    Union,
+)
 
 from pegen import sccutils
 from pegen.grammar import (
     Alt,
+    Cut,
+    Forced,
     Gather,
     Grammar,
     GrammarError,
     GrammarVisitor,
+    Group,
+    Lookahead,
     NamedItem,
     NameLeaf,
+    Opt,
     Plain,
+    Repeat0,
+    Repeat1,
     Rhs,
     Rule,
+    StringLeaf,
 )
+
+
+class RuleCollectorVisitor(GrammarVisitor):
+    """Visitor that invokes a provieded callmaker visitor with just the NamedItem nodes"""
+
+    def __init__(self, rules: Dict[str, Rule], callmakervisitor: GrammarVisitor) -> None:
+        self.rules = rules
+        self.callmaker = callmakervisitor
+
+    def visit_Rule(self, rule: Rule) -> None:
+        self.visit(rule.flatten())
+
+    def visit_NamedItem(self, item: NamedItem) -> None:
+        self.callmaker.visit(item)
+
+
+class KeywordCollectorVisitor(GrammarVisitor):
+    """Visitor that collects all the keywods and soft keywords in the Grammar"""
+
+    def __init__(self, gen: "ParserGenerator", keywords: Dict[str, int], soft_keywords: Set[str]):
+        self.generator = gen
+        self.keywords = keywords
+        self.soft_keywords = soft_keywords
+
+    def visit_StringLeaf(self, node: StringLeaf) -> None:
+        val = ast.literal_eval(node.value)
+        if re.match(r"[a-zA-Z_]\w*\Z", val):  # This is a keyword
+            if node.value.endswith("'") and node.value not in self.keywords:
+                self.keywords[val] = self.generator.keyword_type()
+            else:
+                self.soft_keywords.add(node.value.replace('"', ""))
 
 
 class RuleCheckingVisitor(GrammarVisitor):
@@ -33,13 +87,108 @@ class RuleCheckingVisitor(GrammarVisitor):
         self.visit(node.item)
 
 
-class ParserGenerator:
+class InitialNamesVisitor(GrammarVisitor):
+    def __init__(self, grammar: Grammar) -> None:
+        self.rules = grammar.rules
+        self.nullables = grammar.nullables
 
+    def generic_visit(self, node: Iterable[Any], *args: Any, **kwargs: Any) -> Set[Any]:
+        names: Set[str] = set()
+        for value in node:
+            if isinstance(value, list):
+                for item in value:
+                    names |= self.visit(item, *args, **kwargs)
+            else:
+                names |= self.visit(value, *args, **kwargs)
+        return names
+
+    def visit_Alt(self, alt: Alt) -> Set[Any]:
+        names: Set[str] = set()
+        for item in alt.items:
+            names |= self.visit(item)
+            if item not in self.nullables:
+                break
+        return names
+
+    def visit_Forced(self, force: Forced) -> Set[Any]:
+        return set()
+
+    def visit_LookAhead(self, lookahead: Lookahead) -> Set[Any]:
+        return set()
+
+    def visit_Cut(self, cut: Cut) -> Set[Any]:
+        return set()
+
+    def visit_NameLeaf(self, node: NameLeaf) -> Set[Any]:
+        return {node.value}
+
+    def visit_StringLeaf(self, node: StringLeaf) -> Set[Any]:
+        return set()
+
+
+def compute_left_recursives(
+    grammar: Grammar,
+) -> Tuple[Dict[str, AbstractSet[str]], List[AbstractSet[str]]]:
+    graph = make_first_graph(grammar)
+    sccs = list(sccutils.strongly_connected_components(graph.keys(), graph))
+
+    for scc in sccs:
+        if len(scc) > 1:
+            for name in scc:
+                grammar.rules[name].left_recursive = True
+            # Try to find a leader such that all cycles go through it.
+            leaders = set(scc)
+            for start in scc:
+                for cycle in sccutils.find_cycles_in_scc(graph, scc, start):
+                    # print("Cycle:", " -> ".join(cycle))
+                    leaders -= scc - set(cycle)
+                    if not leaders:
+                        raise ValueError(
+                            f"SCC {scc} has no leadership candidate (no element is included in all cycles)"
+                        )
+            # print("Leaders:", leaders)
+            leader = min(leaders)  # Pick an arbitrary leader from the candidates.
+            grammar.rules[leader].leader = True
+        else:
+            name = min(scc)  # The only element.
+            if name in graph[name]:
+                grammar.rules[name].left_recursive = True
+                grammar.rules[name].leader = True
+
+    return graph, sccs
+
+
+def make_first_graph(grammar) -> Dict[str, AbstractSet[str]]:
+    """Compute the graph of left-invocations.
+
+    There's an edge from A to B if A may invoke B at its initial
+    position.
+
+    Note that this requires the nullables to have been computed.
+    """
+    initial_name_visitor = InitialNamesVisitor(grammar)
+
+    graph = {}
+    vertices: Set[str] = set()
+
+    for rulename, rhs in grammar.rules.items():
+        graph[rulename] = names = initial_name_visitor.visit(rhs)
+        vertices |= names
+
+    for vertex in vertices:
+        graph.setdefault(vertex, set())
+
+    return graph
+
+
+class ParserGenerator:
     callmakervisitor: GrammarVisitor
 
     def __init__(self, grammar: Grammar, tokens: Set[str], file: Optional[IO[Text]]):
         self.grammar = grammar
         self.tokens = tokens
+        self.keywords: Dict[str, int] = {}
+        self.soft_keywords: Set[str] = set()
         self.rules = grammar.rules
         self.validate_rule_names()
         if "trailer" not in grammar.metas and "start" not in self.rules:
@@ -49,11 +198,10 @@ class ParserGenerator:
             checker.visit(rule)
         self.file = file
         self.level = 0
-        compute_nullables(self.rules)
-        self.first_graph, self.first_sccs = compute_left_recursives(self.rules)
-        self.todo = self.rules.copy()  # Rules to generate
+        self.first_graph, self.first_sccs = compute_left_recursives(self.grammar)
         self.counter = 0  # For name_rule()/name_loop()
-        self.all_rules: Dict[str, Rule] = {}  # Rules + temporal rules
+        self.keyword_counter = 499  # For keyword_type()
+        self.all_rules: Dict[str, Rule] = self.rules.copy()  # Rules + temporal rules
         self._local_variable_stack: List[List[str]] = []
 
     def validate_rule_names(self) -> None:
@@ -94,35 +242,43 @@ class ParserGenerator:
         for line in lines.splitlines():
             self.print(line)
 
-    def collect_todo(self) -> None:
+    def collect_rules(self) -> None:
+        keyword_collector = KeywordCollectorVisitor(self, self.keywords, self.soft_keywords)
+        for rule in self.all_rules.values():
+            keyword_collector.visit(rule)
+
+        rule_collector = RuleCollectorVisitor(self.rules, self.callmakervisitor)
         done: Set[str] = set()
         while True:
-            alltodo = list(self.todo)
-            self.all_rules.update(self.todo)
-            todo = [i for i in alltodo if i not in done]
+            computed_rules = list(self.all_rules)
+            todo = [i for i in computed_rules if i not in done]
             if not todo:
                 break
+            done = set(self.all_rules)
             for rulename in todo:
-                self.todo[rulename].collect_todo(self)
-            done = set(alltodo)
+                rule_collector.visit(self.all_rules[rulename])
 
-    def name_node(self, rhs: Rhs) -> str:
+    def keyword_type(self) -> int:
+        self.keyword_counter += 1
+        return self.keyword_counter
+
+    def artifical_rule_from_rhs(self, rhs: Rhs) -> str:
         self.counter += 1
         name = f"_tmp_{self.counter}"  # TODO: Pick a nicer name.
-        self.todo[name] = Rule(name, None, rhs)
+        self.all_rules[name] = Rule(name, None, rhs)
         return name
 
-    def name_loop(self, node: Plain, is_repeat1: bool) -> str:
+    def artificial_rule_from_repeat(self, node: Plain, is_repeat1: bool) -> str:
         self.counter += 1
         if is_repeat1:
             prefix = "_loop1_"
         else:
             prefix = "_loop0_"
         name = f"{prefix}{self.counter}"  # TODO: It's ugly to signal via the name.
-        self.todo[name] = Rule(name, None, Rhs([Alt([NamedItem(None, node)])]))
+        self.all_rules[name] = Rule(name, None, Rhs([Alt([NamedItem(None, node)])]))
         return name
 
-    def name_gather(self, node: Gather) -> str:
+    def artifical_rule_from_gather(self, node: Gather) -> str:
         self.counter += 1
         name = f"_gather_{self.counter}"
         self.counter += 1
@@ -131,7 +287,7 @@ class ParserGenerator:
             [NamedItem(None, node.separator), NamedItem("elem", node.node)],
             action="elem",
         )
-        self.todo[extra_function_name] = Rule(
+        self.all_rules[extra_function_name] = Rule(
             extra_function_name,
             None,
             Rhs([extra_function_alt]),
@@ -139,7 +295,7 @@ class ParserGenerator:
         alt = Alt(
             [NamedItem("elem", node.node), NamedItem("seq", NameLeaf(extra_function_name))],
         )
-        self.todo[name] = Rule(
+        self.all_rules[name] = Rule(
             name,
             None,
             Rhs([alt]),
@@ -154,60 +310,3 @@ class ParserGenerator:
             name = f"{origname}_{counter}"
         self.local_variable_names.append(name)
         return name
-
-
-def compute_nullables(rules: Dict[str, Rule]) -> None:
-    """Compute which rules in a grammar are nullable.
-
-    Thanks to TatSu (tatsu/leftrec.py) for inspiration.
-    """
-    for rule in rules.values():
-        rule.nullable_visit(rules)
-
-
-def compute_left_recursives(
-    rules: Dict[str, Rule]
-) -> Tuple[Dict[str, AbstractSet[str]], List[AbstractSet[str]]]:
-    graph = make_first_graph(rules)
-    sccs = list(sccutils.strongly_connected_components(graph.keys(), graph))
-    for scc in sccs:
-        if len(scc) > 1:
-            for name in scc:
-                rules[name].left_recursive = True
-            # Try to find a leader such that all cycles go through it.
-            leaders = set(scc)
-            for start in scc:
-                for cycle in sccutils.find_cycles_in_scc(graph, scc, start):
-                    # print("Cycle:", " -> ".join(cycle))
-                    leaders -= scc - set(cycle)
-                    if not leaders:
-                        raise ValueError(
-                            f"SCC {scc} has no leadership candidate (no element is included in all cycles)"
-                        )
-            # print("Leaders:", leaders)
-            leader = min(leaders)  # Pick an arbitrary leader from the candidates.
-            rules[leader].leader = True
-        else:
-            name = min(scc)  # The only element.
-            if name in graph[name]:
-                rules[name].left_recursive = True
-                rules[name].leader = True
-    return graph, sccs
-
-
-def make_first_graph(rules: Dict[str, Rule]) -> Dict[str, AbstractSet[str]]:
-    """Compute the graph of left-invocations.
-
-    There's an edge from A to B if A may invoke B at its initial
-    position.
-
-    Note that this requires the nullable flags to have been computed.
-    """
-    graph = {}
-    vertices: Set[str] = set()
-    for rulename, rhs in rules.items():
-        graph[rulename] = names = rhs.initial_names()
-        vertices |= names
-    for vertex in vertices:
-        graph.setdefault(vertex, set())
-    return graph
