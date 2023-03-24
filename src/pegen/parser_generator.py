@@ -1,6 +1,6 @@
 import contextlib
 from abc import abstractmethod
-from typing import IO, AbstractSet, Dict, Iterator, List, Optional, Set, Text, Tuple
+from typing import Any, IO, AbstractSet, Dict, Iterator, List, Optional, Set, Text, Tuple
 
 from pegen import sccutils
 from pegen.grammar import (
