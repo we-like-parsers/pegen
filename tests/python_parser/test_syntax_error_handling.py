@@ -15,7 +15,6 @@ def parse_invalid_syntax(
     end,
     min_python_version=(3, 10),
 ):
-
     # Check we obtain the expected error from Python
     try:
         exec(source, {}, {})
