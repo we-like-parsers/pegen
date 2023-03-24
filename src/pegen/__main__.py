@@ -25,7 +25,6 @@ from pegen.validator import validate_grammar
 def generate_python_code(
     args: argparse.Namespace,
 ) -> Tuple[Grammar, Parser, Tokenizer, ParserGenerator]:
-
     verbose = args.verbose
     verbose_tokenizer = verbose >= 3
     verbose_parser = verbose == 2 or verbose >= 4
