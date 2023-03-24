@@ -4,24 +4,26 @@
 import ast
 import sys
 import tokenize
-from ast import literal_eval
+
 from typing import Any, Optional
+
+from pegen.parser import memoize, memoize_left_rec, logger, Parser
+from ast import literal_eval
 
 from pegen.grammar import (
     Alt,
     Cut,
     Forced,
     Gather,
-    Grammar,
     Group,
     Item,
     Lookahead,
     LookaheadOrCut,
-    MetaList,
     MetaTuple,
+    MetaList,
+    NameLeaf,
     NamedItem,
     NamedItemList,
-    NameLeaf,
     NegativeLookahead,
     Opt,
     Plain,
@@ -32,9 +34,9 @@ from pegen.grammar import (
     Rule,
     RuleList,
     RuleName,
-    StringLeaf
+    Grammar,
+    StringLeaf,
 )
-from pegen.parser import Parser, logger, memoize, memoize_left_rec
 
 
 # Keywords and soft keywords are listed at the end of the parser definition.
