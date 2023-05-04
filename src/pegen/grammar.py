@@ -5,7 +5,6 @@ from typing import (
     TYPE_CHECKING,
     AbstractSet,
     Any,
-    Dict,
     Iterable,
     Iterator,
     List,
@@ -100,14 +99,6 @@ class Rule:
     def __iter__(self) -> Iterator[Rhs]:
         yield self.rhs
 
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        if self.visited:
-            # A left-recursive rule is considered non-nullable.
-            return False
-        self.visited = True
-        self.nullable = self.rhs.nullable_visit(rules)
-        return self.nullable
-
     def initial_names(self) -> AbstractSet[str]:
         return self.rhs.initial_names()
 
@@ -140,10 +131,6 @@ class Leaf:
             yield
 
     @abstractmethod
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        raise NotImplementedError
-
-    @abstractmethod
     def initial_names(self) -> AbstractSet[str]:
         raise NotImplementedError
 
@@ -159,12 +146,6 @@ class NameLeaf(Leaf):
     def __repr__(self) -> str:
         return f"NameLeaf({self.value!r})"
 
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        if self.value in rules:
-            return rules[self.value].nullable_visit(rules)
-        # Token or unknown; never empty.
-        return False
-
     def initial_names(self) -> AbstractSet[str]:
         return {self.value}
 
@@ -174,10 +155,6 @@ class StringLeaf(Leaf):
 
     def __repr__(self) -> str:
         return f"StringLeaf({self.value!r})"
-
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        # The string token '' is considered empty.
-        return not self.value
 
     def initial_names(self) -> AbstractSet[str]:
         return set()
@@ -196,12 +173,6 @@ class Rhs:
 
     def __iter__(self) -> Iterator[List[Alt]]:
         yield self.alts
-
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        for alt in self.alts:
-            if alt.nullable_visit(rules):
-                return True
-        return False
 
     def initial_names(self) -> AbstractSet[str]:
         names: Set[str] = set()
@@ -238,12 +209,6 @@ class Alt:
     def __iter__(self) -> Iterator[List[NamedItem]]:
         yield self.items
 
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        for item in self.items:
-            if not item.nullable_visit(rules):
-                return False
-        return True
-
     def initial_names(self) -> AbstractSet[str]:
         names: Set[str] = set()
         for item in self.items:
@@ -276,10 +241,6 @@ class NamedItem:
     def __iter__(self) -> Iterator[Item]:
         yield self.item
 
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        self.nullable = self.item.nullable_visit(rules)
-        return self.nullable
-
     def initial_names(self) -> AbstractSet[str]:
         return self.item.initial_names()
 
@@ -297,9 +258,6 @@ class Forced:
     def __iter__(self) -> Iterator[Plain]:
         yield self.node
 
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        return True
-
     def initial_names(self) -> AbstractSet[str]:
         return set()
 
@@ -314,9 +272,6 @@ class Lookahead:
 
     def __iter__(self) -> Iterator[Plain]:
         yield self.node
-
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        return True
 
     def initial_names(self) -> AbstractSet[str]:
         return set()
@@ -356,9 +311,6 @@ class Opt:
     def __iter__(self) -> Iterator[Item]:
         yield self.node
 
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        return True
-
     def initial_names(self) -> AbstractSet[str]:
         return self.node.initial_names()
 
@@ -369,10 +321,6 @@ class Repeat:
     def __init__(self, node: Plain):
         self.node = node
         self.memo: Optional[Tuple[Optional[str], str]] = None
-
-    @abstractmethod
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        raise NotImplementedError
 
     def __iter__(self) -> Iterator[Plain]:
         yield self.node
@@ -393,9 +341,6 @@ class Repeat0(Repeat):
     def __repr__(self) -> str:
         return f"Repeat0({self.node!r})"
 
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        return True
-
 
 class Repeat1(Repeat):
     def __str__(self) -> str:
@@ -409,9 +354,6 @@ class Repeat1(Repeat):
     def __repr__(self) -> str:
         return f"Repeat1({self.node!r})"
 
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        return False
-
 
 class Gather(Repeat):
     def __init__(self, separator: Plain, node: Plain):
@@ -423,9 +365,6 @@ class Gather(Repeat):
 
     def __repr__(self) -> str:
         return f"Gather({self.separator!r}, {self.node!r})"
-
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        return False
 
 
 class Group:
@@ -440,9 +379,6 @@ class Group:
 
     def __iter__(self) -> Iterator[Rhs]:
         yield self.rhs
-
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
-        return self.rhs.nullable_visit(rules)
 
     def initial_names(self) -> AbstractSet[str]:
         return self.rhs.initial_names()
@@ -465,9 +401,6 @@ class Cut:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Cut):
             return NotImplemented
-        return True
-
-    def nullable_visit(self, rules: Dict[str, Rule]) -> bool:
         return True
 
     def initial_names(self) -> AbstractSet[str]:

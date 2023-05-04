@@ -6,6 +6,7 @@ import sys
 from typing import Dict, Set
 
 from pegen.build import build_parser
+from pegen.parser_generator import compute_nullables
 from pegen.grammar import (
     Alt,
     Cut,
@@ -34,8 +35,7 @@ argparser.add_argument("grammar_file", help="The grammar file")
 class FirstSetCalculator(GrammarVisitor):
     def __init__(self, rules: Dict[str, Rule]) -> None:
         self.rules = rules
-        for rule in rules.values():
-            rule.nullable_visit(rules)
+        compute_nullables(self.rules)
         self.first_sets: Dict[str, Set[str]] = dict()
         self.in_process: Set[str] = set()
 
@@ -141,8 +141,8 @@ def main() -> None:
         print("ERROR: Failed to parse grammar file", file=sys.stderr)
         sys.exit(1)
 
-    firs_sets = FirstSetCalculator(grammar.rules).calculate()
-    pprint.pprint(firs_sets)
+    first_sets = FirstSetCalculator(grammar.rules).calculate()
+    pprint.pprint(first_sets)
 
 
 if __name__ == "__main__":

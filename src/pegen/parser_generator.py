@@ -1,19 +1,27 @@
 import contextlib
 from abc import abstractmethod
-from typing import IO, AbstractSet, Dict, Iterator, List, Optional, Set, Text, Tuple
+from typing import Any, IO, AbstractSet, Dict, Iterator, List, Optional, Set, Text, Tuple
 
 from pegen import sccutils
 from pegen.grammar import (
     Alt,
+    Cut,
+    Forced,
     Gather,
     Grammar,
     GrammarError,
     GrammarVisitor,
+    Group,
+    Lookahead,
     NamedItem,
     NameLeaf,
+    Opt,
     Plain,
+    Repeat0,
+    Repeat1,
     Rhs,
     Rule,
+    StringLeaf,
 )
 
 
@@ -155,13 +163,79 @@ class ParserGenerator:
         return name
 
 
+class NullableVisitor(GrammarVisitor):
+    def __init__(self, rules: Dict[str, Rule]) -> None:
+        self.rules = rules
+        self.visited: Set[Any] = set()
+
+    def visit_Rule(self, rule: Rule) -> bool:
+        if rule in self.visited:
+            return False
+        self.visited.add(rule)
+        if self.visit(rule.rhs):
+            rule.nullable = True
+        return rule.nullable
+
+    def visit_Rhs(self, rhs: Rhs) -> bool:
+        for alt in rhs.alts:
+            if self.visit(alt):
+                return True
+        return False
+
+    def visit_Alt(self, alt: Alt) -> bool:
+        for item in alt.items:
+            if not self.visit(item):
+                return False
+        return True
+
+    def visit_Forced(self, force: Forced) -> bool:
+        return True
+
+    def visit_LookAhead(self, lookahead: Lookahead) -> bool:
+        return True
+
+    def visit_Opt(self, opt: Opt) -> bool:
+        return True
+
+    def visit_Repeat0(self, repeat: Repeat0) -> bool:
+        return True
+
+    def visit_Repeat1(self, repeat: Repeat1) -> bool:
+        return False
+
+    def visit_Gather(self, gather: Gather) -> bool:
+        return False
+
+    def visit_Cut(self, cut: Cut) -> bool:
+        return False
+
+    def visit_Group(self, group: Group) -> bool:
+        return self.visit(group.rhs)
+
+    def visit_NamedItem(self, item: NamedItem) -> bool:
+        if self.visit(item.item):
+            item.nullable = True
+        return item.nullable
+
+    def visit_NameLeaf(self, node: NameLeaf) -> bool:
+        if node.value in self.rules:
+            return self.visit(self.rules[node.value])
+        # Token or unknown; never empty.
+        return False
+
+    def visit_StringLeaf(self, node: StringLeaf) -> bool:
+        # The string token '' is considered empty.
+        return not node.value
+
+
 def compute_nullables(rules: Dict[str, Rule]) -> None:
     """Compute which rules in a grammar are nullable.
 
     Thanks to TatSu (tatsu/leftrec.py) for inspiration.
     """
+    nullable_visitor = NullableVisitor(rules)
     for rule in rules.values():
-        rule.nullable_visit(rules)
+        nullable_visitor.visit(rule)
 
 
 def compute_left_recursives(
