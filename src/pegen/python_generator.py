@@ -102,7 +102,16 @@ class PythonCallMakerVisitor(GrammarVisitor):
         name = node.value
         if name == "SOFT_KEYWORD":
             return "soft_keyword", "self.soft_keyword()"
-        if name in ("NAME", "NUMBER", "STRING", "OP", "TYPE_COMMENT"):
+        if name in (
+            "NAME",
+            "NUMBER",
+            "STRING",
+            "FSTRING_START",
+            "FSTRING_MIDDLE",
+            "FSTRING_END",
+            "OP",
+            "TYPE_COMMENT",
+        ):
             name = name.lower()
             return name, f"self.{name}()"
         if name in ("NEWLINE", "DEDENT", "INDENT", "ENDMARKER", "ASYNC", "AWAIT"):
