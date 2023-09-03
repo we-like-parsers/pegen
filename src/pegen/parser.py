@@ -15,9 +15,10 @@ P = TypeVar("P", bound="Parser")
 F = TypeVar("F", bound=Callable[..., Any])
 
 # Tokens added in Python 3.12
-FSTRING_START = getattr(token, 'FSTRING_START', None)
-FSTRING_MIDDLE = getattr(token, 'FSTRING_MIDDLE', None)
-FSTRING_END = getattr(token, 'FSTRING_END', None)
+FSTRING_START = getattr(token, "FSTRING_START", None)
+FSTRING_MIDDLE = getattr(token, "FSTRING_MIDDLE", None)
+FSTRING_END = getattr(token, "FSTRING_END", None)
+
 
 def logger(method: F) -> F:
     """For non-memoized functions that we want to be logged.

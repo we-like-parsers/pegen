@@ -126,7 +126,7 @@ target_atom[str]:
     | NAME { name.string }
     | NUMBER { number.string }
     | STRING { string.string }
-    | l=FSTRING_START m=target_fstring_middle* r=FSTRING_END { l.string + ''.join(m) + r.string }
+    | l=FSTRING_START m=target_fstring_middle* r=FSTRING_END { l.string + "".join(m) + r.string }
     | "?" { "?" }
     | ":" { ":" }
     | !"}" !"]" OP { op.string }
