@@ -134,7 +134,7 @@ class PythonCallMakerVisitor(GrammarVisitor):
         if len(node.alts) == 1 and len(node.alts[0].items) == 1:
             self.cache[node] = self.visit(node.alts[0].items[0])
         else:
-            name = self.gen.name_node(node)
+            name = self.gen.artifical_rule_from_rhs(node)
             self.cache[node] = name, f"self.{name}()"
         return self.cache[node]
 
@@ -172,21 +172,21 @@ class PythonCallMakerVisitor(GrammarVisitor):
     def visit_Repeat0(self, node: Repeat0) -> Tuple[str, str]:
         if node in self.cache:
             return self.cache[node]
-        name = self.gen.name_loop(node.node, False)
+        name = self.gen.artificial_rule_from_repeat(node.node, False)
         self.cache[node] = name, f"self.{name}(),"  # Also a trailing comma!
         return self.cache[node]
 
     def visit_Repeat1(self, node: Repeat1) -> Tuple[str, str]:
         if node in self.cache:
             return self.cache[node]
-        name = self.gen.name_loop(node.node, True)
+        name = self.gen.artificial_rule_from_repeat(node.node, True)
         self.cache[node] = name, f"self.{name}()"  # But no trailing comma here!
         return self.cache[node]
 
     def visit_Gather(self, node: Gather) -> Tuple[str, str]:
         if node in self.cache:
             return self.cache[node]
-        name = self.gen.name_gather(node)
+        name = self.gen.artifical_rule_from_gather(node)
         self.cache[node] = name, f"self.{name}()"  # No trailing comma here either!
         return self.cache[node]
 
