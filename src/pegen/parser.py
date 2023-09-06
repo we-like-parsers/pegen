@@ -14,6 +14,11 @@ T = TypeVar("T")
 P = TypeVar("P", bound="Parser")
 F = TypeVar("F", bound=Callable[..., Any])
 
+# Tokens added in Python 3.12
+FSTRING_START = getattr(token, "FSTRING_START", None)
+FSTRING_MIDDLE = getattr(token, "FSTRING_MIDDLE", None)
+FSTRING_END = getattr(token, "FSTRING_END", None)
+
 
 def logger(method: F) -> F:
     """For non-memoized functions that we want to be logged.
@@ -213,6 +218,27 @@ class Parser(ABC):
     def string(self) -> Optional[tokenize.TokenInfo]:
         tok = self._tokenizer.peek()
         if tok.type == token.STRING:
+            return self._tokenizer.getnext()
+        return None
+
+    @memoize
+    def fstring_start(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == FSTRING_START:
+            return self._tokenizer.getnext()
+        return None
+
+    @memoize
+    def fstring_middle(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == FSTRING_MIDDLE:
+            return self._tokenizer.getnext()
+        return None
+
+    @memoize
+    def fstring_end(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == FSTRING_END:
             return self._tokenizer.getnext()
         return None
 

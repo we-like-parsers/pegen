@@ -102,7 +102,16 @@ class PythonCallMakerVisitor(GrammarVisitor):
         name = node.value
         if name == "SOFT_KEYWORD":
             return "soft_keyword", "self.soft_keyword()"
-        if name in ("NAME", "NUMBER", "STRING", "OP", "TYPE_COMMENT"):
+        if name in (
+            "NAME",
+            "NUMBER",
+            "STRING",
+            "FSTRING_START",
+            "FSTRING_MIDDLE",
+            "FSTRING_END",
+            "OP",
+            "TYPE_COMMENT",
+        ):
             name = name.lower()
             return name, f"self.{name}()"
         if name in ("NEWLINE", "DEDENT", "INDENT", "ENDMARKER", "ASYNC", "AWAIT"):
@@ -224,6 +233,9 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         unreachable_formatting: Optional[str] = None,
     ):
         tokens.add("SOFT_KEYWORD")
+        tokens.update(
+            ["FSTRING_START", "FSTRING_MIDDLE", "FSTRING_END"]
+        )  # used in metagrammar to support Python 3.12 f-strings; don't exist in 3.11
         super().__init__(grammar, tokens, file)
         self.callmakervisitor: PythonCallMakerVisitor = PythonCallMakerVisitor(self)
         self.invalidvisitor: InvalidNodeVisitor = InvalidNodeVisitor()

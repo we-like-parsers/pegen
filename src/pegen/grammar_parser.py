@@ -398,7 +398,7 @@ class GeneratedParser(Parser):
 
     @memoize
     def target_atom(self) -> Optional[str]:
-        # target_atom: "{" ~ target_atoms? "}" | "[" ~ target_atoms? "]" | NAME "*" | NAME | NUMBER | STRING | "?" | ":" | !"}" !"]" OP
+        # target_atom: "{" ~ target_atoms? "}" | "[" ~ target_atoms? "]" | NAME "*" | NAME | NUMBER | STRING | FSTRING_START target_fstring_middle* FSTRING_END | "?" | ":" | !"}" !"]" OP
         mark = self._mark()
         cut = False
         if (
@@ -434,6 +434,9 @@ class GeneratedParser(Parser):
         if string := self.string():
             return string.string
         self._reset(mark)
+        if (l := self.fstring_start()) and (m := self._loop0_1(),) and (r := self.fstring_end()):
+            return l.string + "".join(m) + r.string
+        self._reset(mark)
         if self.expect("?"):
             return "?"
         self._reset(mark)
@@ -448,6 +451,35 @@ class GeneratedParser(Parser):
             return op.string
         self._reset(mark)
         return None
+
+    @memoize
+    def target_fstring_middle(self) -> Optional[str]:
+        # target_fstring_middle: FSTRING_MIDDLE | "{" | "}" | target_atom
+        mark = self._mark()
+        if fstring_middle := self.fstring_middle():
+            return fstring_middle.string
+        self._reset(mark)
+        if self.expect("{"):
+            return "{"
+        self._reset(mark)
+        if self.expect("}"):
+            return "}"
+        self._reset(mark)
+        if target_atom := self.target_atom():
+            return target_atom
+        self._reset(mark)
+        return None
+
+    @memoize
+    def _loop0_1(self) -> Optional[Any]:
+        # _loop0_1: target_fstring_middle
+        mark = self._mark()
+        children = []
+        while target_fstring_middle := self.target_fstring_middle():
+            children.append(target_fstring_middle)
+            mark = self._mark()
+        self._reset(mark)
+        return children
 
     KEYWORDS = ()
     SOFT_KEYWORDS = ("memo",)
