@@ -393,8 +393,11 @@ class Parser(Parser):
     def expect_forced(self, res: Any, expectation: str) -> Optional[tokenize.TokenInfo]:
         if res is None:
             last_token = self._tokenizer.diagnose()
+            end = last_token.start
+            if sys.version_info >= (3, 11) and last_token.type != 4:  # i.e. not a \n
+                end = last_token.end
             self.raise_raw_syntax_error(
-                f"expected {expectation}", last_token.start, last_token.start
+                f"expected {expectation}", last_token.start, end
             )
         return res
 

@@ -1212,13 +1212,8 @@ def test_invalid_for_stmt(
             (2, 1),
             (2, 5),
         ),
-        ("def f:", SyntaxError, "expected '('", (1, 6), (1, 6)),
-        ("async def f:", SyntaxError, "expected '('", (1, 12), (1, 12)),
-        # (
-        #     "def f():\n# type: () -> int\n# type: () -> str\n\tpass",
-        #     SyntaxError,
-        #     "expected an indented block after function definition on line 1",
-        # ),
+        ("def f:", SyntaxError, "expected '('", (1, 6), (1, 7)),
+        ("async def f:", SyntaxError, "expected '('", (1, 12), (1, 13)),
     ],
 )
 def test_invalid_def_stmt(
