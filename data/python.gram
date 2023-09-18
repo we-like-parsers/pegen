@@ -874,13 +874,7 @@ param_star_annotation: a=NAME b=star_annotation {
     ast.arg(arg=a.string, annotations=b, LOCATIONS)
  }
 annotation: ':' a=expression { a }
-star_annotation: ':' a=star_expression {
-    self.check_version(
-        (3, 11),
-        "Star annotation",
-        a
-    )
- }
+star_annotation: ':' a=star_expression { a }
 default: '=' a=expression { a } | invalid_default
 
 # If statement

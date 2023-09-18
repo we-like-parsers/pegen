@@ -1212,8 +1212,20 @@ def test_invalid_for_stmt(
             (2, 1),
             (2, 5),
         ),
-        ("def f:", SyntaxError, "expected '('", (1, 6), (1, 7) if sys.version_info >= (3, 11) else (1, 6)),
-        ("async def f:", SyntaxError, "expected '('", (1, 12), (1, 13) if sys.version_info >= (3, 11) else (1, 12)),
+        (
+            "def f:",
+            SyntaxError,
+            "expected '('",
+            (1, 6),
+            (1, 7) if sys.version_info >= (3, 11) else (1, 6),
+        ),
+        (
+            "async def f:",
+            SyntaxError,
+            "expected '('",
+            (1, 12),
+            (1, 13) if sys.version_info >= (3, 11) else (1, 12),
+        ),
     ],
 )
 def test_invalid_def_stmt(
