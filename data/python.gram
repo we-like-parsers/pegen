@@ -10,7 +10,7 @@ import os
 import sys
 import token
 from typing import (
-    Any, Callable, Iterator, List, Literal, Tuple, TypeVar, Union, NoReturn
+    Any, Callable, Iterator, List, Literal, NoReturn, Sequence, Tuple, TypeVar, Union
 )
 
 from pegen.tokenizer import Tokenizer
@@ -256,47 +256,51 @@ class Parser(Parser):
 
         return name
 
+    def _concat_strings_in_constant(self, parts) -> str | bytes:
+        s = ast.literal_eval(parts[0].string)
+        for ss in parts[1:]:
+            s += ast.literal_eval(ss.string)
+        return ast.Constant(
+            s,
+            lineno=parts[0].start[0],
+            col_offset=parts[0].start[1],
+            end_lineno=parts[-1].end[0],
+            end_col_offset=parts[0].end[1],
+        )
+
     def concatenate_strings(self, parts):
-        """Concatenate multiple ast.Constant and ast.FormatedValue"""
+        """Concatenate multiple tokens and ast.JoinedStr"""
+        # Get proper start and stop
+        start = end = None
+        if isinstance(parts[0], ast.JoinedStr):
+            start = parts[0].lineno, parts[0].col_offset
+        if isinstance(parts[-1], ast.JoinedStr):
+            end = parts[-1].end_lineno, parts[-1].end_col_offset
+
+        # Combine the different parts
         values = []
         ss = []
         for p in parts:
-            if isinstance(p, ast.FormattedValue):
+            if isinstance(p, ast.JoinedStr):
                 if ss:
-                    values.append(
-                        ast.Constant(
-                            "".join((s.string for s in ss)),
-                            lineno=ss[0].lineno,
-                            col_offset=ss[0].col_offset,
-                            end_lineno=ss[-1].end_lineno,
-                            end_col_offset=ss[0].end_col_offset,
-                        )
-                    )
-                else:
-                    values.append(p)
+                    values.append(self._concat_strings_in_constant(ss))
+                    ss.clear()
+                values.extend(p.values)
             else:
                 ss.append(p)
 
         if ss:
-            values.append(
-                ast.Constant(
-                    "".join((s.string for s in ss)),
-                    lineno=ss[0].lineno,
-                    col_offset=ss[0].col_offset,
-                    end_lineno=ss[-1].end_lineno,
-                    end_col_offset=ss[0].end_col_offset,
-                )
-            )
+            values.append(self._concat_strings_in_constant(ss))
 
-        if len(values) == 1 and isinstance(values, ast.Constant):
+        if len(values) == 1 and isinstance(values[0], ast.Constant):
             return values[0]
         else:
             return ast.JoinedStr(
                 values=values,
-                lineno=parts[0].lineno,
-                col_offset=parts[0].col_offset,
-                end_lineno=parts[-1].end_lineno,
-                end_col_offset=parts[-1].end_col_offset,
+                lineno=start[0] if start else values[0].lineno,
+                col_offset=start[1] if start else values[0].col_offset,
+                end_lineno=end[0] if end else values[-1].end_lineno,
+                end_col_offset=end[1] if end else values[-1].end_col_offset,
             )
 
     def generate_ast_for_string(self, tokens):
@@ -528,7 +532,7 @@ class Parser(Parser):
 
     def raise_syntax_error_on_next_token(self, message: str) -> NoReturn:
         next_token = self._tokenizer.peek()
-        raise self._build_syntax_error(message, start, next_token.start)
+        raise self._build_syntax_error(message, next_token.start, next_token.end)
 
 '''
 
@@ -749,14 +753,26 @@ class_def[ast.ClassDef]:
 
 class_def_raw[ast.ClassDef]:
     | invalid_class_def_raw
-    | 'class' a=NAME b=['(' z=[arguments] ')' { z }] &&':' c=block {
-        ast.ClassDef(
-            a.string,
-            bases=b[0] if b else [],
-            keywords=b[1] if b else [],
-            body=c,
-            decorator_list=[],
-            LOCATIONS,
+    | 'class' a=NAME t=[type_params] b=['(' z=[arguments] ')' { z }] &&':' c=block {
+        (
+            ast.ClassDef(
+                a.string,
+                bases=b[0] if b else [],
+                keywords=b[1] if b else [],
+                body=c,
+                decorator_list=[],
+                type_params=t or [],
+                LOCATIONS,
+            )
+            if sys.version_info >= (3, 12) else
+            ast.ClassDef(
+                a.string,
+                bases=b[0] if b else [],
+                keywords=b[1] if b else [],
+                body=c,
+                decorator_list=[],
+                LOCATIONS,
+            )
         )
      }
 
@@ -769,21 +785,18 @@ function_def[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
 
 function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
     | invalid_def_raw
-    | 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
-        ast.FunctionDef(
-            name=n.string,
-            args=params or self.make_arguments(None, [], None, [], None),
-            returns=a,
-            body=b,
-            type_comment=tc,
-            LOCATIONS,
-        )
-     }
-    | 'async' 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
-       self.check_version(
-            (3, 5),
-            "Async functions are",
-            ast.AsyncFunctionDef(
+    | 'def' n=NAME t=[type_params] &&'(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
+        (
+            ast.FunctionDef(
+                name=n.string,
+                args=params or self.make_arguments(None, [], None, [], None),
+                returns=a,
+                body=b,
+                type_comment=tc,
+                type_params=t or [],
+                LOCATIONS,
+            ) if sys.version_info >= (3, 12) else
+            ast.FunctionDef(
                 name=n.string,
                 args=params or self.make_arguments(None, [], None, [], None),
                 returns=a,
@@ -792,6 +805,31 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
                 LOCATIONS,
             )
         )
+     }
+    | 'async' 'def' n=NAME t=[type_params] &&'(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
+       (
+            ast.AsyncFunctionDef(
+                name=n.string,
+                args=params or self.make_arguments(None, [], None, [], None),
+                returns=a,
+                body=b,
+                type_comment=tc,
+                type_params=t or [],
+                LOCATIONS,
+            ) if sys.version_info else
+            self.check_version(
+                (3, 5),
+                "Async functions are",
+                ast.AsyncFunctionDef(
+                    name=n.string,
+                    args=params or self.make_arguments(None, [], None, [], None),
+                    returns=a,
+                    body=b,
+                    type_comment=tc,
+                    LOCATIONS,
+                )
+            )
+       )
      }
 
 # Function parameters
@@ -1612,14 +1650,18 @@ lambda_param[ast.arg]: a=NAME {
 # LITERALS
 # ========
 
-fstring_middle:
+fstring_mid:
     | fstring_replacement_field
     | t=FSTRING_MIDDLE { ast.Constant(value=t.string, LOCATIONS) }
 fstring_replacement_field:
     | '{' a=(yield_expr | star_expressions) debug_expr="="? conversion=[fstring_conversion] format=[fstring_full_format_spec] rbrace='}' {
         ast.FormattedValue(
             value=a,
-            conversion=conversion.decode()[0] if conversion else b'r'[0],
+            conversion=(
+                conversion.decode()[0]
+                if conversion else
+                (b'r'[0] if debug_expr else -1)
+            ),
             format=format,
             LOCATIONS
         )
@@ -1633,8 +1675,8 @@ fstring_format_spec:
     | t=FSTRING_MIDDLE { ast.Constant(value=t.string.decode(), LOCATIONS) }
     | fstring_replacement_field
 fstring:
-    | a=FSTRING_START b=fstring_middle* c=FSTRING_END {
-        ast.JoinedStr(values=fstring_middle, LOCATIONS)
+    | a=FSTRING_START b=fstring_mid* c=FSTRING_END {
+        ast.JoinedStr(values=b, LOCATIONS)
      }
 
 strings (memo): a=(fstring|STRING)+ {
