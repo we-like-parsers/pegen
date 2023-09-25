@@ -88,8 +88,22 @@ def parse_invalid_syntax(
 @pytest.mark.parametrize(
     "source, message, start, end",
     [
-        ("f'a = { 1 + }'", "f-string: invalid syntax", (1, 7), (1, 8)),
-        ("(\n\t'b'\n\tf'a = { 1 + }'\n)", "f-string: invalid syntax", (3, 7), (3, 8)),
+        (
+            "f'a = { 1 + }'",
+            "f-string: expecting '=', or '!', or ':', or '}'"
+            if sys.version_info >= (3, 12)
+            else "f-string: invalid syntax",
+            (1, 11) if sys.version_info >= (3, 12) else (1, 7),
+            (1, 12) if sys.version_info >= (3, 12) else (1, 8),
+        ),
+        (
+            "(\n\t'b'\n\tf'a = { 1 + }'\n)",
+            "f-string: expecting '=', or '!', or ':', or '}'"
+            if sys.version_info >= (3, 12)
+            else "f-string: invalid syntax",
+            (3, 12) if sys.version_info >= (3, 12) else (3, 7),
+            (3, 13) if sys.version_info >= (3, 12) else (3, 8),
+        ),
     ],
 )
 def test_syntax_error_in_str(
@@ -369,14 +383,18 @@ def test_invalid_comprehension(
     [
         (
             "def f(a=1, b):\n\tpass",
-            "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default"
+            if sys.version_info >= (3, 12)
+            else "non-default argument follows default argument",
             (1, 12),
             (1, 13),
             (3, 10),
         ),
         (
             "def f(a=1, /, b):\n\tpass",
-            "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default"
+            if sys.version_info >= (3, 12)
+            else "non-default argument follows default argument",
             (1, 15),
             (1, 16),
             (3, 10),
@@ -537,14 +555,18 @@ def test_invalid_comprehension(
         ),
         (
             "lambda x=1, y: x",
-            "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default"
+            if sys.version_info >= (3, 12)
+            else "non-default argument follows default argument",
             (1, 13),
             (1, 14),
             (3, 10),
         ),
         (
             "lambda x=1, /, y: x",
-            "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default"
+            if sys.version_info >= (3, 12)
+            else "non-default argument follows default argument",
             (1, 16),
             (1, 17),
             (3, 10),
