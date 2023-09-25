@@ -24,6 +24,7 @@ import pytest
         "call.py",
         "comprehensions.py",
         "expressions.py",
+        "fstrings.py",
         "function_def.py",
         "imports.py",
         "lambdas.py",

@@ -260,13 +260,17 @@ class Parser(Parser):
         s = ast.literal_eval(parts[0].string)
         for ss in parts[1:]:
             s += ast.literal_eval(ss.string)
-        return ast.Constant(
-            s,
+        args = dict(
+            value=s,
             lineno=parts[0].start[0],
             col_offset=parts[0].start[1],
             end_lineno=parts[-1].end[0],
             end_col_offset=parts[0].end[1],
         )
+        if parts[0].string.startswith("u"):
+            args["kind"] = "u"
+        return ast.Constant(**args)
+
 
     def concatenate_strings(self, parts):
         """Concatenate multiple tokens and ast.JoinedStr"""
@@ -278,10 +282,12 @@ class Parser(Parser):
             end = parts[-1].end_lineno, parts[-1].end_col_offset
 
         # Combine the different parts
+        seen_joined = False
         values = []
         ss = []
         for p in parts:
             if isinstance(p, ast.JoinedStr):
+                seen_joined = True
                 if ss:
                     values.append(self._concat_strings_in_constant(ss))
                     ss.clear()
@@ -292,11 +298,20 @@ class Parser(Parser):
         if ss:
             values.append(self._concat_strings_in_constant(ss))
 
-        if len(values) == 1 and isinstance(values[0], ast.Constant):
+        consolidated = []
+        for p in values:
+            if consolidated and isinstance(consolidated[-1], ast.Constant) and isinstance(p, ast.Constant):
+                consolidated[-1].value += p.value
+                consolidated[-1].end_lineno = p.end_lineno
+                consolidated[-1].end_col_offset = p.end_col_offset
+            else:
+                consolidated.append(p)
+
+        if not seen_joined and len(values) == 1 and isinstance(values[0], ast.Constant):
             return values[0]
         else:
             return ast.JoinedStr(
-                values=values,
+                values=consolidated,
                 lineno=start[0] if start else values[0].lineno,
                 col_offset=start[1] if start else values[0].col_offset,
                 end_lineno=end[0] if end else values[-1].end_lineno,
@@ -1662,7 +1677,7 @@ fstring_replacement_field:
                 if conversion else
                 (b'r'[0] if debug_expr else -1)
             ),
-            format=format,
+            format_spec=format,
             LOCATIONS
         )
      }
@@ -1670,9 +1685,14 @@ fstring_replacement_field:
 fstring_conversion[int]:
     | conv_token="!" conv=NAME { self.check_fstring_conversion(conv_token, conv) }
 fstring_full_format_spec:
-    | ':' spec=fstring_format_spec* { ast.JoinedStr(values=spec, LOCATIONS) }
+    | ':' spec=fstring_format_spec* {
+        ast.JoinedStr(
+            values=spec if spec and (len(spec) > 1 or spec[0].value) else [],
+            LOCATIONS,
+        )
+     }
 fstring_format_spec:
-    | t=FSTRING_MIDDLE { ast.Constant(value=t.string.decode(), LOCATIONS) }
+    | t=FSTRING_MIDDLE { ast.Constant(value=t.string.encode(), LOCATIONS) }
     | fstring_replacement_field
 fstring:
     | a=FSTRING_START b=fstring_mid* c=FSTRING_END {
