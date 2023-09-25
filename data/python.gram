@@ -1291,7 +1291,7 @@ type_alias["ast.TypeAlias"]:
                         end_lineno=n.end[0],
                         end_col_offset=n.end[1],
                     ),
-                    type_params=t,
+                    type_params=t or [],
                     value=b,
                     LOCATIONS
                 )
@@ -1532,7 +1532,7 @@ primary:
 
 slices:
     | a=slice !',' { a }
-    | a=','.slice+ [','] {
+    | a=','.(slice | starred_expression)+ [','] {
         ast.Tuple(elts=a, ctx=Load, LOCATIONS)
         if sys.version_info >= (3, 9) else
         (
@@ -1998,7 +1998,7 @@ invalid_expression[NoReturn]:
     | a=disjunction 'if' b=disjunction !('else'|':') {
         self.raise_syntax_error_known_range("expected 'else' after 'if' expression", a, b)
      }
-    | a='lambda' [lambda_params] b=':' &FSTRING_MIDDLE  {
+    | a='lambda' [lambda_params] b=':' &(FSTRING_MIDDLE | fstring_replacement_field)  {
         self.raise_syntax_error_known_range(
             "f-string: lambda expressions are not allowed without parentheses", a, b
         )
