@@ -473,7 +473,7 @@ class Parser(Parser):
         if res is None:
             last_token = self._tokenizer.diagnose()
             end = last_token.start
-            if sys.version_info >= (3, 11) and last_token.type != 4:  # i.e. not a \n
+            if sys.version_info >= (3, 12) or (sys.version_info >= (3, 11) and last_token.type != 4):  # i.e. not a \n
                 end = last_token.end
             self.raise_raw_syntax_error(
                 f"expected {expectation}", last_token.start, end
@@ -483,7 +483,7 @@ class Parser(Parser):
     def raise_syntax_error(self, message: str) -> NoReturn:
         """Raise a syntax error."""
         tok = self._tokenizer.diagnose()
-        raise self._build_syntax_error(message, tok.start, tok.end if tok.type != 4 else tok.start)
+        raise self._build_syntax_error(message, tok.start, tok.end if sys.version_info >= (3, 12) or tok.type != 4 else tok.start)
 
     def raise_syntax_error_known_location(
         self, message: str, node: Union[ast.AST, tokenize.TokenInfo]
@@ -2134,12 +2134,6 @@ invalid_parameters_helper: # This is only there to avoid type errors
     | a=slash_with_default { [a] }
     | a=param_with_default+
 invalid_lambda_parameters[NoReturn]:
-    | lambda_param_no_default* invalid_lambda_parameters_helper a=lambda_param_no_default {
-        self.raise_syntax_error_known_location("non-default argument follows default argument", a)
-     }
-    | lambda_param_no_default* a='(' ','.lambda_param+ ','? b=')' {
-        self.raise_syntax_error_known_range("Lambda expression parameters cannot be parenthesized", a, b)
-     }
     | a="/" ',' {
         self.raise_syntax_error_known_location("at least one argument must precede /", a)
      }

@@ -551,21 +551,17 @@ def test_invalid_comprehension(
         ),
         (
             "lambda x=1, y: x",
-            "parameter without a default follows parameter with a default"
-            if sys.version_info >= (3, 12)
-            else "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default",
             (1, 13),
             (1, 14),
-            (3, 10),
+            (3, 12),  # Improved error message
         ),
         (
             "lambda x=1, /, y: x",
-            "parameter without a default follows parameter with a default"
-            if sys.version_info >= (3, 12)
-            else "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default",
             (1, 16),
             (1, 17),
-            (3, 10),
+            (3, 12),  # improved error message
         ),
         (
             "lambda x, (y, z), w: None",
@@ -783,7 +779,7 @@ def test_invalid_group(python_parse_file, python_parse_str, tmp_path, source, me
             "from a import b,",
             "trailing comma not allowed without surrounding parentheses",
             (1, 17),
-            (1, 17),
+            (1, 18) if sys.version_info >= (3, 12) else (1, 17),
         ),
         ("from a import b, and 3", "invalid syntax", (1, 18), (1, 21)),
         ("from a import raise", "invalid syntax", (1, 15), (1, 20)),
@@ -818,13 +814,19 @@ def test_invalid_import_from_as_names(
                 sys.version_info < (3, 9), reason="Unsupported syntax on Python 3.8"
             ),
         ),
-        ("with open(a) as f, b as d\npass", SyntaxError, "expected ':'", (1, 26), (1, 26)),
+        (
+            "with open(a) as f, b as d\npass",
+            SyntaxError,
+            "expected ':'",
+            (1, 26),
+            (1, 27) if sys.version_info >= (3, 12) else (1, 26),
+        ),
         (
             "\nasync with (open(a) as f, b as d)\npass",
             SyntaxError,
             "expected ':'",
             (2, 34),
-            (2, 34),
+            (2, 35) if sys.version_info >= (3, 12) else (2, 34),
         ),
     ],
 )
@@ -846,7 +848,13 @@ def test_invalid_with_stmt(
             (2, 1),
             (2, 5),
         ),
-        ("try\n\tpass", SyntaxError, "expected ':'", (1, 4), (1, 4)),
+        (
+            "try\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (1, 4),
+            (1, 5) if sys.version_info >= (3, 12) else (1, 4),
+        ),
         (
             "try:\n\tpass\na = 1",
             SyntaxError,
@@ -918,15 +926,27 @@ def test_invalid_try_stmt(
             (3, 18),
             (3, 19),
         ),
-        ("try:\n\tpass\nexcept Exception\npass", SyntaxError, "expected ':'", (3, 17), (3, 17)),
+        (
+            "try:\n\tpass\nexcept Exception\npass",
+            SyntaxError,
+            "expected ':'",
+            (3, 17),
+            (3, 18) if sys.version_info >= (3, 12) else (3, 17),
+        ),
         (
             "try:\n\tpass\nexcept Exception as e\npass",
             SyntaxError,
             "expected ':'",
             (3, 22),
-            (3, 22),
+            (3, 23) if sys.version_info >= (3, 12) else (3, 22),
         ),
-        ("try:\n\tpass\nexcept\npass", SyntaxError, "expected ':'", (3, 7), (3, 7)),
+        (
+            "try:\n\tpass\nexcept\npass",
+            SyntaxError,
+            "expected ':'",
+            (3, 7),
+            (3, 8) if sys.version_info >= (3, 12) else (3, 7),
+        ),
     ],
 )
 def test_invalid_except_stmt(
@@ -968,7 +988,13 @@ def test_invalid_finally_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("match a\n\tpass", SyntaxError, "expected ':'", (1, 8), (1, 8)),
+        (
+            "match a\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (1, 8),
+            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
+        ),
         (
             "match a:\npass",
             IndentationError,
@@ -990,7 +1016,13 @@ def test_invalid_match_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("match a:\n\tcase 1\n\t\tpass", SyntaxError, "expected ':'", (2, 8), (2, 8)),
+        (
+            "match a:\n\tcase 1\n\t\tpass",
+            SyntaxError,
+            "expected ':'",
+            (2, 8),
+            (2, 9) if sys.version_info >= (3, 12) else (2, 8),
+        ),
         (
             "match a:\n\tcase 1:\n\tpass",
             IndentationError,
@@ -1083,7 +1115,13 @@ def test_invalid_case_pattern(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("if a\n\tpass", SyntaxError, "expected ':'", (1, 5), (1, 5)),
+        (
+            "if a\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (1, 5),
+            (1, 6) if sys.version_info >= (3, 12) else (1, 5),
+        ),
         (
             "if a:\npass",
             IndentationError,
@@ -1104,7 +1142,13 @@ def test_invalid_if_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("if a:\n\tpass\nelif a\n\tpass", SyntaxError, "expected ':'", (3, 7), (3, 7)),
+        (
+            "if a:\n\tpass\nelif a\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (3, 7),
+            (3, 8) if sys.version_info >= (3, 12) else (3, 7),
+        ),
         (
             "if a:\n\tpass\nelif b:\npass",
             IndentationError,
@@ -1125,7 +1169,13 @@ def test_invalid_elif_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("if a:\n\tpass\nelse\n\tpass", SyntaxError, "expected ':'", (3, 5), (3, 5)),
+        (
+            "if a:\n\tpass\nelse\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (3, 5),
+            (3, 6) if sys.version_info >= (3, 12) else (3, 5),
+        ),
         (
             "if a:\n\tpass\nelse:\npass",
             IndentationError,
@@ -1146,7 +1196,13 @@ def test_invalid_else_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("while a\n\tpass", SyntaxError, "expected ':'", (1, 8), (1, 8)),
+        (
+            "while a\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (1, 8),
+            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
+        ),
         (
             "while a:\npass",
             IndentationError,
