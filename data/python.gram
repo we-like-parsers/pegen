@@ -825,6 +825,7 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
        (
             self.check_version(
                 (3, 5),
+                "Async functions are",
                 ast.AsyncFunctionDef(
                     name=n.string,
                     args=params or self.make_arguments(None, [], None, [], None),
