@@ -383,21 +383,17 @@ def test_invalid_comprehension(
     [
         (
             "def f(a=1, b):\n\tpass",
-            "parameter without a default follows parameter with a default"
-            if sys.version_info >= (3, 12)
-            else "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default",
             (1, 12),
             (1, 13),
-            (3, 10),
+            (3, 12),  # Error message was improved in 3.12
         ),
         (
             "def f(a=1, /, b):\n\tpass",
-            "parameter without a default follows parameter with a default"
-            if sys.version_info >= (3, 12)
-            else "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default",
             (1, 15),
             (1, 16),
-            (3, 10),
+            (3, 12),  # Error message was improved in 3.12
         ),
         (
             "def f(x, (y, z), w):\n\tpass",

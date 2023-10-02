@@ -823,15 +823,18 @@ function_def_raw[Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
      }
     | 'async' 'def' n=NAME t=[type_params] &&'(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
        (
-            ast.AsyncFunctionDef(
-                name=n.string,
-                args=params or self.make_arguments(None, [], None, [], None),
-                returns=a,
-                body=b,
-                type_comment=tc,
-                type_params=t or [],
-                LOCATIONS,
-            ) if sys.version_info else
+            self.check_version(
+                (3, 5),
+                ast.AsyncFunctionDef(
+                    name=n.string,
+                    args=params or self.make_arguments(None, [], None, [], None),
+                    returns=a,
+                    body=b,
+                    type_comment=tc,
+                    type_params=t or [],
+                    LOCATIONS,
+                )
+            ) if sys.version_info >= (3, 12) else
             self.check_version(
                 (3, 5),
                 "Async functions are",
