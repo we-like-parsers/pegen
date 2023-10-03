@@ -227,19 +227,19 @@ class Parser(Parser):
         node.ctx = context
         return node
 
-    def ensure_real(self, number: ast.Constant):
+    def ensure_real(self, number: ast.Constant) -> float:
         value = ast.literal_eval(number.string)
         if type(value) is complex:
             self.raise_syntax_error_known_location("real number required in complex literal", number)
         return value
 
-    def ensure_imaginary(self, number: ast.Constant):
+    def ensure_imaginary(self, number: ast.Constant) -> complex:
         value = ast.literal_eval(number.string)
         if type(value) is not complex:
             self.raise_syntax_error_known_location("imaginary number required in complex literal", number)
         return value
 
-    def check_fstring_conversion(self, mark: tokenize.TokenInfo, name: tokenize.TokenInfo):
+    def check_fstring_conversion(self, mark: tokenize.TokenInfo, name: tokenize.TokenInfo) -> tokenize.TokenInfo:
         if mark.lineno != name.lineno or mark.col_offset != name.col_offset:
             self.raise_syntax_error_known_range(
                 "f-string: conversion type must come right after the exclamanation mark",
@@ -256,7 +256,7 @@ class Parser(Parser):
 
         return name
 
-    def _concat_strings_in_constant(self, parts) -> str | bytes:
+    def _concat_strings_in_constant(self, parts) -> Union[str, bytes]:
         s = ast.literal_eval(parts[0].string)
         for ss in parts[1:]:
             s += ast.literal_eval(ss.string)
