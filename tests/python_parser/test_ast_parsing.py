@@ -53,7 +53,8 @@ import pytest
         pytest.param(
             "type_params.py",
             marks=pytest.mark.skipif(
-                sys.version_info <= (3, 12), reason="type declarations allowed only in Python 3.12+"
+                sys.version_info <= (3, 12),
+                reason="type declarations allowed only in Python 3.12+",
             ),
         ),
         pytest.param(
