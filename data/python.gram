@@ -2246,11 +2246,11 @@ invalid_try_stmt[NoReturn]:
         )
      }
 invalid_except_stmt[None]:
-    | 'except' a=expression ',' expressions ['as' NAME ] ':' {
+    | 'except' '*'? a=expression ',' expressions ['as' NAME ] ':' {
         self.raise_syntax_error_starting_from("multiple exception types must be parenthesized", a)
      }
-    | a='except' expression ['as' NAME ] NEWLINE { self.raise_syntax_error("expected ':'") }
-    | a='except' NEWLINE { self.raise_syntax_error("expected ':'") }
+    | a='except' '*'? expression ['as' NAME ] NEWLINE { self.raise_syntax_error("expected ':'") }
+    | a='except' '*'? NEWLINE { self.raise_syntax_error("expected ':'") }
     | a='except' '*' (NEWLINE | ':') {
         self.raise_syntax_error("expected one or more exception types")
      }
