@@ -1325,26 +1325,26 @@ type_param (memo):
         else object()
      }
     | '*' a=NAME colon=":" e=expression {
-            self.raise_syntax_error_starting_from(
-                "cannot use constraints with TypeVarTuple"
-                if isinstance(e, tuple)
-                else "cannot use bound with TypeVarTuple",
-                colon
-            )
-        }
+        self.raise_syntax_error_starting_from(
+            "cannot use constraints with TypeVarTuple"
+            if isinstance(e, ast.Tuple)
+            else "cannot use bound with TypeVarTuple",
+            colon
+        )
+     }
     | '*' a=NAME {
         ast.TypeVarTuple(name=a.string, LOCATIONS)
         if sys.version_info >= (3, 12)
         else object()
      }
     | '**' a=NAME colon=":" e=expression {
-            self.raise_syntax_error_starting_from(
-                "cannot use constraints with ParamSpec"
-                if isinstance(e, tuple)
-                else "cannot use bound with ParamSpec",
-                colon
-            )
-        }
+        self.raise_syntax_error_starting_from(
+            "cannot use constraints with ParamSpec"
+            if isinstance(e, ast.Tuple)
+            else "cannot use bound with ParamSpec",
+            colon
+        )
+     }
     | '**' a=NAME {
         ast.ParamSpec(name=a.string, LOCATIONS)
         if sys.version_info >= (3, 12)
