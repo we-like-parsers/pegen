@@ -2351,14 +2351,14 @@ invalid_for_stmt[NoReturn]:
         )
      }
 invalid_def_raw[NoReturn]:
-    | ['async'] a='def' NAME '(' [params] ')' ['->' expression] ':' NEWLINE !INDENT {
+    | ['async'] a='def' NAME  [type_params] '(' [params] ')' ['->' expression] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after function definition on line {a.start[0]}"
         )
      }
 invalid_class_def_raw[NoReturn]:
-    | 'class' NAME ['(' [arguments] ')'] NEWLINE { self.raise_syntax_error("expected ':'") }
-    | a='class' NAME ['(' [arguments] ')'] ':' NEWLINE !INDENT {
+    | 'class' NAME [type_params] ['(' [arguments] ')'] NEWLINE { self.raise_syntax_error("expected ':'") }
+    | a='class' NAME  [type_params] ['(' [arguments] ')'] ':' NEWLINE !INDENT {
         self.raise_indentation_error(
             f"expected an indented block after class definition on line {a.start[0]}"
         )
