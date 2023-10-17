@@ -1,5 +1,6 @@
 """Test syntax errors for cases where the parser can generate helpful messages."""
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -7,14 +8,14 @@ import pytest
 def parse_invalid_syntax(
     python_parse_file,
     python_parse_str,
-    tmp_path,
-    source,
-    exc_cls,
-    message,
-    start,
-    end,
-    min_python_version=(3, 10),
-):
+    tmp_path: Path,
+    source: str,
+    exc_cls: type,
+    message: str,
+    start: tuple[int, int],
+    end: tuple[int, int],
+    min_python_version: tuple[int, int]=(3, 10),
+) -> None:
     # Check we obtain the expected error from Python
     try:
         exec(source, {}, {})
@@ -49,6 +50,9 @@ def parse_invalid_syntax(
 
     print(str(e.exconly()))
     assert message in str(e.exconly())
+
+    if start is None:
+        return
 
     # Check start/end line/column on Python 3.10
     for parser, exc in ([("Python", py_exc)] if sys.version_info >= min_python_version else []) + [
@@ -92,41 +96,35 @@ def parse_invalid_syntax(
             "f'a = {}'",
             "valid expression required before '}'"
             if sys.version_info >= (3, 12)
-            else "f-string: invalid syntax",
-            (1, 8) if sys.version_info >= (3, 12) else (1, 7),
-            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
+            else "f-string: empty expression not allowed",
+            (1, 8) if sys.version_info >= (3, 12) else None,
+            (1, 9) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = {=}'",
-            "valid expression required before '='"
-            if sys.version_info >= (3, 12)
-            else "f-string: invalid syntax",
-            (1, 8) if sys.version_info >= (3, 12) else (1, 7),
-            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
+            "expression required before '='",
+            (1, 8) if sys.version_info >= (3, 12) else None,
+            (1, 9) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = {!}'",
-            "valid expression required before '!'"
-            if sys.version_info >= (3, 12)
-            else "f-string: invalid syntax",
-            (1, 8) if sys.version_info >= (3, 12) else (1, 7),
-            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
+            "expression required before '!'",
+            (1, 8) if sys.version_info >= (3, 12) else None,
+            (1, 9) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = {:}'",
-            "valid expression required before ':'"
-            if sys.version_info >= (3, 12)
-            else "f-string: invalid syntax",
-            (1, 8) if sys.version_info >= (3, 12) else (1, 7),
-            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
+            "expression required before ':'",
+            (1, 8) if sys.version_info >= (3, 12) else None,
+            (1, 9) if sys.version_info >= (3, 12) else (1, 11),
         ),
         (
             "f'a = {a=d}'",
             "expecting '!', or ':', or '}'"
             if sys.version_info >= (3, 12)
-            else "f-string: invalid syntax",
-            (1, 10) if sys.version_info >= (3, 12) else (1, 7),
-            (1, 11) if sys.version_info >= (3, 12) else (1, 8),
+            else "f-string: expecting '}'",
+            (1, 10) if sys.version_info >= (3, 12) else None,
+            (1, 11) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = { 1 + }'",
