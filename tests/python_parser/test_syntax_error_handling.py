@@ -1,6 +1,5 @@
 """Test syntax errors for cases where the parser can generate helpful messages."""
 import sys
-from pathlib import Path
 
 import pytest
 
