@@ -8,13 +8,13 @@ import pytest
 def parse_invalid_syntax(
     python_parse_file,
     python_parse_str,
-    tmp_path: Path,
-    source: str,
-    exc_cls: type,
-    message: str,
-    start: tuple[int, int],
-    end: tuple[int, int],
-    min_python_version: tuple[int, int]=(3, 10),
+    tmp_path,
+    source,
+    exc_cls,
+    message,
+    start,
+    end,
+    min_python_version=(3, 10),
 ) -> None:
     # Check we obtain the expected error from Python
     try:
@@ -102,19 +102,25 @@ def parse_invalid_syntax(
         ),
         (
             "f'a = {=}'",
-            "expression required before '='",
+            "expression required before '='"
+            if sys.version_info >= (3, 11)
+            else "f-string: empty expression not allowed",
             (1, 8) if sys.version_info >= (3, 12) else None,
             (1, 9) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = {!}'",
-            "expression required before '!'",
+            "expression required before '!'"
+            if sys.version_info >= (3, 11)
+            else "f-string: empty expression not allowed",
             (1, 8) if sys.version_info >= (3, 12) else None,
             (1, 9) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = {:}'",
-            "expression required before ':'",
+            "expression required before ':'"
+            if sys.version_info >= (3, 11)
+            else "f-string: empty expression not allowed",
             (1, 8) if sys.version_info >= (3, 12) else None,
             (1, 9) if sys.version_info >= (3, 12) else (1, 11),
         ),
@@ -267,7 +273,7 @@ def test_invalid_call_arguments(
         message,
         start,
         end,
-        (3, 11) if "cannot assign" in message else (3, 10),
+        (3, 12) if "cannot assign" in message else (3, 10),
     )
 
 
@@ -1324,7 +1330,7 @@ def test_invalid_while_stmt(
             SyntaxError,
             "expected ':'",
             (1, 19),
-            (1, 20) if sys.version_info >= (3, 11) else (1, 19),
+            (1, 20) if sys.version_info >= (3, 12) else (1, 19),
         ),
         (
             "for a in range(10):\npass",
@@ -1439,7 +1445,7 @@ def test_invalid_def_stmt(
             SyntaxError,
             "expected ':'",
             (1, 8),
-            (1, 9) if sys.version_info >= (3, 11) else (1, 8),
+            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
         ),
         (
             "class A:\npass",
