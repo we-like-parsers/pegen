@@ -14,7 +14,7 @@ def parse_invalid_syntax(
     start,
     end,
     min_python_version=(3, 10),
-):
+) -> None:
     # Check we obtain the expected error from Python
     try:
         exec(source, {}, {})
@@ -49,6 +49,9 @@ def parse_invalid_syntax(
 
     print(str(e.exconly()))
     assert message in str(e.exconly())
+
+    if start is None:
+        return
 
     # Check start/end line/column on Python 3.10
     for parser, exc in ([("Python", py_exc)] if sys.version_info >= min_python_version else []) + [
@@ -88,8 +91,62 @@ def parse_invalid_syntax(
 @pytest.mark.parametrize(
     "source, message, start, end",
     [
-        ("f'a = { 1 + }'", "f-string: invalid syntax", (1, 7), (1, 8)),
-        ("(\n\t'b'\n\tf'a = { 1 + }'\n)", "f-string: invalid syntax", (3, 7), (3, 8)),
+        (
+            "f'a = {}'",
+            "valid expression required before '}'"
+            if sys.version_info >= (3, 12)
+            else "f-string: empty expression not allowed",
+            (1, 8) if sys.version_info >= (3, 12) else None,
+            (1, 9) if sys.version_info >= (3, 12) else None,
+        ),
+        (
+            "f'a = {=}'",
+            "expression required before '='"
+            if sys.version_info >= (3, 11)
+            else "f-string: empty expression not allowed",
+            (1, 8) if sys.version_info >= (3, 12) else None,
+            (1, 9) if sys.version_info >= (3, 12) else None,
+        ),
+        (
+            "f'a = {!}'",
+            "expression required before '!'"
+            if sys.version_info >= (3, 11)
+            else "f-string: empty expression not allowed",
+            (1, 8) if sys.version_info >= (3, 12) else None,
+            (1, 9) if sys.version_info >= (3, 12) else None,
+        ),
+        (
+            "f'a = {:}'",
+            "expression required before ':'"
+            if sys.version_info >= (3, 11)
+            else "f-string: empty expression not allowed",
+            (1, 8) if sys.version_info >= (3, 12) else None,
+            (1, 9) if sys.version_info >= (3, 12) else (1, 11),
+        ),
+        (
+            "f'a = {a=d}'",
+            "expecting '!', or ':', or '}'"
+            if sys.version_info >= (3, 12)
+            else "f-string: expecting '}'",
+            (1, 10) if sys.version_info >= (3, 12) else None,
+            (1, 11) if sys.version_info >= (3, 12) else None,
+        ),
+        (
+            "f'a = { 1 + }'",
+            "f-string: expecting '=', or '!', or ':', or '}'"
+            if sys.version_info >= (3, 12)
+            else "f-string: invalid syntax",
+            (1, 11) if sys.version_info >= (3, 12) else (1, 7),
+            (1, 12) if sys.version_info >= (3, 12) else (1, 8),
+        ),
+        (
+            "(\n\t'b'\n\tf'a = { 1 + }'\n)",
+            "f-string: expecting '=', or '!', or ':', or '}'"
+            if sys.version_info >= (3, 12)
+            else "f-string: invalid syntax",
+            (3, 12) if sys.version_info >= (3, 12) else (3, 7),
+            (3, 13) if sys.version_info >= (3, 12) else (3, 8),
+        ),
     ],
 )
 def test_syntax_error_in_str(
@@ -182,6 +239,7 @@ def test_invalid_statements(
         ("f(a, b for b in c)", "Generator expression must be parenthesized", (1, 6), (1, None)),
         # NOTE CPython bug, should report 18 as expected (we use None to omit the check)
         ("f(a, b for b in c, d)", "Generator expression must be parenthesized", (1, 6), (1, None)),
+        ("f(*a=b)", "cannot assign to iterable argument unpacking", (1, 3), (1, 7)),
         ("f(**a, b)", "positional argument follows keyword argument unpacking", (1, 9), (1, 10)),
         ("f(a=1, b)", "positional argument follows keyword argument", (1, 9), (1, 10)),
         # Invalid kwarg rules
@@ -214,7 +272,7 @@ def test_invalid_call_arguments(
         message,
         start,
         end,
-        (3, 11) if "cannot assign" in message else (3, 10),
+        (3, 12) if "cannot assign" in message else (3, 10),
     )
 
 
@@ -369,17 +427,17 @@ def test_invalid_comprehension(
     [
         (
             "def f(a=1, b):\n\tpass",
-            "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default",
             (1, 12),
             (1, 13),
-            (3, 10),
+            (3, 12),  # Error message was improved in 3.12
         ),
         (
             "def f(a=1, /, b):\n\tpass",
-            "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default",
             (1, 15),
             (1, 16),
-            (3, 10),
+            (3, 12),  # Error message was improved in 3.12
         ),
         (
             "def f(x, (y, z), w):\n\tpass",
@@ -537,17 +595,17 @@ def test_invalid_comprehension(
         ),
         (
             "lambda x=1, y: x",
-            "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default",
             (1, 13),
             (1, 14),
-            (3, 10),
+            (3, 12),  # Improved error message
         ),
         (
             "lambda x=1, /, y: x",
-            "non-default argument follows default argument",
+            "parameter without a default follows parameter with a default",
             (1, 16),
             (1, 17),
-            (3, 10),
+            (3, 12),  # improved error message
         ),
         (
             "lambda x, (y, z), w: None",
@@ -765,10 +823,17 @@ def test_invalid_group(python_parse_file, python_parse_str, tmp_path, source, me
             "from a import b,",
             "trailing comma not allowed without surrounding parentheses",
             (1, 17),
-            (1, 17),
+            (1, 18) if sys.version_info >= (3, 12) else (1, 17),
         ),
         ("from a import b, and 3", "invalid syntax", (1, 18), (1, 21)),
         ("from a import raise", "invalid syntax", (1, 15), (1, 20)),
+        pytest.param(
+            "import a from b",
+            "'from ... import ...'",
+            (1, 1),
+            (1, 16),
+            marks=pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12+"),
+        ),
     ],
 )
 def test_invalid_import_from_as_names(
@@ -800,13 +865,19 @@ def test_invalid_import_from_as_names(
                 sys.version_info < (3, 9), reason="Unsupported syntax on Python 3.8"
             ),
         ),
-        ("with open(a) as f, b as d\npass", SyntaxError, "expected ':'", (1, 26), (1, 26)),
+        (
+            "with open(a) as f, b as d\npass",
+            SyntaxError,
+            "expected ':'",
+            (1, 26),
+            (1, 27) if sys.version_info >= (3, 12) else (1, 26),
+        ),
         (
             "\nasync with (open(a) as f, b as d)\npass",
             SyntaxError,
             "expected ':'",
             (2, 34),
-            (2, 34),
+            (2, 35) if sys.version_info >= (3, 12) else (2, 34),
         ),
     ],
 )
@@ -828,7 +899,13 @@ def test_invalid_with_stmt(
             (2, 1),
             (2, 5),
         ),
-        ("try\n\tpass", SyntaxError, "expected ':'", (1, 4), (1, 4)),
+        (
+            "try\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (1, 4),
+            (1, 5) if sys.version_info >= (3, 12) else (1, 4),
+        ),
         (
             "try:\n\tpass\na = 1",
             SyntaxError,
@@ -872,12 +949,32 @@ def test_invalid_try_stmt(
             (4, 1),
             (4, 5),
         ),
+        pytest.param(
+            "try:\n\tpass\nexcept* Exception as e:\npass",
+            IndentationError,
+            "expected an indented block after 'except*' statement on line 3",
+            (4, 1),
+            (4, 5),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 11), reason="Syntax only permitted on 3.11+"
+            ),
+        ),
         (
             "try:\n\tpass\nexcept ValueError, IndexError as e:",
             SyntaxError,
             "multiple exception types must be parenthesized",
             (3, 8),
             (3, 35),
+        ),
+        pytest.param(
+            "try:\n\tpass\nexcept* ValueError, IndexError as e:",
+            SyntaxError,
+            "multiple exception types must be parenthesized",
+            (3, 9),
+            (3, 36),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 11), reason="Syntax unsupported before 3.11+"
+            ),
         ),
         (
             "try:\n\tpass\nexcept ValueError, IndexError:",
@@ -900,15 +997,57 @@ def test_invalid_try_stmt(
             (3, 18),
             (3, 19),
         ),
-        ("try:\n\tpass\nexcept Exception\npass", SyntaxError, "expected ':'", (3, 17), (3, 17)),
+        (
+            "try:\n\tpass\nexcept Exception\npass",
+            SyntaxError,
+            "expected ':'",
+            (3, 17),
+            (3, 18) if sys.version_info >= (3, 12) else (3, 17),
+        ),
         (
             "try:\n\tpass\nexcept Exception as e\npass",
             SyntaxError,
             "expected ':'",
             (3, 22),
-            (3, 22),
+            (3, 23) if sys.version_info >= (3, 12) else (3, 22),
         ),
-        ("try:\n\tpass\nexcept\npass", SyntaxError, "expected ':'", (3, 7), (3, 7)),
+        (
+            "try:\n\tpass\nexcept\npass",
+            SyntaxError,
+            "expected ':'",
+            (3, 7),
+            (3, 8) if sys.version_info >= (3, 12) else (3, 7),
+        ),
+        pytest.param(
+            "try:\n\tpass\nexcept*:\n\tpass",
+            SyntaxError,
+            "expected one or more exception types",
+            (3, 8),
+            (3, 9),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 11), reason="Syntax unsupported before 3.11+"
+            ),
+        ),
+        pytest.param(
+            "try:\n\tpass\nexcept* ValueError as e:\n\tpass\nexcept:\n\tpass",
+            SyntaxError,
+            "cannot have both 'except' and 'except*'",
+            (5, 1),
+            (5, 7),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 11), reason="Syntax unsupported before 3.11+"
+            ),
+        ),
+        pytest.param(
+            "try:\n\tpass\nexcept ValueError as e:\n\tpass\nexcept* TypeError:\n\tpass",
+            SyntaxError,
+            "cannot have both 'except' and 'except*'",
+            (5, 1),
+            (5, 8),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 11), reason="Syntax unsupported before 3.11+"
+            ),
+        ),
     ],
 )
 def test_invalid_except_stmt(
@@ -950,7 +1089,13 @@ def test_invalid_finally_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("match a\n\tpass", SyntaxError, "expected ':'", (1, 8), (1, 8)),
+        (
+            "match a\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (1, 8),
+            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
+        ),
         (
             "match a:\npass",
             IndentationError,
@@ -972,7 +1117,13 @@ def test_invalid_match_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("match a:\n\tcase 1\n\t\tpass", SyntaxError, "expected ':'", (2, 8), (2, 8)),
+        (
+            "match a:\n\tcase 1\n\t\tpass",
+            SyntaxError,
+            "expected ':'",
+            (2, 8),
+            (2, 9) if sys.version_info >= (3, 12) else (2, 8),
+        ),
         (
             "match a:\n\tcase 1:\n\tpass",
             IndentationError,
@@ -1065,7 +1216,13 @@ def test_invalid_case_pattern(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("if a\n\tpass", SyntaxError, "expected ':'", (1, 5), (1, 5)),
+        (
+            "if a\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (1, 5),
+            (1, 6) if sys.version_info >= (3, 12) else (1, 5),
+        ),
         (
             "if a:\npass",
             IndentationError,
@@ -1086,7 +1243,13 @@ def test_invalid_if_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("if a:\n\tpass\nelif a\n\tpass", SyntaxError, "expected ':'", (3, 7), (3, 7)),
+        (
+            "if a:\n\tpass\nelif a\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (3, 7),
+            (3, 8) if sys.version_info >= (3, 12) else (3, 7),
+        ),
         (
             "if a:\n\tpass\nelif b:\npass",
             IndentationError,
@@ -1107,7 +1270,13 @@ def test_invalid_elif_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("if a:\n\tpass\nelse\n\tpass", SyntaxError, "expected ':'", (3, 5), (3, 5)),
+        (
+            "if a:\n\tpass\nelse\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (3, 5),
+            (3, 6) if sys.version_info >= (3, 12) else (3, 5),
+        ),
         (
             "if a:\n\tpass\nelse:\npass",
             IndentationError,
@@ -1128,7 +1297,13 @@ def test_invalid_else_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
-        ("while a\n\tpass", SyntaxError, "expected ':'", (1, 8), (1, 8)),
+        (
+            "while a\n\tpass",
+            SyntaxError,
+            "expected ':'",
+            (1, 8),
+            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
+        ),
         (
             "while a:\npass",
             IndentationError,
@@ -1149,6 +1324,13 @@ def test_invalid_while_stmt(
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
+        (
+            "for a in range(10)\npass",
+            SyntaxError,
+            "expected ':'",
+            (1, 19),
+            (1, 20) if sys.version_info >= (3, 12) else (1, 19),
+        ),
         (
             "for a in range(10):\npass",
             IndentationError,
@@ -1205,6 +1387,16 @@ def test_invalid_for_stmt(
             (2, 1),
             (2, 5),
         ),
+        pytest.param(
+            "def f[T]() -> None:\npass",
+            IndentationError,
+            "expected an indented block after function definition on line 1",
+            (2, 1),
+            (2, 5),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 12), reason="Syntax only permitted on 3.12+"
+            ),
+        ),
         (
             "def f() -> None:\npass",
             IndentationError,
@@ -1212,13 +1404,20 @@ def test_invalid_for_stmt(
             (2, 1),
             (2, 5),
         ),
-        ("def f:", SyntaxError, "expected '('", (1, 6), (1, 6)),
-        ("async def f:", SyntaxError, "expected '('", (1, 12), (1, 12)),
-        # (
-        #     "def f():\n# type: () -> int\n# type: () -> str\n\tpass",
-        #     SyntaxError,
-        #     "expected an indented block after function definition on line 1",
-        # ),
+        (
+            "def f:",
+            SyntaxError,
+            "expected '('",
+            (1, 6),
+            (1, 7) if sys.version_info >= (3, 11) else (1, 6),
+        ),
+        (
+            "async def f:",
+            SyntaxError,
+            "expected '('",
+            (1, 12),
+            (1, 13) if sys.version_info >= (3, 11) else (1, 12),
+        ),
     ],
 )
 def test_invalid_def_stmt(
@@ -1233,13 +1432,20 @@ def test_invalid_def_stmt(
         message,
         start,
         end,
-        (3, 11) if exception is SyntaxError else (3, 10),
+        (3, 11) if exception is SyntaxError else (3, 13),
     )
 
 
 @pytest.mark.parametrize(
     "source, exception, message, start, end",
     [
+        (
+            "class A\npass",
+            SyntaxError,
+            "expected ':'",
+            (1, 8),
+            (1, 9) if sys.version_info >= (3, 12) else (1, 8),
+        ),
         (
             "class A:\npass",
             IndentationError,
@@ -1248,11 +1454,31 @@ def test_invalid_def_stmt(
             (2, 5),
         ),
         (
-            "class f(object):\npass",
+            "class A(object):\npass",
             IndentationError,
             "expected an indented block after class definition on line 1",
             (2, 1),
             (2, 5),
+        ),
+        pytest.param(
+            "class A[T]:\npass",
+            IndentationError,
+            "expected an indented block after class definition on line 1",
+            (2, 1),
+            (2, 5),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 12), reason="Syntax only permitted on 3.12+"
+            ),
+        ),
+        pytest.param(
+            "class A[T](object):\npass",
+            IndentationError,
+            "expected an indented block after class definition on line 1",
+            (2, 1),
+            (2, 5),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 12), reason="Syntax only permitted on 3.12+"
+            ),
         ),
     ],
 )
@@ -1260,7 +1486,15 @@ def test_invalid_class_stmt(
     python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
 ):
     parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
+        python_parse_file,
+        python_parse_str,
+        tmp_path,
+        source,
+        exception,
+        message,
+        start,
+        end,
+        (3, 13),
     )
 
 
@@ -1309,6 +1543,48 @@ def test_invalid_class_stmt(
     ],
 )
 def test_invalid_dict_key_value(
+    python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
+):
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12+")
+@pytest.mark.parametrize(
+    "source, exception, message, start, end",
+    [
+        (
+            "def f[*T: (int, float)]():\n\tpass",
+            SyntaxError,
+            "cannot use constraints with TypeVarTuple",
+            (1, 9),
+            (1, 23),
+        ),
+        (
+            "def f[*T: int]():\n\tpass",
+            SyntaxError,
+            "cannot use bound with TypeVarTuple",
+            (1, 9),
+            (1, 14),
+        ),
+        (
+            "def f[**T: (int,)]():\n\tpass",
+            SyntaxError,
+            "cannot use constraints with ParamSpec",
+            (1, 10),
+            (1, 18),
+        ),
+        (
+            "def f[**T: int]():\n\tpass",
+            SyntaxError,
+            "cannot use bound with ParamSpec",
+            (1, 10),
+            (1, 15),
+        ),
+    ],
+)
+def test_syntax_error_in_type_params(
     python_parse_file, python_parse_str, tmp_path, source, exception, message, start, end
 ):
     parse_invalid_syntax(

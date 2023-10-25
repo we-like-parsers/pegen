@@ -1,4 +1,5 @@
 import io
+import sys
 from tokenize import NEWLINE, NUMBER, ENDMARKER, TokenInfo, generate_tokens
 
 from pegen.tokenizer import Tokenizer
@@ -9,8 +10,12 @@ def test_peek_getnext():
     t = Tokenizer(generate_tokens(source.readline))
     assert t.peek() == TokenInfo(NUMBER, "1", (2, 0), (2, 1), "1")
     assert t.getnext() == TokenInfo(NUMBER, "1", (2, 0), (2, 1), "1")
-    assert t.peek() == TokenInfo(NEWLINE, "", (2, 1), (2, 2), "")
-    assert t.getnext() == TokenInfo(NEWLINE, "", (2, 1), (2, 2), "")
+    assert t.peek() == TokenInfo(
+        NEWLINE, "", (2, 1), (2, 2), "1" if sys.version_info >= (3, 12) else ""
+    )
+    assert t.getnext() == TokenInfo(
+        NEWLINE, "", (2, 1), (2, 2), "1" if sys.version_info >= (3, 12) else ""
+    )
 
 
 def test_mark_reset():
