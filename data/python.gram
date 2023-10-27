@@ -227,13 +227,13 @@ class Parser(Parser):
         node.ctx = context
         return node
 
-    def ensure_real(self, number: ast.Constant) -> float:
+    def ensure_real(self, number: tokenize.TokenInfo) -> float:
         value = ast.literal_eval(number.string)
         if type(value) is complex:
             self.raise_syntax_error_known_location("real number required in complex literal", number)
         return value
 
-    def ensure_imaginary(self, number: ast.Constant) -> complex:
+    def ensure_imaginary(self, number: tokenize.TokenInfo) -> complex:
         value = ast.literal_eval(number.string)
         if type(value) is not complex:
             self.raise_syntax_error_known_location("imaginary number required in complex literal", number)
@@ -340,7 +340,7 @@ class Parser(Parser):
                 args += (err.end_lineno + line_offset - 2, err.end_offset)
             err_args = (err.msg, args)
             # Ensure we do not keep the frame alive longer than necessary
-            # by explicitely deleting the error once we got what we needed out
+            # by explicitly deleting the error once we got what we needed out
             # of it
             del err
 
@@ -434,7 +434,7 @@ class Parser(Parser):
         message: str,
         start: Optional[Tuple[int, int]] = None,
         end: Optional[Tuple[int, int]] = None
-    ) -> None:
+    ) -> SyntaxError:
         line_from_token = start is None and end is None
         if start is None or end is None:
             tok = self._tokenizer.diagnose()
@@ -466,14 +466,18 @@ class Parser(Parser):
     ) -> NoReturn:
         raise self._build_syntax_error(message, start, end)
 
-    def make_syntax_error(self, message: str) -> None:
+    def make_syntax_error(self, message: str) -> SyntaxError:
         return self._build_syntax_error(message)
 
     def expect_forced(self, res: Any, expectation: str) -> Optional[tokenize.TokenInfo]:
         if res is None:
             last_token = self._tokenizer.diagnose()
             end = last_token.start
-            if sys.version_info >= (3, 12) or (sys.version_info >= (3, 11) and last_token.type != 4):  # i.e. not a \n
+            if (
+                sys.version_info >= (3, 12)
+                or (sys.version_info >= (3, 11)
+                and last_token.type != 4
+            ):  # i.e. not a \n
                 end = last_token.end
             self.raise_raw_syntax_error(
                 f"expected {expectation}", last_token.start, end
@@ -483,7 +487,10 @@ class Parser(Parser):
     def raise_syntax_error(self, message: str) -> NoReturn:
         """Raise a syntax error."""
         tok = self._tokenizer.diagnose()
-        raise self._build_syntax_error(message, tok.start, tok.end if sys.version_info >= (3, 12) or tok.type != 4 else tok.start)
+        raise self._build_syntax_error(
+            message, tok.start,
+            tok.end if sys.version_info >= (3, 12) or tok.type != 4 else tok.start
+        )
 
     def raise_syntax_error_known_location(
         self, message: str, node: Union[ast.AST, tokenize.TokenInfo]
@@ -532,7 +539,7 @@ class Parser(Parser):
 
     def raise_syntax_error_invalid_target(
         self, target: Target, node: Optional[ast.AST]
-    ) -> NoReturn:
+    ) -> None:
         invalid_target = self.get_invalid_target(target, node)
 
         if invalid_target is None:
