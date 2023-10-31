@@ -475,8 +475,10 @@ class Parser(Parser):
             end = last_token.start
             if (
                 sys.version_info >= (3, 12)
-                or (sys.version_info >= (3, 11)
-                and last_token.type != 4
+                or (
+                    sys.version_info >= (3, 11)
+                    and last_token.type != 4
+                )
             ):  # i.e. not a \n
                 end = last_token.end
             self.raise_raw_syntax_error(
