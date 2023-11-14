@@ -8,7 +8,7 @@ license = {file = "LICENSE"}
 authors = [
   {name = "Guido van Rossum"},
   {name = "Pablo Galindo", email = "pablogsal@gmail.com"},
-  {name = "Lysandros Nikolaou"}
+  {name = "Lysandros Nikolaou", email = "lisandrosnik@gmail.com"}
 ]
 maintainers = [
   {name = "Matthieu C. Dartiailh", email = "m.dartiailh@gmail.com"}
