@@ -210,8 +210,8 @@ def test_invalid_statements(
         (
             "f(**a, *b)",
             "iterable argument unpacking follows keyword argument unpacking",
-            (1, 8) if sys.version_info >= (3, 11) else None,
-            (1, 9) if sys.version_info >= (3, 11) else None,
+            (1, 6) if sys.version_info >= (3, 12) else None,
+            (1, 10) if sys.version_info >= (3, 12) else None,
         ),
         # NOTE CPython bug, should report 15 as expected (we use None to omit the check)
         ("f(a for a in b, c)", "Generator expression must be parenthesized", (1, 3), (1, None)),
