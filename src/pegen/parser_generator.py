@@ -113,7 +113,7 @@ class ParserGenerator:
                 self.todo[rulename].collect_todo(self)
             done = set(alltodo)
 
-    def artifical_rule_from_rhs(self, rhs: Rhs) -> str:
+    def artificial_rule_from_rhs(self, rhs: Rhs) -> str:
         self.counter += 1
         name = f"_tmp_{self.counter}"  # TODO: Pick a nicer name.
         self.todo[name] = Rule(name, None, rhs)
@@ -129,7 +129,7 @@ class ParserGenerator:
         self.todo[name] = Rule(name, None, Rhs([Alt([NamedItem(None, node)])]))
         return name
 
-    def artifical_rule_from_gather(self, node: Gather) -> str:
+    def artificial_rule_from_gather(self, node: Gather) -> str:
         self.counter += 1
         name = f"_gather_{self.counter}"
         self.counter += 1

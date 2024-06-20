@@ -1,4 +1,5 @@
 """Test syntax errors for cases where the parser can generate helpful messages."""
+
 import sys
 
 import pytest
@@ -93,57 +94,71 @@ def parse_invalid_syntax(
     [
         (
             "f'a = {}'",
-            "valid expression required before '}'"
-            if sys.version_info >= (3, 12)
-            else "f-string: empty expression not allowed",
+            (
+                "valid expression required before '}'"
+                if sys.version_info >= (3, 12)
+                else "f-string: empty expression not allowed"
+            ),
             (1, 8) if sys.version_info >= (3, 12) else None,
             (1, 9) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = {=}'",
-            "expression required before '='"
-            if sys.version_info >= (3, 11)
-            else "f-string: empty expression not allowed",
+            (
+                "expression required before '='"
+                if sys.version_info >= (3, 11)
+                else "f-string: empty expression not allowed"
+            ),
             (1, 8) if sys.version_info >= (3, 12) else None,
             (1, 9) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = {!}'",
-            "expression required before '!'"
-            if sys.version_info >= (3, 11)
-            else "f-string: empty expression not allowed",
+            (
+                "expression required before '!'"
+                if sys.version_info >= (3, 11)
+                else "f-string: empty expression not allowed"
+            ),
             (1, 8) if sys.version_info >= (3, 12) else None,
             (1, 9) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = {:}'",
-            "expression required before ':'"
-            if sys.version_info >= (3, 11)
-            else "f-string: empty expression not allowed",
+            (
+                "expression required before ':'"
+                if sys.version_info >= (3, 11)
+                else "f-string: empty expression not allowed"
+            ),
             (1, 8) if sys.version_info >= (3, 12) else None,
             (1, 9) if sys.version_info >= (3, 12) else (1, 11),
         ),
         (
             "f'a = {a=d}'",
-            "expecting '!', or ':', or '}'"
-            if sys.version_info >= (3, 12)
-            else "f-string: expecting '}'",
+            (
+                "expecting '!', or ':', or '}'"
+                if sys.version_info >= (3, 12)
+                else "f-string: expecting '}'"
+            ),
             (1, 10) if sys.version_info >= (3, 12) else None,
             (1, 11) if sys.version_info >= (3, 12) else None,
         ),
         (
             "f'a = { 1 + }'",
-            "f-string: expecting '=', or '!', or ':', or '}'"
-            if sys.version_info >= (3, 12)
-            else "f-string: invalid syntax",
+            (
+                "f-string: expecting '=', or '!', or ':', or '}'"
+                if sys.version_info >= (3, 12)
+                else "f-string: invalid syntax"
+            ),
             (1, 11) if sys.version_info >= (3, 12) else (1, 7),
             (1, 12) if sys.version_info >= (3, 12) else (1, 8),
         ),
         (
             "(\n\t'b'\n\tf'a = { 1 + }'\n)",
-            "f-string: expecting '=', or '!', or ':', or '}'"
-            if sys.version_info >= (3, 12)
-            else "f-string: invalid syntax",
+            (
+                "f-string: expecting '=', or '!', or ':', or '}'"
+                if sys.version_info >= (3, 12)
+                else "f-string: invalid syntax"
+            ),
             (3, 12) if sys.version_info >= (3, 12) else (3, 7),
             (3, 13) if sys.version_info >= (3, 12) else (3, 8),
         ),
@@ -210,8 +225,8 @@ def test_invalid_statements(
         (
             "f(**a, *b)",
             "iterable argument unpacking follows keyword argument unpacking",
-            (1, 3),
-            (1, 6),
+            (1, 6) if sys.version_info >= (3, 12) else None,
+            (1, 10) if sys.version_info >= (3, 12) else None,
         ),
         # NOTE CPython bug, should report 15 as expected (we use None to omit the check)
         ("f(a for a in b, c)", "Generator expression must be parenthesized", (1, 3), (1, None)),
