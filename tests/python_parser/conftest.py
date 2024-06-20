@@ -1,4 +1,5 @@
 """"Conftest for pure python parser."""
+
 from pathlib import Path
 
 import pytest

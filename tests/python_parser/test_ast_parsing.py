@@ -1,4 +1,5 @@
 """Test pure Python parser against cpython parser."""
+
 import ast
 import difflib
 import io
