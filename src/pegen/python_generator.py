@@ -286,7 +286,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
     def add_return(self, ret_val: str) -> None:
         for stmt in self.cleanup_statements:
             self.print(stmt)
-        self.print(f"return {ret_val};")
+        self.print(f"return {ret_val}")
 
     def visit_Rule(self, node: Rule) -> None:
         is_loop = node.is_loop()
