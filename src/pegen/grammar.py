@@ -405,6 +405,8 @@ class Cut:
 
     def initial_names(self) -> AbstractSet[str]:
         return set()
+    
+    __hash__ = object.__hash__
 
 
 Plain = Union[Leaf, Group]
