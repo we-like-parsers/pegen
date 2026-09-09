@@ -713,14 +713,22 @@ import_stmt[ast.Import]:
 # Import statements
 # -----------------
 
-import_name[ast.Import]: 'import' a=dotted_as_names { ast.Import(names=a, LOCATIONS) }
+import_name[ast.Import]: 'import' a=dotted_as_names {
+    ast.Import(names=a, is_lazy=0, LOCATIONS)
+    if sys.version_info >= (3, 15) else
+    ast.Import(names=a, LOCATIONS)
+ }
 
 # note below: the ('.' | '...') is necessary because '...' is tokenized as ELLIPSIS
 import_from[ast.ImportFrom]:
     | 'from' a=('.' | '...')* b=dotted_name 'import' c=import_from_targets {
+        ast.ImportFrom(module=b, names=c, level=self.extract_import_level(a), is_lazy=0, LOCATIONS)
+        if sys.version_info >= (3, 15) else
         ast.ImportFrom(module=b, names=c, level=self.extract_import_level(a), LOCATIONS)
      }
     | 'from' a=('.' | '...')+ 'import' b=import_from_targets {
+        ast.ImportFrom(names=b, level=self.extract_import_level(a), is_lazy=0, LOCATIONS)
+        if sys.version_info >= (3, 15) else
         ast.ImportFrom(names=b, level=self.extract_import_level(a), LOCATIONS)
         if sys.version_info >= (3, 9) else
         ast.ImportFrom(module=None, names=b, level=self.extract_import_level(a), LOCATIONS)
