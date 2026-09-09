@@ -198,3 +198,18 @@ def test_generic_class_statement(python_parser_cls, source):
         pp.parse("file")
 
     assert "Type parameter lists are" in e.exconly()
+
+
+# unparenthesized except 3.14
+@pytest.mark.parametrize(
+    "source", ["try:\n\tpass\nexcept ValueError, IndexError:\n\tpass"]
+)
+def test_unparenthesized_except(python_parser_cls, source):
+    temp = io.StringIO(source)
+    tokengen = tokenize.generate_tokens(temp.readline)
+    tokenizer = Tokenizer(tokengen, verbose=False)
+    pp = python_parser_cls(tokenizer, py_version=(3, 13))
+    with pytest.raises(SyntaxError) as e:
+        pp.parse("file")
+
+    assert "multiple exception types must be parenthesized" in e.exconly()
