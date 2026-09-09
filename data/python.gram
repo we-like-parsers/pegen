@@ -1786,21 +1786,38 @@ for_if_clause[ast.comprehension]:
     | invalid_for_target
 
 listcomp[ast.ListComp]:
-    | '[' a=named_expression b=for_if_clauses ']' { ast.ListComp(elt=a, generators=b, LOCATIONS) }
+    | '[' a=(starred_expression | named_expression) b=for_if_clauses ']' {
+        PY_VERSION >= (3, 15);
+        ast.ListComp(elt=a, generators=b, LOCATIONS) }
+    | '[' a=named_expression b=for_if_clauses ']' {
+        PY_VERSION < (3, 15);
+        ast.ListComp(elt=a, generators=b, LOCATIONS) }
     | invalid_comprehension
 
 setcomp[ast.SetComp]:
-    | '{' a=named_expression b=for_if_clauses '}' { ast.SetComp(elt=a, generators=b, LOCATIONS) }
+    | '{' a=(starred_expression | named_expression) b=for_if_clauses '}' {
+        PY_VERSION >= (3, 15);
+        ast.SetComp(elt=a, generators=b, LOCATIONS) }
+    | '{' a=named_expression b=for_if_clauses '}' {
+        PY_VERSION < (3, 15);
+        ast.SetComp(elt=a, generators=b, LOCATIONS) }
     | invalid_comprehension
 
 genexp[ast.GeneratorExp]:
+    | '(' a=(starred_expression | assignment_expression | expression !':=') b=for_if_clauses ')' {
+        PY_VERSION >= (3, 15);
+        ast.GeneratorExp(elt=a, generators=b, LOCATIONS) }
     | '(' a=( assignment_expression | expression !':=') b=for_if_clauses ')' {
-        ast.GeneratorExp(elt=a, generators=b, LOCATIONS)
-     }
+        PY_VERSION < (3, 15);
+        ast.GeneratorExp(elt=a, generators=b, LOCATIONS) }
     | invalid_comprehension
 
 dictcomp[ast.DictComp]:
-    | '{' a=kvpair b=for_if_clauses '}' { ast.DictComp(key=a[0], value=a[1], generators=b, LOCATIONS) }
+    | '{' '**' a=bitwise_or b=for_if_clauses '}' {
+        PY_VERSION >= (3, 15);
+        ast.DictComp(key=a, value=None, generators=b, LOCATIONS) }
+    | '{' a=kvpair b=for_if_clauses '}' {
+        ast.DictComp(key=a[0], value=a[1], generators=b, LOCATIONS) }
     | invalid_dict_comprehension
 
 # FUNCTION CALL ARGUMENTS
@@ -2100,6 +2117,7 @@ invalid_block[NoReturn]:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
 invalid_comprehension[NoReturn]:
     | ('[' | '(' | '{') a=starred_expression for_if_clauses {
+        PY_VERSION < (3, 15);
         self.raise_syntax_error_known_location("iterable unpacking cannot be used in comprehension", a)
      }
     | ('[' | '{') a=star_named_expression ',' b=star_named_expressions for_if_clauses {
@@ -2114,6 +2132,7 @@ invalid_comprehension[NoReturn]:
      }
 invalid_dict_comprehension[NoReturn]:
     | '{' a='**' bitwise_or for_if_clauses '}' {
+        PY_VERSION < (3, 15);
         self.raise_syntax_error_known_location("dict unpacking cannot be used in dict comprehension", a)
      }
 invalid_parameters[NoReturn]:
