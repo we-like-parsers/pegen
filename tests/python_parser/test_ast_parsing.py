@@ -109,3 +109,10 @@ def test_parser(python_parse_file, python_parse_str, filename):
     p = ast.dump(python_parse_file(path), **kwargs)
     diff = "\n".join(difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen"))
     assert not diff
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="is_lazy added in Python 3.15+")
+def test_lazy_imports_ast(python_parse_str):
+    tree = python_parse_str("import foo\nfrom bar import baz\n", "exec")
+    assert tree.body[0].is_lazy == 0
+    assert tree.body[1].is_lazy == 0
