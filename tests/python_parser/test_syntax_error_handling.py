@@ -46,7 +46,14 @@ def parse_invalid_syntax(
     if sys.version_info >= min_python_version:
         # This fails for Python < 3.10.5 but keeping the fix for a patch version is not
         # worth it
-        assert message in py_exc.args[0]
+        py_msg = py_exc.args[0]
+        if sys.version_info >= (3, 15):
+            py_msg = (
+                py_msg.replace("parameter", "argument")
+                .replace("* may appear only once", "* argument may appear only once")
+                .replace("dict unpacking", "double starred expression")
+            )
+        assert message in py_msg or message in py_exc.args[0]
 
     print(str(e.exconly()))
     assert message in str(e.exconly())
