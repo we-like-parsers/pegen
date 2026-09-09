@@ -339,7 +339,7 @@ def test_left_recursive() -> None:
 
 def test_python_expr() -> None:
     grammar = """
-    start: expr NEWLINE? $ { ast.Expression(expr, LOCATIONS) }
+    start: expr NEWLINE? $ { ast.Expression(expr) }
     expr: ( expr '+' term { ast.BinOp(expr, ast.Add(), term, LOCATIONS) }
           | expr '-' term { ast.BinOp(expr, ast.Sub(), term, LOCATIONS) }
           | term { term }
@@ -664,7 +664,7 @@ def test_unreachable_implicit3() -> None:
 
 def test_locations_in_alt_action_and_group() -> None:
     grammar = """
-    start: t=term NEWLINE? $ { ast.Expression(t, LOCATIONS) }
+    start: t=term NEWLINE? $ { ast.Expression(t) }
     term:
         | l=term '*' r=factor { ast.BinOp(l, ast.Mult(), r, LOCATIONS) }
         | l=term '/' r=factor { ast.BinOp(l, ast.Div(), r, LOCATIONS) }
