@@ -24,6 +24,13 @@ import pytest
         "async.py",
         "call.py",
         "comprehensions.py",
+        pytest.param(
+            "comprehensions_unpacking.py",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 15),
+                reason="Unpacking in comprehensions allowed only in Python 3.15+",
+            ),
+        ),
         "expressions.py",
         "fstrings.py",
         "function_def.py",

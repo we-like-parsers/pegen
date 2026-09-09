@@ -439,9 +439,17 @@ def test_invalid_del_statements(
 def test_invalid_comprehension(
     python_parse_file, python_parse_str, tmp_path, source, message, start, end
 ):
-    parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message, start, end
-    )
+    if sys.version_info >= (3, 15) and message in (
+        "iterable unpacking cannot be used in comprehension",
+        "dict unpacking cannot be used in dict comprehension",
+    ):
+        ast_pegen = python_parse_str(source, "exec")
+        ast_cpython = ast.parse(source)
+        assert ast.dump(ast_pegen) == ast.dump(ast_cpython)
+    else:
+        parse_invalid_syntax(
+            python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message, start, end
+        )
 
 
 @pytest.mark.parametrize(
