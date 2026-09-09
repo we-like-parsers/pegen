@@ -118,6 +118,29 @@ def test_parser(python_parse_file, python_parse_str, filename):
     assert not diff
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="Pattern matching allowed only in Python 3.10+"
+)
+def test_pattern_matching_wildcard_ast(python_parse_str):
+    source = "match x:\n    case _:\n        pass\n    case [*_]:\n        pass\n"
+    tree = python_parse_str(source, "exec")
+    assert isinstance(tree.body[0].cases[0].pattern, ast.MatchAs)
+    assert tree.body[0].cases[0].pattern.name is None
+    assert tree.body[0].cases[0].pattern.pattern is None
+    assert isinstance(tree.body[0].cases[1].pattern, ast.MatchSequence)
+    assert isinstance(tree.body[0].cases[1].pattern.patterns[0], ast.MatchStar)
+    assert tree.body[0].cases[1].pattern.patterns[0].name is None
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 11), reason="Star unpack in annotations allowed only in Python 3.11+"
+)
+def test_star_annotation_ast(python_parse_str):
+    source = "def f(*args: *Ts):\n    pass\n"
+    tree = python_parse_str(source, "exec")
+    assert tree.body[0].args.vararg.annotation is not None
+
+
 @pytest.mark.skipif(sys.version_info < (3, 15), reason="is_lazy added in Python 3.15+")
 def test_lazy_imports_ast(python_parse_str):
     tree = python_parse_str("import foo\nfrom bar import baz\n", "exec")
