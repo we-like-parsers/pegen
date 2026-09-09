@@ -937,7 +937,7 @@ param_maybe_default[Tuple[ast.arg, Any]]:
     | a=param c=default? tc=TYPE_COMMENT? &')' { (self.set_arg_type_comment(a, tc), c) }
 param: a=NAME b=annotation? { ast.arg(arg=a.string, annotation=b, LOCATIONS) }
 param_star_annotation: a=NAME b=star_annotation {
-    ast.arg(arg=a.string, annotations=b, LOCATIONS)
+    ast.arg(arg=a.string, annotation=b, LOCATIONS)
  }
 annotation: ':' a=expression { a }
 star_annotation: ':' a=star_expression { a }
@@ -1199,7 +1199,7 @@ pattern_capture_target[str]:
     | !"_" name=NAME !('.' | '(' | '=') { name.string }
 
 wildcard_pattern["ast.MatchAs"]:
-    | "_" { ast.MatchAs(pattern=None, target=None, LOCATIONS) }
+    | "_" { ast.MatchAs(pattern=None, name=None, LOCATIONS) }
 
 value_pattern["ast.MatchValue"]:
     | attr=attr !('.' | '(' | '=') { ast.MatchValue(value=attr, LOCATIONS) }
@@ -1234,7 +1234,7 @@ maybe_star_pattern:
 
 star_pattern:
     | '*' target=pattern_capture_target { ast.MatchStar(name=target, LOCATIONS) }
-    | '*' wildcard_pattern { ast.MatchStar(target=None, LOCATIONS) }
+    | '*' wildcard_pattern { ast.MatchStar(name=None, LOCATIONS) }
 
 mapping_pattern:
     | '{' '}' { ast.MatchMapping(keys=[], patterns=[], rest=None, LOCATIONS) }
