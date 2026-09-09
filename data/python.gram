@@ -1058,11 +1058,7 @@ except_block[ast.ExceptHandler]:
     | 'except' e=expressions ':' b=block {
         PY_VERSION >= (3, 14);
         ast.ExceptHandler(type=e, name=None, body=b, LOCATIONS) }
-    | 'except' e=expression 'as' t=NAME ':' b=block {
-        PY_VERSION >= (3, 14);
-        ast.ExceptHandler(type=e, name=t.string, body=b, LOCATIONS) }
     | 'except' e=expression t=['as' z=NAME { z.string }] ':' b=block {
-        PY_VERSION < (3, 14);
         ast.ExceptHandler(type=e, name=t, body=b, LOCATIONS) }
     | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b, LOCATIONS) }
     | invalid_except_stmt
@@ -1072,12 +1068,7 @@ except_star_block[ast.ExceptHandler]:
         PY_VERSION >= (3, 14);
         ast.ExceptHandler(type=e, name=None, body=b, LOCATIONS)
      }
-    | 'except' '*' e=expression 'as' t=NAME ':' b=block {
-        PY_VERSION >= (3, 14);
-        ast.ExceptHandler(type=e, name=t.string, body=b, LOCATIONS)
-     }
     | 'except' '*' e=expression t=['as' z=NAME { z.string }] ':' b=block {
-        PY_VERSION < (3, 14);
         ast.ExceptHandler(type=e, name=t, body=b, LOCATIONS)
      }
     | invalid_except_stmt
