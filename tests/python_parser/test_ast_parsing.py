@@ -141,6 +141,28 @@ def test_star_annotation_ast(python_parse_str):
     assert tree.body[0].args.vararg.annotation is not None
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 14), reason="PEP 758 unparenthesized except only in Python 3.14+"
+)
+def test_unparenthesized_except_ast(python_parse_str):
+    source = "try:\n    pass\nexcept ValueError, IndexError:\n    pass\n"
+    tree = python_parse_str(source, "exec")
+    handler = tree.body[0].handlers[0]
+    assert isinstance(handler.type, ast.Tuple)
+    assert len(handler.type.elts) == 2
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 14), reason="PEP 758 unparenthesized except* only in Python 3.14+"
+)
+def test_unparenthesized_except_star_ast(python_parse_str):
+    source = "try:\n    pass\nexcept* ValueError, IndexError:\n    pass\n"
+    tree = python_parse_str(source, "exec")
+    handler = tree.body[0].handlers[0]
+    assert isinstance(handler.type, ast.Tuple)
+    assert len(handler.type.elts) == 2
+
+
 @pytest.mark.skipif(sys.version_info < (3, 15), reason="is_lazy added in Python 3.15+")
 def test_lazy_imports_ast(python_parse_str):
     tree = python_parse_str("import foo\nfrom bar import baz\n", "exec")
