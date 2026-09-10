@@ -1,5 +1,6 @@
 """Test syntax errors for cases where the parser can generate helpful messages."""
 
+import ast
 import sys
 
 import pytest
