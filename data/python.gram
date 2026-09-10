@@ -594,9 +594,9 @@ simple_stmts[list]:
 simple_stmt (memo):
     | assignment
     | &"type" type_alias
+    | &('import' | 'from' | "lazy") import_stmt
     | e=star_expressions { ast.Expr(value=e, LOCATIONS) }
     | &'return' return_stmt
-    | &('import' | 'from') import_stmt
     | &'raise' raise_stmt
     | 'pass' { ast.Pass(LOCATIONS) }
     | &'del' del_stmt
@@ -713,22 +713,31 @@ import_stmt[ast.Import]:
 # Import statements
 # -----------------
 
-import_name[ast.Import]: 'import' a=dotted_as_names {
-    ast.Import(names=a, is_lazy=0, LOCATIONS)
+import_name[ast.Import]: lazy="lazy"? 'import' a=dotted_as_names {
+    ast.Import(names=a, is_lazy=1 if lazy else 0, LOCATIONS)
     if sys.version_info >= (3, 15) else
+    self.check_version((3, 15), "Lazy imports are", ast.Import(names=a, LOCATIONS))
+    if lazy else
     ast.Import(names=a, LOCATIONS)
  }
 
 # note below: the ('.' | '...') is necessary because '...' is tokenized as ELLIPSIS
 import_from[ast.ImportFrom]:
-    | 'from' a=('.' | '...')* b=dotted_name 'import' c=import_from_targets {
-        ast.ImportFrom(module=b, names=c, level=self.extract_import_level(a), is_lazy=0, LOCATIONS)
+    | invalid_import_from
+    | lazy="lazy"? 'from' a=('.' | '...')* b=dotted_name 'import' c=import_from_targets {
+        ast.ImportFrom(module=b, names=c, level=self.extract_import_level(a), is_lazy=1 if lazy else 0, LOCATIONS)
         if sys.version_info >= (3, 15) else
+        self.check_version((3, 15), "Lazy imports are",
+            ast.ImportFrom(module=b, names=c, level=self.extract_import_level(a), LOCATIONS))
+        if lazy else
         ast.ImportFrom(module=b, names=c, level=self.extract_import_level(a), LOCATIONS)
      }
-    | 'from' a=('.' | '...')+ 'import' b=import_from_targets {
-        ast.ImportFrom(names=b, level=self.extract_import_level(a), is_lazy=0, LOCATIONS)
+    | lazy="lazy"? 'from' a=('.' | '...')+ 'import' b=import_from_targets {
+        ast.ImportFrom(names=b, level=self.extract_import_level(a), is_lazy=1 if lazy else 0, LOCATIONS)
         if sys.version_info >= (3, 15) else
+        self.check_version((3, 15), "Lazy imports are",
+            ast.ImportFrom(names=b, level=self.extract_import_level(a), LOCATIONS))
+        if lazy else
         ast.ImportFrom(names=b, level=self.extract_import_level(a), LOCATIONS)
         if sys.version_info >= (3, 9) else
         ast.ImportFrom(module=None, names=b, level=self.extract_import_level(a), LOCATIONS)
@@ -2248,6 +2257,12 @@ invalid_import:
     | a='import' ','.dotted_name+ 'from' dotted_name {
         self.raise_syntax_error_starting_from(
             "Did you mean to use 'from ... import ...' instead?", a
+        )
+     }
+invalid_import_from:
+    | 'from' ('.' | '...')* dotted_name a="lazy" 'import' import_from_targets {
+        self.raise_syntax_error_known_location(
+            "use 'lazy from ... ' instead of 'from ... lazy import'", a
         )
      }
 invalid_import_from_targets[NoReturn]:

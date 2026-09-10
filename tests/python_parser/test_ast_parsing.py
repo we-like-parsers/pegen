@@ -168,3 +168,12 @@ def test_lazy_imports_ast(python_parse_str):
     tree = python_parse_str("import foo\nfrom bar import baz\n", "exec")
     assert tree.body[0].is_lazy == 0
     assert tree.body[1].is_lazy == 0
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="Lazy imports added in Python 3.15+")
+def test_explicit_lazy_imports_ast(python_parse_str):
+    tree = python_parse_str("lazy import foo\nlazy from bar import baz\n", "exec")
+    assert tree.body[0].is_lazy == 1
+    assert tree.body[1].is_lazy == 1
+    ast_cpython = ast.parse("lazy import foo\nlazy from bar import baz\n")
+    assert ast.dump(tree) == ast.dump(ast_cpython)
