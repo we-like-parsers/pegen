@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.8
+#!/usr/bin/env python3
 """Find the maximum amount of nesting for an expression that can be parsed
 without causing a parse error.
 
