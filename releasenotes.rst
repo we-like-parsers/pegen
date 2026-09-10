@@ -1,10 +1,10 @@
 Release notes
 ==============
 
-Unreleased
-----------
+unreleased: Version 0.3.1
+-------------------------
 
-- Fix f-string conversion specifiers (`!r`, `!s`, `!a`) on Python 3.12+ (#118)
+- fix f-string conversion specifiers (!r, !s, !a) on Python 3.12+ #118
 
 2023-11-14: Version 0.3.0
 -------------------------
