@@ -165,8 +165,8 @@ def parse_invalid_syntax(
         (
             'f"{x!z}"',
             "f-string: invalid conversion character 'z': expected 's', 'r', or 'a'",
-            (1, 10),
-            (1, 11),
+            (1, 6),
+            (1, 7),
         ),
     ],
 )
