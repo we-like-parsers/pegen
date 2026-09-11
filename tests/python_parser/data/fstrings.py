@@ -68,3 +68,10 @@ f'{expr:}'
 f'{expr:d}'
 foo = 3.14159
 verbosePrint(f'Foo {foo:.3} bar.')
+
+
+
+x = 3
+f'{x!r}'
+f'{x!s}'
+f'{x!a}'
