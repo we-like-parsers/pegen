@@ -164,9 +164,13 @@ def parse_invalid_syntax(
         ),
         (
             'f"{x!z}"',
-            "f-string: invalid conversion character 'z': expected 's', 'r', or 'a'",
-            (1, 6),
-            (1, 7),
+            (
+                "f-string: invalid conversion character 'z': expected 's', 'r', or 'a'"
+                if sys.version_info >= (3, 12)
+                else "f-string: invalid conversion character: expected 's', 'r', or 'a'"
+            ),
+            (1, 6) if sys.version_info >= (3, 12) else None,
+            (1, 7) if sys.version_info >= (3, 12) else None,
         ),
     ],
 )
