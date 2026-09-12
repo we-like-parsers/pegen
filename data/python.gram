@@ -1788,39 +1788,38 @@ for_if_clause[ast.comprehension]:
     | invalid_for_target
 
 listcomp[ast.ListComp]:
-    | '[' a=(starred_expression | named_expression) b=for_if_clauses ']' {
-        PY_VERSION >= (3, 15);
-        ast.ListComp(elt=a, generators=b, LOCATIONS) }
-    | '[' a=named_expression b=for_if_clauses ']' {
-        PY_VERSION < (3, 15);
-        ast.ListComp(elt=a, generators=b, LOCATIONS) }
     | invalid_comprehension
+    | '[' a=named_expression b=for_if_clauses ']' { ast.ListComp(elt=a, generators=b, LOCATIONS) }
+    | '[' a=starred_expression b=for_if_clauses ']' {
+        ast.ListComp(elt=a, generators=b, LOCATIONS)
+        if self.py_version >= (3, 15)
+        else None }
 
 setcomp[ast.SetComp]:
-    | '{' a=(starred_expression | named_expression) b=for_if_clauses '}' {
-        PY_VERSION >= (3, 15);
-        ast.SetComp(elt=a, generators=b, LOCATIONS) }
-    | '{' a=named_expression b=for_if_clauses '}' {
-        PY_VERSION < (3, 15);
-        ast.SetComp(elt=a, generators=b, LOCATIONS) }
     | invalid_comprehension
+    | '{' a=named_expression b=for_if_clauses '}' { ast.SetComp(elt=a, generators=b, LOCATIONS) }
+    | '{' a=starred_expression b=for_if_clauses '}' {
+        ast.SetComp(elt=a, generators=b, LOCATIONS)
+        if self.py_version >= (3, 15)
+        else None }
 
 genexp[ast.GeneratorExp]:
-    | '(' a=(starred_expression | assignment_expression | expression !':=') b=for_if_clauses ')' {
-        PY_VERSION >= (3, 15);
-        ast.GeneratorExp(elt=a, generators=b, LOCATIONS) }
-    | '(' a=( assignment_expression | expression !':=') b=for_if_clauses ')' {
-        PY_VERSION < (3, 15);
-        ast.GeneratorExp(elt=a, generators=b, LOCATIONS) }
     | invalid_comprehension
+    | '(' a=(assignment_expression | expression !':=') b=for_if_clauses ')' {
+        ast.GeneratorExp(elt=a, generators=b, LOCATIONS) }
+    | '(' a=starred_expression b=for_if_clauses ')' {
+        ast.GeneratorExp(elt=a, generators=b, LOCATIONS)
+        if self.py_version >= (3, 15)
+        else None }
 
 dictcomp[ast.DictComp]:
-    | '{' '**' a=bitwise_or b=for_if_clauses '}' {
-        PY_VERSION >= (3, 15);
-        ast.DictComp(key=a, value=None, generators=b, LOCATIONS) }
+    | invalid_dict_comprehension
     | '{' a=kvpair b=for_if_clauses '}' {
         ast.DictComp(key=a[0], value=a[1], generators=b, LOCATIONS) }
-    | invalid_dict_comprehension
+    | '{' '**' a=bitwise_or b=for_if_clauses '}' {
+        ast.DictComp(key=a, value=None, generators=b, LOCATIONS)
+        if self.py_version >= (3, 15)
+        else None }
 
 # FUNCTION CALL ARGUMENTS
 # =======================
@@ -2119,8 +2118,9 @@ invalid_block[NoReturn]:
     | NEWLINE !INDENT { self.raise_indentation_error("expected an indented block") }
 invalid_comprehension[NoReturn]:
     | ('[' | '(' | '{') a=starred_expression for_if_clauses {
-        PY_VERSION < (3, 15);
         self.raise_syntax_error_known_location("iterable unpacking cannot be used in comprehension", a)
+        if self.py_version < (3, 15)
+        else None
      }
     | ('[' | '{') a=star_named_expression ',' b=star_named_expressions for_if_clauses {
         self.raise_syntax_error_known_range(
@@ -2134,8 +2134,9 @@ invalid_comprehension[NoReturn]:
      }
 invalid_dict_comprehension[NoReturn]:
     | '{' a='**' bitwise_or for_if_clauses '}' {
-        PY_VERSION < (3, 15);
         self.raise_syntax_error_known_location("dict unpacking cannot be used in dict comprehension", a)
+        if self.py_version < (3, 15)
+        else None
      }
 invalid_parameters[NoReturn]:
     | a="/" ',' {
@@ -2308,11 +2309,14 @@ invalid_try_stmt[NoReturn]:
      }
 invalid_except_stmt[None]:
     | 'except' '*'? a=expression ',' expressions 'as' NAME ':' {
-        PY_VERSION >= (3, 14);
-        self.raise_syntax_error_starting_from("multiple exception types must be parenthesized when using 'as'", a)
+        self.raise_syntax_error_starting_from(
+            "multiple exception types must be parenthesized when using 'as'"
+            if self.py_version >= (3, 14)
+            else "multiple exception types must be parenthesized",
+            a,
+        )
      }
-    | 'except' '*'? a=expression ',' expressions ['as' NAME ] ':' {
-        PY_VERSION < (3, 14);
+    | 'except' '*'? a=expression ',' expressions ':' {
         self.raise_syntax_error_starting_from("multiple exception types must be parenthesized", a)
      }
     | a='except' '*'? expression ['as' NAME ] NEWLINE { self.raise_syntax_error("expected ':'") }
