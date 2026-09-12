@@ -397,7 +397,6 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
         locations = False
         unreachable = False
         used = None
-        version_check = None
         if action:
             # Replace magic name in the action rule
             if "LOCATIONS" in action:
@@ -406,11 +405,6 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             if "UNREACHABLE" in action:
                 unreachable = True
                 action = action.replace("UNREACHABLE", self.unreachable_formatting)
-            if ";" in action:
-                parts = action.split(";", 1)
-                if parts[0].startswith("PY_VERSION"):
-                    action = parts[1].lstrip()
-                    version_check = parts[0].replace("PY_VERSION", "self.py_version")
 
             # Extract the names actually used in the action.
             used = self.usednamesvisitor.visit(ast.parse(action))
@@ -428,11 +422,6 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
                 first = True
                 if has_invalid:
                     self.print("self.call_invalid_rules")
-                    first = False
-                if version_check:
-                    if not first:
-                        self.print("and")
-                    self.print(f"({version_check})")
                     first = False
                 for item in node.items:
                     if first:
