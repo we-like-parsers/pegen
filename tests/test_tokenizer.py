@@ -1,6 +1,17 @@
 import io
 import sys
-from tokenize import NEWLINE, NUMBER, ENDMARKER, TokenInfo, generate_tokens
+from tokenize import (
+    NEWLINE,
+    NUMBER,
+    ENDMARKER,
+    TokenInfo,
+    generate_tokens,
+    NAME,
+    OP,
+    INDENT,
+    DEDENT,
+    STRING,
+)
 
 from pegen.tokenizer import Tokenizer
 
@@ -45,3 +56,60 @@ def test_get_lines():
         if t.getnext().type == ENDMARKER:
             break
     assert t.get_lines([1, 2, 3]) == ["1\n", "2\n", "3"]
+
+
+def test_dedent():
+    source = io.StringIO(
+        """
+def test(num):
+    a = pmatch num:
+        1: "One"
+        2: "Two"
+        3: "Three"
+        _: "Number not between 1 and 3"
+
+    return a
+"""
+    )
+    t = Tokenizer(generate_tokens(source.readline))
+    expected = [
+        NAME,
+        NAME,
+        OP,
+        NAME,
+        OP,
+        OP,
+        NEWLINE,
+        INDENT,
+        NAME,
+        OP,
+        NAME,
+        NAME,
+        OP,
+        NEWLINE,
+        INDENT,
+        NUMBER,
+        OP,
+        STRING,
+        NEWLINE,
+        NUMBER,
+        OP,
+        STRING,
+        NEWLINE,
+        NUMBER,
+        OP,
+        STRING,
+        NEWLINE,
+        NAME,
+        OP,
+        STRING,
+        NEWLINE,
+        DEDENT,
+        NAME,
+        NAME,
+        NEWLINE,
+        DEDENT,
+        ENDMARKER,
+    ]
+    for i in range(len(expected)):
+        assert expected[i] == t.getnext().type
