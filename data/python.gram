@@ -1064,21 +1064,23 @@ try_stmt[ast.Try]:
 
 except_block[ast.ExceptHandler]:
     | invalid_except_stmt_indent
-    | 'except' e=expressions ':' b=block {
-        PY_VERSION >= (3, 14);
-        ast.ExceptHandler(type=e, name=None, body=b, LOCATIONS) }
     | 'except' e=expression t=['as' z=NAME { z.string }] ':' b=block {
         ast.ExceptHandler(type=e, name=t, body=b, LOCATIONS) }
     | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b, LOCATIONS) }
+    | 'except' e=expressions ':' b=block {
+        ast.ExceptHandler(type=e, name=None, body=b, LOCATIONS)
+        if self.py_version >= (3, 14)
+        else None }
     | invalid_except_stmt
 except_star_block[ast.ExceptHandler]:
     | invalid_except_star_stmt_indent
-    | 'except' '*' e=expressions ':' b=block {
-        PY_VERSION >= (3, 14);
-        ast.ExceptHandler(type=e, name=None, body=b, LOCATIONS)
-     }
     | 'except' '*' e=expression t=['as' z=NAME { z.string }] ':' b=block {
         ast.ExceptHandler(type=e, name=t, body=b, LOCATIONS)
+     }
+    | 'except' '*' e=expressions ':' b=block {
+        ast.ExceptHandler(type=e, name=None, body=b, LOCATIONS)
+        if self.py_version >= (3, 14)
+        else None
      }
     | invalid_except_stmt
 finally_block[list]:
