@@ -1064,6 +1064,7 @@ try_stmt[ast.Try]:
 
 except_block[ast.ExceptHandler]:
     | invalid_except_stmt_indent
+    | invalid_except_stmt
     | 'except' e=expression t=['as' z=NAME { z.string }] ':' b=block {
         ast.ExceptHandler(type=e, name=t, body=b, LOCATIONS) }
     | 'except' ':' b=block { ast.ExceptHandler(type=None, name=None, body=b, LOCATIONS) }
@@ -1071,9 +1072,9 @@ except_block[ast.ExceptHandler]:
         ast.ExceptHandler(type=e, name=None, body=b, LOCATIONS)
         if self.py_version >= (3, 14)
         else None }
-    | invalid_except_stmt
 except_star_block[ast.ExceptHandler]:
     | invalid_except_star_stmt_indent
+    | invalid_except_stmt
     | 'except' '*' e=expression t=['as' z=NAME { z.string }] ':' b=block {
         ast.ExceptHandler(type=e, name=t, body=b, LOCATIONS)
      }
@@ -1082,7 +1083,6 @@ except_star_block[ast.ExceptHandler]:
         if self.py_version >= (3, 14)
         else None
      }
-    | invalid_except_stmt
 finally_block[list]:
     | invalid_finally_stmt
     | 'finally' &&':' a=block { a }
@@ -2308,16 +2308,28 @@ invalid_try_stmt[NoReturn]:
         )
      }
 invalid_except_stmt[None]:
-    | 'except' '*'? a=expression ',' expressions 'as' NAME ':' {
-        self.raise_syntax_error_starting_from(
+    | 'except' '*'? a=expression ',' expressions 'as' t=NAME ':' {
+        self.raise_syntax_error_known_range(
             "multiple exception types must be parenthesized when using 'as'"
             if self.py_version >= (3, 14)
             else "multiple exception types must be parenthesized",
             a,
+            t,
         )
      }
-    | 'except' '*'? a=expression ',' expressions ':' {
-        self.raise_syntax_error_starting_from("multiple exception types must be parenthesized", a)
+    | 'except' '*'? a=expression ',' b=expressions ':' {
+        self.raise_syntax_error_known_range(
+            "multiple exception types must be parenthesized",
+            a,
+            b,
+        )
+        if self.py_version < (3, 14)
+        else None
+     }
+    | 'except' '*'? expression a=',' {
+        self.raise_syntax_error_known_location("invalid syntax", a)
+        if self.py_version < (3, 14)
+        else None
      }
     | a='except' '*'? expression ['as' NAME ] NEWLINE { self.raise_syntax_error("expected ':'") }
     | a='except' '*'? NEWLINE { self.raise_syntax_error("expected ':'") }
