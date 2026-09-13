@@ -201,9 +201,7 @@ def test_generic_class_statement(python_parser_cls, source):
 
 
 # unparenthesized except 3.14
-@pytest.mark.parametrize(
-    "source", ["try:\n\tpass\nexcept ValueError, IndexError:\n\tpass"]
-)
+@pytest.mark.parametrize("source", ["try:\n\tpass\nexcept ValueError, IndexError:\n\tpass"])
 def test_unparenthesized_except(python_parser_cls, source):
     temp = io.StringIO(source)
     tokengen = tokenize.generate_tokens(temp.readline)
@@ -217,8 +215,8 @@ def test_unparenthesized_except(python_parser_cls, source):
 
 # comprehension unpacking 3.15
 @pytest.mark.parametrize(
-             "source, message",
-              [
+    "source, message",
+    [
         ("[*a for a in b]", "iterable unpacking cannot be used in comprehension"),
         ("{*a for a in b}", "iterable unpacking cannot be used in comprehension"),
         ("(*a for a in b)", "iterable unpacking cannot be used in comprehension"),

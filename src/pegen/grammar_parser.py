@@ -41,6 +41,7 @@ from pegen.grammar import (
 
 # Keywords and soft keywords are listed at the end of the parser definition.
 class GeneratedParser(Parser):
+
     @memoize
     def start(self) -> Optional[Grammar]:
         # start: grammar $
