@@ -170,6 +170,16 @@ def parse_invalid_syntax(
             (3, 12) if sys.version_info >= (3, 12) else (3, 7),
             (3, 13) if sys.version_info >= (3, 12) else (3, 8),
         ),
+        (
+            'f"{x!z}"',
+            (
+                "f-string: invalid conversion character 'z': expected 's', 'r', or 'a'"
+                if sys.version_info >= (3, 12)
+                else "f-string: invalid conversion character: expected 's', 'r', or 'a'"
+            ),
+            (1, 6) if sys.version_info >= (3, 12) else None,
+            (1, 7) if sys.version_info >= (3, 12) else None,
+        ),
     ],
 )
 def test_syntax_error_in_str(

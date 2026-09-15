@@ -1,11 +1,12 @@
 Release notes
 ==============
 
-2026-09-15: unreleased
-----------------------
+unreleased: Version 0.3.1
+-------------------------
 
 - Support Python 3.13, 3.14, and 3.15 (#117)
 - Drop Python 3.8 (#117)
+- fix f-string conversion specifiers (!r, !s, !a) on Python 3.12+ #118
 
 2023-11-14: Version 0.3.0
 -------------------------
