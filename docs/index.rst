@@ -67,10 +67,6 @@ Indices and tables
    peg_parsers
    grammar
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
 Developing
 ----------
 
