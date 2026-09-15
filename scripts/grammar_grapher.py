@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.8
+#!/usr/bin/env python3
 
 """ Convert a grammar into a dot-file suitable for use with GraphViz
 

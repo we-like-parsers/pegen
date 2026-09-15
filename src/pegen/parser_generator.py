@@ -239,7 +239,7 @@ def compute_nullables(rules: Dict[str, Rule]) -> None:
 
 
 def compute_left_recursives(
-    rules: Dict[str, Rule]
+    rules: Dict[str, Rule],
 ) -> Tuple[Dict[str, AbstractSet[str]], List[AbstractSet[str]]]:
     graph = make_first_graph(rules)
     sccs = list(sccutils.strongly_connected_components(graph.keys(), graph))

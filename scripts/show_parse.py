@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.8
+#!/usr/bin/env python3
 
 """Show the parse tree for a given program, nicely formatted.
 

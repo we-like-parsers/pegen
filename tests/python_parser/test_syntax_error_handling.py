@@ -1,5 +1,6 @@
 """Test syntax errors for cases where the parser can generate helpful messages."""
 
+import ast
 import sys
 
 import pytest
@@ -46,7 +47,14 @@ def parse_invalid_syntax(
     if sys.version_info >= min_python_version:
         # This fails for Python < 3.10.5 but keeping the fix for a patch version is not
         # worth it
-        assert message in py_exc.args[0]
+        py_msg = py_exc.args[0]
+        if sys.version_info >= (3, 15):
+            py_msg = (
+                py_msg.replace("parameter", "argument")
+                .replace("* may appear only once", "* argument may appear only once")
+                .replace("dict unpacking", "double starred expression")
+            )
+        assert message in py_msg or message in py_exc.args[0]
 
     print(str(e.exconly()))
     assert message in str(e.exconly())
@@ -442,9 +450,17 @@ def test_invalid_del_statements(
 def test_invalid_comprehension(
     python_parse_file, python_parse_str, tmp_path, source, message, start, end
 ):
-    parse_invalid_syntax(
-        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message, start, end
-    )
+    if sys.version_info >= (3, 15) and message in (
+        "iterable unpacking cannot be used in comprehension",
+        "dict unpacking cannot be used in dict comprehension",
+    ):
+        ast_pegen = python_parse_str(source, "exec")
+        ast_cpython = ast.parse(source)
+        assert ast.dump(ast_pegen) == ast.dump(ast_cpython)
+    else:
+        parse_invalid_syntax(
+            python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message, start, end
+        )
 
 
 @pytest.mark.parametrize(
@@ -1001,26 +1017,34 @@ def test_invalid_try_stmt(
                 sys.version_info < (3, 11), reason="Syntax unsupported before 3.11+"
             ),
         ),
-        (
+        pytest.param(
             "try:\n\tpass\nexcept ValueError, IndexError:",
             SyntaxError,
             "multiple exception types must be parenthesized",
             (3, 8),
             (3, 30),
+            marks=pytest.mark.skipif(
+                sys.version_info >= (3, 14),
+                reason="PEP 758 allows unparenthesized except and except* blocks",
+            ),
         ),
-        (
+        pytest.param(
             "try:\n\tpass\nexcept ValueError, IndexError,:",
             SyntaxError,
             "multiple exception types must be parenthesized",
             (3, 8),
             (3, 31),
+            marks=pytest.mark.skipif(
+                sys.version_info >= (3, 14),
+                reason="PEP 758 allows unparenthesized except and except* blocks",
+            ),
         ),
         (
             "try:\n\tpass\nexcept ValueError, IndexError, a=1:",
             SyntaxError,
             "invalid syntax",
-            (3, 18),
-            (3, 19),
+            (3, 33) if sys.version_info >= (3, 14) else (3, 18),
+            (3, 34) if sys.version_info >= (3, 14) else (3, 19),
         ),
         (
             "try:\n\tpass\nexcept Exception\npass",
@@ -1181,7 +1205,11 @@ def test_invalid_case_stmt(
         (
             "match a:\n\tcase 1 as 1+1:\n\t\tpass",
             SyntaxError,
-            "invalid pattern target",
+            (
+                "cannot use expression as pattern target"
+                if sys.version_info >= (3, 14)
+                else "invalid pattern target"
+            ),
             (2, 12),
             (2, 15),
         ),

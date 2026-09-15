@@ -24,6 +24,13 @@ import pytest
         "async.py",
         "call.py",
         "comprehensions.py",
+        pytest.param(
+            "comprehensions_unpacking.py",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 15),
+                reason="Unpacking in comprehensions allowed only in Python 3.15+",
+            ),
+        ),
         "expressions.py",
         "fstrings.py",
         "function_def.py",
@@ -109,3 +116,64 @@ def test_parser(python_parse_file, python_parse_str, filename):
     p = ast.dump(python_parse_file(path), **kwargs)
     diff = "\n".join(difflib.unified_diff(o.split("\n"), p.split("\n"), "cpython", "python-pegen"))
     assert not diff
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="Pattern matching allowed only in Python 3.10+"
+)
+def test_pattern_matching_wildcard_ast(python_parse_str):
+    source = "match x:\n    case _:\n        pass\n    case [*_]:\n        pass\n"
+    tree = python_parse_str(source, "exec")
+    assert isinstance(tree.body[0].cases[0].pattern, ast.MatchAs)
+    assert tree.body[0].cases[0].pattern.name is None
+    assert tree.body[0].cases[0].pattern.pattern is None
+    assert isinstance(tree.body[0].cases[1].pattern, ast.MatchSequence)
+    assert isinstance(tree.body[0].cases[1].pattern.patterns[0], ast.MatchStar)
+    assert tree.body[0].cases[1].pattern.patterns[0].name is None
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 11), reason="Star unpack in annotations allowed only in Python 3.11+"
+)
+def test_star_annotation_ast(python_parse_str):
+    source = "def f(*args: *Ts):\n    pass\n"
+    tree = python_parse_str(source, "exec")
+    assert tree.body[0].args.vararg.annotation is not None
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 14), reason="PEP 758 unparenthesized except only in Python 3.14+"
+)
+def test_unparenthesized_except_ast(python_parse_str):
+    source = "try:\n    pass\nexcept ValueError, IndexError:\n    pass\n"
+    tree = python_parse_str(source, "exec")
+    handler = tree.body[0].handlers[0]
+    assert isinstance(handler.type, ast.Tuple)
+    assert len(handler.type.elts) == 2
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 14), reason="PEP 758 unparenthesized except* only in Python 3.14+"
+)
+def test_unparenthesized_except_star_ast(python_parse_str):
+    source = "try:\n    pass\nexcept* ValueError, IndexError:\n    pass\n"
+    tree = python_parse_str(source, "exec")
+    handler = tree.body[0].handlers[0]
+    assert isinstance(handler.type, ast.Tuple)
+    assert len(handler.type.elts) == 2
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="is_lazy added in Python 3.15+")
+def test_lazy_imports_ast(python_parse_str):
+    tree = python_parse_str("import foo\nfrom bar import baz\n", "exec")
+    assert tree.body[0].is_lazy == 0
+    assert tree.body[1].is_lazy == 0
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="Lazy imports added in Python 3.15+")
+def test_explicit_lazy_imports_ast(python_parse_str):
+    tree = python_parse_str("lazy import foo\nlazy from bar import baz\n", "exec")
+    assert tree.body[0].is_lazy == 1
+    assert tree.body[1].is_lazy == 1
+    ast_cpython = ast.parse("lazy import foo\nlazy from bar import baz\n")
+    assert ast.dump(tree) == ast.dump(ast_cpython)
