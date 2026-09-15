@@ -694,3 +694,26 @@ def test_keywords() -> None:
     parser_class = make_parser(grammar)
     assert parser_class.KEYWORDS == ("five", "four", "one", "three", "two")
     assert parser_class.SOFT_KEYWORDS == ("eight", "nine", "seven", "six", "ten")
+
+def test_pmatch() -> None:
+    grammar_source = """
+    start: expr NEWLINE
+    expr: ('-' term | expr '+' term | term | match_expr)
+    term: NUMBER | NAME | STRING
+    match_expr: 'pmatch' expr ':' NEWLINE INDENT blocks=match_block+ DEDENT
+    match_block: expr ':' expr NEWLINE
+    """
+    parser_class = make_parser(grammar_source)
+    source = """
+    # Proposed match_expr using the keyword pmatch
+    pmatch num:
+        1: "One"
+        2: "Two"
+        3: pmatch num2:
+            1: "One"
+            2: "Two"
+            3: "Three"
+        _: "Number not between 1 and 3"
+    """
+    node = parse_string(source, parser_class)
+    assert node

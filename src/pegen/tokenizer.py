@@ -28,6 +28,7 @@ class Tokenizer:
         self._verbose = verbose
         self._lines: Dict[int, str] = {}
         self._path = path
+        self._in_match = 0
         if verbose:
             self.report(False, False)
 
@@ -55,6 +56,11 @@ class Tokenizer:
             ):
                 continue
             self._tokens.append(tok)
+            if tok.type == tokenize.NAME and tok.string == "pmatch":
+                self._in_match += 1
+            if self._in_match and tok.type == tokenize.DEDENT:
+                self._in_match -= 1
+                self._tokens.append(tokenize.TokenInfo(tokenize.NEWLINE, "\n", tok.start, tok.end, "\n"))
             if not self._path and tok.start[0] not in self._lines:
                 self._lines[tok.start[0]] = tok.line
         return self._tokens[self._index]
@@ -116,3 +122,4 @@ class Tokenizer:
         else:
             tok = self._tokens[self._index - 1]
             print(f"{fill} {shorttok(tok)}")
+
