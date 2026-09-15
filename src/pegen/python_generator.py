@@ -270,7 +270,7 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
             self.print(f"KEYWORDS = {tuple(sorted(self.callmakervisitor.keywords))}")
             self.print(f"SOFT_KEYWORDS = {tuple(sorted(self.callmakervisitor.soft_keywords))}")
 
-        trailer = self.grammar.metas.get("trailer", MODULE_SUFFIX.format(class_name=cls_name))
+        trailer = self.grammar.metas.get("trailer", MODULE_SUFFIX).format(class_name=cls_name)
         if trailer is not None:
             self.print(trailer.rstrip("\n"))
 
