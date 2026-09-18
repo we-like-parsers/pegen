@@ -35,7 +35,15 @@ import tokenize
 
 from typing import Any, Optional
 
-from pegen.parser import memoize, memoize_left_rec, logger, Parser
+from pegen.parser import (
+    FSTRING_END,
+    FSTRING_MIDDLE,
+    FSTRING_START,
+    Parser,
+    logger,
+    memoize,
+    memoize_left_rec,
+)
 
 """
 MODULE_SUFFIX = """
