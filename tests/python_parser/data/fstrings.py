@@ -70,6 +70,9 @@ foo = 3.14159
 verbosePrint(f'Foo {foo:.3} bar.')
 
 
+# Raw f-strings
+rf'{a}\n'
+fr'{a}\n'
 
 # Format specifiers
 x = 3
