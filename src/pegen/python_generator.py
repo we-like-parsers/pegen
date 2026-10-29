@@ -39,6 +39,9 @@ from pegen.parser import (
     FSTRING_END,
     FSTRING_MIDDLE,
     FSTRING_START,
+    TSTRING_END,
+    TSTRING_MIDDLE,
+    TSTRING_START,
     Parser,
     logger,
     memoize,
@@ -117,6 +120,9 @@ class PythonCallMakerVisitor(GrammarVisitor):
             "FSTRING_START",
             "FSTRING_MIDDLE",
             "FSTRING_END",
+            "TSTRING_START",
+            "TSTRING_MIDDLE",
+            "TSTRING_END",
             "OP",
             "TYPE_COMMENT",
         ):
@@ -242,8 +248,15 @@ class PythonParserGenerator(ParserGenerator, GrammarVisitor):
     ):
         tokens.add("SOFT_KEYWORD")
         tokens.update(
-            ["FSTRING_START", "FSTRING_MIDDLE", "FSTRING_END"]
-        )  # used in metagrammar to support Python 3.12 f-strings; don't exist in 3.11
+            [
+                "FSTRING_START",
+                "FSTRING_MIDDLE",
+                "FSTRING_END",
+                "TSTRING_START",
+                "TSTRING_MIDDLE",
+                "TSTRING_END",
+            ]
+        )  # used in metagrammar to support Python 3.12+ literal-string tokens; may not exist in older runtimes
         super().__init__(grammar, tokens, file)
         self.callmakervisitor: PythonCallMakerVisitor = PythonCallMakerVisitor(self)
         self.invalidvisitor: InvalidNodeVisitor = InvalidNodeVisitor()

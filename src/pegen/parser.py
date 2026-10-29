@@ -14,10 +14,13 @@ T = TypeVar("T")
 P = TypeVar("P", bound="Parser")
 F = TypeVar("F", bound=Callable[..., Any])
 
-# Tokens added in Python 3.12
+# Tokens added in Python 3.12+
 FSTRING_START = getattr(token, "FSTRING_START", None)
 FSTRING_MIDDLE = getattr(token, "FSTRING_MIDDLE", None)
 FSTRING_END = getattr(token, "FSTRING_END", None)
+TSTRING_START = getattr(token, "TSTRING_START", None)
+TSTRING_MIDDLE = getattr(token, "TSTRING_MIDDLE", None)
+TSTRING_END = getattr(token, "TSTRING_END", None)
 
 
 def logger(method: F) -> F:
@@ -229,6 +232,13 @@ class Parser:
         return None
 
     @memoize
+    def tstring_start(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == TSTRING_START:
+            return self._tokenizer.getnext()
+        return None
+
+    @memoize
     def fstring_middle(self) -> Optional[tokenize.TokenInfo]:
         tok = self._tokenizer.peek()
         if tok.type == FSTRING_MIDDLE:
@@ -236,9 +246,23 @@ class Parser:
         return None
 
     @memoize
+    def tstring_middle(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == TSTRING_MIDDLE:
+            return self._tokenizer.getnext()
+        return None
+
+    @memoize
     def fstring_end(self) -> Optional[tokenize.TokenInfo]:
         tok = self._tokenizer.peek()
         if tok.type == FSTRING_END:
+            return self._tokenizer.getnext()
+        return None
+
+    @memoize
+    def tstring_end(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == TSTRING_END:
             return self._tokenizer.getnext()
         return None
 

@@ -33,6 +33,7 @@ import pytest
         ),
         "expressions.py",
         "fstrings.py",
+        "tstrings.py",
         "function_def.py",
         "imports.py",
         "lambdas.py",
