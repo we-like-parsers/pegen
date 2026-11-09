@@ -33,7 +33,12 @@ import pytest
         ),
         "expressions.py",
         "fstrings.py",
-        "tstrings.py",
+        pytest.param(
+            "tstrings.py",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 14), reason="T-strings are only supported in Python 3.14+"
+            ),
+        ),
         "function_def.py",
         "imports.py",
         pytest.param(

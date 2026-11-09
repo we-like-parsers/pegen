@@ -23,6 +23,9 @@ Del = ast.Del()
 Node = TypeVar("Node")
 FC = TypeVar("FC", ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
+_TEMPLATE_STR = getattr(ast, "TemplateStr", None)
+_INTERPOLATION = getattr(ast, "Interpolation", None)
+
 EXPR_NAME_MAPPING = {
     ast.Attribute: "attribute",
     ast.Subscript: "subscript",
@@ -45,13 +48,16 @@ EXPR_NAME_MAPPING = {
     ast.Dict: "dict literal",
     ast.Set: "set display",
     ast.JoinedStr: "f-string expression",
-    ast.TemplateStr: "t-string expression",
     ast.FormattedValue: "f-string expression",
-    ast.Interpolation: "t-string expression",
     ast.Compare: "comparison",
     ast.IfExp: "conditional expression",
     ast.NamedExpr: "named expression",
 }
+
+if _TEMPLATE_STR is not None:
+    EXPR_NAME_MAPPING[_TEMPLATE_STR] = "t-string expression"
+if _INTERPOLATION is not None:
+    EXPR_NAME_MAPPING[_INTERPOLATION] = "t-string expression"
 
 
 def parse_file(
@@ -418,9 +424,21 @@ class Parser(Parser):
     ) -> ast.AST:
         """Build the AST for a debug t-string replacement field."""
         expr_text = self._tstring_expression_text(lbrace, rbrace, debug_expr=debug_expr)
+        interpolation = _INTERPOLATION or ast.FormattedValue
+        template_str = _TEMPLATE_STR or ast.JoinedStr
 
         if debug_expr is None:
-            return ast.Interpolation(
+            if interpolation is ast.FormattedValue:
+                return ast.FormattedValue(
+                    value=value,
+                    conversion=(conversion if conversion is not None else -1),
+                    format_spec=format_spec,
+                    lineno=lbrace.start[0],
+                    col_offset=lbrace.start[1],
+                    end_lineno=rbrace.end[0],
+                    end_col_offset=rbrace.end[1],
+                )
+            return interpolation(
                 value=value,
                 str=expr_text,
                 conversion=(conversion if conversion is not None else -1),
@@ -434,19 +452,49 @@ class Parser(Parser):
         prefix = self.tstring_debug_prefix(lbrace, debug_expr, rbrace)
         prefix_start = lbrace.end
         prefix_end = self._advance_location(prefix_start, prefix)
-        formatted = ast.Interpolation(
-            value=value,
-            str=expr_text,
-            conversion=(
-                conversion if conversion is not None else (ord("r") if format_spec is None else -1)
-            ),
-            format_spec=format_spec,
-            lineno=lbrace.start[0],
-            col_offset=lbrace.start[1],
-            end_lineno=rbrace.end[0],
-            end_col_offset=rbrace.end[1],
-        )
-        return ast.TemplateStr(
+        if interpolation is ast.FormattedValue:
+            formatted = ast.FormattedValue(
+                value=value,
+                conversion=(
+                    conversion if conversion is not None else (ord("r") if format_spec is None else -1)
+                ),
+                format_spec=format_spec,
+                lineno=lbrace.start[0],
+                col_offset=lbrace.start[1],
+                end_lineno=rbrace.end[0],
+                end_col_offset=rbrace.end[1],
+            )
+        else:
+            formatted = interpolation(
+                value=value,
+                str=expr_text,
+                conversion=(
+                    conversion if conversion is not None else (ord("r") if format_spec is None else -1)
+                ),
+                format_spec=format_spec,
+                lineno=lbrace.start[0],
+                col_offset=lbrace.start[1],
+                end_lineno=rbrace.end[0],
+                end_col_offset=rbrace.end[1],
+            )
+        if template_str is ast.JoinedStr:
+            return ast.JoinedStr(
+                values=[
+                    ast.Constant(
+                        value=prefix,
+                        lineno=prefix_start[0],
+                        col_offset=prefix_start[1],
+                        end_lineno=prefix_end[0],
+                        end_col_offset=prefix_end[1],
+                    ),
+                    formatted,
+                ],
+                lineno=lbrace.start[0],
+                col_offset=lbrace.start[1],
+                end_lineno=rbrace.end[0],
+                end_col_offset=rbrace.end[1],
+            )
+        return template_str(
             values=[
                 ast.Constant(
                     value=prefix,
@@ -579,9 +627,11 @@ class Parser(Parser):
         Empty Constant nodes are filtered out.
 
         """
+        template_str = _TEMPLATE_STR
+        joinedstr_types = (ast.JoinedStr,) if template_str is None else (ast.JoinedStr, template_str)
         flattened = []
         for value in values:
-            if isinstance(value, (ast.JoinedStr, ast.TemplateStr)):
+            if isinstance(value, joinedstr_types):
                 flattened.extend(self._flatten_joinedstr_values(value.values))
             elif isinstance(value, ast.Constant) and value.value == "":
                 continue
@@ -591,10 +641,12 @@ class Parser(Parser):
 
     def concatenate_strings(self, parts):
         """Concatenate multiple tokens and template-like literal AST nodes."""
+        template_str = _TEMPLATE_STR
+        joinedstr_types = (ast.JoinedStr,) if template_str is None else (ast.JoinedStr, template_str)
         start = end = None
-        if isinstance(parts[0], (ast.JoinedStr, ast.TemplateStr)):
+        if isinstance(parts[0], joinedstr_types):
             start = parts[0].lineno, parts[0].col_offset
-        if isinstance(parts[-1], (ast.JoinedStr, ast.TemplateStr)):
+        if isinstance(parts[-1], joinedstr_types):
             end = parts[-1].end_lineno, parts[-1].end_col_offset
 
         seen_joined = False
@@ -602,9 +654,9 @@ class Parser(Parser):
         values = []
         ss = []
         for p in parts:
-            if isinstance(p, (ast.JoinedStr, ast.TemplateStr)):
+            if isinstance(p, joinedstr_types):
                 seen_joined = True
-                seen_template = seen_template or isinstance(p, ast.TemplateStr)
+                seen_template = seen_template or (template_str is not None and isinstance(p, template_str))
                 if ss:
                     values.append(self._concat_strings_in_constant(ss))
                     ss.clear()
@@ -626,7 +678,7 @@ class Parser(Parser):
 
         if not seen_joined and len(values) == 1 and isinstance(values[0], ast.Constant):
             return values[0]
-        cls = ast.TemplateStr if seen_template else ast.JoinedStr
+        cls = template_str if seen_template and template_str is not None else ast.JoinedStr
         return cls(
             values=consolidated,
             lineno=start[0] if start else values[0].lineno,
@@ -2066,7 +2118,7 @@ tstring_format_spec:
     | fstring_replacement_field
 tstring:
     | a=TSTRING_START b=tstring_mid* c=TSTRING_END {
-        ast.TemplateStr(values=self._flatten_joinedstr_values(b), LOCATIONS)
+        (_TEMPLATE_STR or ast.JoinedStr)(values=self._flatten_joinedstr_values(b), LOCATIONS)
      }
 
 strings (memo):
