@@ -23,6 +23,9 @@ Del = ast.Del()
 Node = TypeVar("Node")
 FC = TypeVar("FC", ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
+_TEMPLATE_STR = getattr(ast, "TemplateStr", None)
+_INTERPOLATION = getattr(ast, "Interpolation", None)
+
 EXPR_NAME_MAPPING = {
     ast.Attribute: "attribute",
     ast.Subscript: "subscript",
@@ -50,6 +53,11 @@ EXPR_NAME_MAPPING = {
     ast.IfExp: "conditional expression",
     ast.NamedExpr: "named expression",
 }
+
+if _TEMPLATE_STR is not None:
+    EXPR_NAME_MAPPING[_TEMPLATE_STR] = "t-string expression"
+if _INTERPOLATION is not None:
+    EXPR_NAME_MAPPING[_INTERPOLATION] = "t-string expression"
 
 
 def parse_file(
@@ -118,6 +126,7 @@ class Parser(Parser):
         self.filename = filename
         self.py_version = min(py_version, sys.version_info) if py_version else sys.version_info
         self._fstring_raw_stack: List[bool] = []
+        self._tstring_raw_stack: List[bool] = []
 
     @memoize
     def fstring_start(self) -> Optional[tokenize.TokenInfo]:
@@ -129,12 +138,31 @@ class Parser(Parser):
         return None
 
     @memoize
+    def tstring_start(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == TSTRING_START:
+            tok = self._tokenizer.getnext()
+            self._tstring_raw_stack.append("r" in tok.string.lower())
+            return tok
+        return None
+
+    @memoize
     def fstring_end(self) -> Optional[tokenize.TokenInfo]:
         tok = self._tokenizer.peek()
         if tok.type == FSTRING_END:
             tok = self._tokenizer.getnext()
             if self._fstring_raw_stack:
                 self._fstring_raw_stack.pop()
+            return tok
+        return None
+
+    @memoize
+    def tstring_end(self) -> Optional[tokenize.TokenInfo]:
+        tok = self._tokenizer.peek()
+        if tok.type == TSTRING_END:
+            tok = self._tokenizer.getnext()
+            if self._tstring_raw_stack:
+                self._tstring_raw_stack.pop()
             return tok
         return None
 
@@ -213,6 +241,17 @@ class Parser(Parser):
             return text
         return text.encode("utf-8").decode("unicode_escape")
 
+    def _is_raw_tstring(self) -> bool:
+        return bool(self._tstring_raw_stack) and self._tstring_raw_stack[-1]
+
+    def _decode_tstring_literal(self, text: str, *, raw: Optional[bool] = None) -> str:
+        """Decode escape sequences in a literal t-string segment unless the f-string is raw."""
+        if raw is None:
+            raw = self._is_raw_tstring()
+        if raw:
+            return text
+        return text.encode("utf-8").decode("unicode_escape")
+
     def fstring_debug_prefix(
         self,
         lbrace: tokenize.TokenInfo,
@@ -244,6 +283,38 @@ class Parser(Parser):
                 prefix = inside[:idx]
                 return self._decode_fstring_literal(prefix, raw=self._is_raw_fstring())
         return self._decode_fstring_literal(inside, raw=self._is_raw_fstring())
+
+    def tstring_debug_prefix(
+        self,
+        lbrace: tokenize.TokenInfo,
+        debug_expr: tokenize.TokenInfo,
+        rbrace: tokenize.TokenInfo,
+    ) -> str:
+        """Reconstruct the literal prefix emitted before a debug f-string value."""
+        start = lbrace.end
+        stop = rbrace.start
+        lines = self._tokenizer.get_lines(list(range(start[0], stop[0] + 1)))
+
+        if start[0] == stop[0]:
+            inside = lines[0][start[1] : stop[1]]
+        else:
+            pieces = []
+            for i, line_no in enumerate(range(start[0], stop[0] + 1)):
+                line = lines[i]
+                if line_no == start[0]:
+                    pieces.append(line[start[1] :])
+                elif line_no == stop[0]:
+                    pieces.append(line[: stop[1]])
+                else:
+                    pieces.append(line)
+            inside = "".join(pieces)
+
+        eq_offset = self._source_offset(lbrace.end, debug_expr.start)
+        for idx in range(eq_offset + 1, len(inside)):
+            if inside[idx] in ("!", ":"):
+                prefix = inside[:idx]
+                return self._decode_tstring_literal(prefix, raw=self._is_raw_tstring())
+        return self._decode_tstring_literal(inside, raw=self._is_raw_tstring())
 
     def fstring_debug_value(
         self,
@@ -281,6 +352,149 @@ class Parser(Parser):
             end_col_offset=rbrace.end[1],
         )
         return ast.JoinedStr(
+            values=[
+                ast.Constant(
+                    value=prefix,
+                    lineno=prefix_start[0],
+                    col_offset=prefix_start[1],
+                    end_lineno=prefix_end[0],
+                    end_col_offset=prefix_end[1],
+                ),
+                formatted,
+            ],
+            lineno=lbrace.start[0],
+            col_offset=lbrace.start[1],
+            end_lineno=rbrace.end[0],
+            end_col_offset=rbrace.end[1],
+        )
+
+    def _tstring_expression_text(
+        self,
+        lbrace: tokenize.TokenInfo,
+        rbrace: tokenize.TokenInfo,
+        *,
+        debug_expr: Optional[tokenize.TokenInfo] = None,
+    ) -> str:
+        start = lbrace.end
+        stop = rbrace.start
+        lines = self._tokenizer.get_lines(list(range(start[0], stop[0] + 1)))
+
+        if start[0] == stop[0]:
+            inside = lines[0][start[1] : stop[1]]
+        else:
+            pieces = []
+            for i, line_no in enumerate(range(start[0], stop[0] + 1)):
+                line = lines[i]
+                if line_no == start[0]:
+                    pieces.append(line[start[1] :])
+                elif line_no == stop[0]:
+                    pieces.append(line[: stop[1]])
+                else:
+                    pieces.append(line)
+            inside = "".join(pieces)
+
+        if debug_expr is not None:
+            expr_end = self._source_offset(lbrace.end, debug_expr.start)
+            return inside[:expr_end]
+
+        depth = 0
+        for i, ch in enumerate(inside):
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                if depth:
+                    depth -= 1
+            elif depth == 0:
+                if ch in ("!", ":"):
+                    if ch == "!" and i + 1 < len(inside) and inside[i + 1] == "=":
+                        continue
+                    return inside[:i].rstrip()
+                if ch == "=" and (i + 1 >= len(inside) or inside[i + 1] != "="):
+                    return inside[:i].rstrip()
+        return inside.rstrip()
+
+    def tstring_debug_value(
+        self,
+        value: ast.AST,
+        lbrace: tokenize.TokenInfo,
+        debug_expr: Optional[tokenize.TokenInfo],
+        conversion: Optional[int],
+        format_spec: Optional[ast.AST],
+        rbrace: tokenize.TokenInfo,
+    ) -> ast.AST:
+        """Build the AST for a debug t-string replacement field."""
+        expr_text = self._tstring_expression_text(lbrace, rbrace, debug_expr=debug_expr)
+        interpolation = _INTERPOLATION or ast.FormattedValue
+        template_str = _TEMPLATE_STR or ast.JoinedStr
+
+        if debug_expr is None:
+            if interpolation is ast.FormattedValue:
+                return ast.FormattedValue(
+                    value=value,
+                    conversion=(conversion if conversion is not None else -1),
+                    format_spec=format_spec,
+                    lineno=lbrace.start[0],
+                    col_offset=lbrace.start[1],
+                    end_lineno=rbrace.end[0],
+                    end_col_offset=rbrace.end[1],
+                )
+            return interpolation(
+                value=value,
+                str=expr_text,
+                conversion=(conversion if conversion is not None else -1),
+                format_spec=format_spec,
+                lineno=lbrace.start[0],
+                col_offset=lbrace.start[1],
+                end_lineno=rbrace.end[0],
+                end_col_offset=rbrace.end[1],
+            )
+
+        prefix = self.tstring_debug_prefix(lbrace, debug_expr, rbrace)
+        prefix_start = lbrace.end
+        prefix_end = self._advance_location(prefix_start, prefix)
+        if interpolation is ast.FormattedValue:
+            formatted = ast.FormattedValue(
+                value=value,
+                conversion=(
+                    conversion if conversion is not None else (ord("r") if format_spec is None else -1)
+                ),
+                format_spec=format_spec,
+                lineno=lbrace.start[0],
+                col_offset=lbrace.start[1],
+                end_lineno=rbrace.end[0],
+                end_col_offset=rbrace.end[1],
+            )
+        else:
+            formatted = interpolation(
+                value=value,
+                str=expr_text,
+                conversion=(
+                    conversion if conversion is not None else (ord("r") if format_spec is None else -1)
+                ),
+                format_spec=format_spec,
+                lineno=lbrace.start[0],
+                col_offset=lbrace.start[1],
+                end_lineno=rbrace.end[0],
+                end_col_offset=rbrace.end[1],
+            )
+        if template_str is ast.JoinedStr:
+            return ast.JoinedStr(
+                values=[
+                    ast.Constant(
+                        value=prefix,
+                        lineno=prefix_start[0],
+                        col_offset=prefix_start[1],
+                        end_lineno=prefix_end[0],
+                        end_col_offset=prefix_end[1],
+                    ),
+                    formatted,
+                ],
+                lineno=lbrace.start[0],
+                col_offset=lbrace.start[1],
+                end_lineno=rbrace.end[0],
+                end_col_offset=rbrace.end[1],
+            )
+        return template_str(
             values=[
                 ast.Constant(
                     value=prefix,
@@ -408,14 +622,16 @@ class Parser(Parser):
 
 
     def _flatten_joinedstr_values(self, values):
-        """Unwrap nested JoinedStr nodes while preserving value order.
+        """Unwrap nested JoinedStr/TemplateStr nodes while preserving value order.
 
         Empty Constant nodes are filtered out.
 
         """
+        template_str = _TEMPLATE_STR
+        joinedstr_types = (ast.JoinedStr,) if template_str is None else (ast.JoinedStr, template_str)
         flattened = []
         for value in values:
-            if isinstance(value, ast.JoinedStr):
+            if isinstance(value, joinedstr_types):
                 flattened.extend(self._flatten_joinedstr_values(value.values))
             elif isinstance(value, ast.Constant) and value.value == "":
                 continue
@@ -424,21 +640,23 @@ class Parser(Parser):
         return flattened
 
     def concatenate_strings(self, parts):
-        """Concatenate multiple tokens and ast.JoinedStr"""
-        # Get proper start and stop
+        """Concatenate multiple tokens and template-like literal AST nodes."""
+        template_str = _TEMPLATE_STR
+        joinedstr_types = (ast.JoinedStr,) if template_str is None else (ast.JoinedStr, template_str)
         start = end = None
-        if isinstance(parts[0], ast.JoinedStr):
+        if isinstance(parts[0], joinedstr_types):
             start = parts[0].lineno, parts[0].col_offset
-        if isinstance(parts[-1], ast.JoinedStr):
+        if isinstance(parts[-1], joinedstr_types):
             end = parts[-1].end_lineno, parts[-1].end_col_offset
 
-        # Combine the different parts
         seen_joined = False
+        seen_template = False
         values = []
         ss = []
         for p in parts:
-            if isinstance(p, ast.JoinedStr):
+            if isinstance(p, joinedstr_types):
                 seen_joined = True
+                seen_template = seen_template or (template_str is not None and isinstance(p, template_str))
                 if ss:
                     values.append(self._concat_strings_in_constant(ss))
                     ss.clear()
@@ -460,14 +678,14 @@ class Parser(Parser):
 
         if not seen_joined and len(values) == 1 and isinstance(values[0], ast.Constant):
             return values[0]
-        else:
-            return ast.JoinedStr(
-                values=consolidated,
-                lineno=start[0] if start else values[0].lineno,
-                col_offset=start[1] if start else values[0].col_offset,
-                end_lineno=end[0] if end else values[-1].end_lineno,
-                end_col_offset=end[1] if end else values[-1].end_col_offset,
-            )
+        cls = template_str if seen_template and template_str is not None else ast.JoinedStr
+        return cls(
+            values=consolidated,
+            lineno=start[0] if start else values[0].lineno,
+            col_offset=start[1] if start else values[0].col_offset,
+            end_lineno=end[0] if end else values[-1].end_lineno,
+            end_col_offset=end[1] if end else values[-1].end_col_offset,
+        )
 
     def generate_ast_for_string(self, tokens):
         """Generate AST nodes for strings."""
@@ -1765,7 +1983,7 @@ atom:
         if sys.version_info >= (3, 9) else
         ast.Constant(value=None, kind=None, LOCATIONS)
      }
-    | &(STRING|FSTRING_START) strings
+    | &(STRING|FSTRING_START|TSTRING_START) strings
     | a=NUMBER {
         ast.Constant(value=ast.literal_eval(a.string), LOCATIONS)
         if sys.version_info >= (3, 9) else
@@ -1880,9 +2098,37 @@ fstring:
         ast.JoinedStr(values=self._flatten_joinedstr_values(b), LOCATIONS)
      }
 
-strings (memo): a=(fstring|STRING)+ {
-    self.concatenate_strings(a) if sys.version_info >= (3, 12) else self.generate_ast_for_string(a)
- }
+tstring_mid:
+    | tstring_replacement_field
+    | t=TSTRING_MIDDLE { ast.Constant(value=self._decode_tstring_literal(t.string), LOCATIONS) }
+tstring_replacement_field:
+    | lbrace='{' a=annotated_rhs debug_expr='='? conversion=[fstring_conversion] format=[tstring_full_format_spec] rbrace='}' {
+        self.tstring_debug_value(a, lbrace, debug_expr, conversion, format, rbrace)
+     }
+    | invalid_tstring_replacement_field
+tstring_full_format_spec:
+    | ':' spec=tstring_format_spec* {
+        ast.JoinedStr(
+            values=self._flatten_joinedstr_values(spec),
+            LOCATIONS,
+        )
+     }
+tstring_format_spec:
+    | t=TSTRING_MIDDLE { ast.Constant(value=self._decode_tstring_literal(t.string), LOCATIONS) }
+    | fstring_replacement_field
+tstring:
+    | a=TSTRING_START b=tstring_mid* c=TSTRING_END {
+        (_TEMPLATE_STR or ast.JoinedStr)(values=self._flatten_joinedstr_values(b), LOCATIONS)
+     }
+
+strings (memo):
+    | invalid_string_tstring_concat
+    | a=(fstring|STRING)+ {
+        self.concatenate_strings(a) if sys.version_info >= (3, 12) else self.generate_ast_for_string(a)
+     }
+    | a=tstring+ {
+        self.concatenate_strings(a) if sys.version_info >= (3, 12) else self.generate_ast_for_string(a)
+     }
 
 list[ast.List]:
     | '[' a=[star_named_expressions] ']' { ast.List(elts=a or [], ctx=Load, LOCATIONS) }
@@ -2199,6 +2445,11 @@ invalid_expression[NoReturn]:
     | a='lambda' [lambda_params] b=':' &(FSTRING_MIDDLE | fstring_replacement_field)  {
         self.raise_syntax_error_known_range(
             "f-string: lambda expressions are not allowed without parentheses", a, b
+        )
+     }
+    | a='lambda' [lambda_params] b=':' &( TSTRING_MIDDLE | tstring_replacement_field)  {
+        self.raise_syntax_error_known_range(
+            "t-string: lambda expressions are not allowed without parentheses", a, b
         )
      }
 invalid_named_expression[NoReturn]:
@@ -2649,6 +2900,43 @@ invalid_replacement_field:
     | '{' (yield_expr | star_expressions) '='? ['!' NAME] !'}' {
         self.raise_syntax_error_on_next_token("f-string: expecting '}'")
      }
+
+invalid_tstring_replacement_field:
+    | '{' a='=' { self.raise_syntax_error_known_location("t-string: valid expression required before '='", a) }
+    | '{' a='!' { self.raise_syntax_error_known_location("t-string: valid expression required before '!'", a) }
+    | '{' a=':' { self.raise_syntax_error_known_location("t-string: valid expression required before ':'", a) }
+    | '{' a='}' { self.raise_syntax_error_known_location("t-string: valid expression required before '}'", a) }
+    | '{' !(yield_expr | star_expressions) {
+        self.raise_syntax_error_on_next_token(
+            "t-string: expecting a valid expression after '{'"
+        )
+     }
+    | '{' (yield_expr | star_expressions) !('=' | '!' | ':' | '}') {
+        self.raise_syntax_error_on_next_token("t-string: expecting '=', or '!', or ':', or '}'") }
+    | '{' (yield_expr | star_expressions) '=' !('!' | ':' | '}') {
+       self.raise_syntax_error_on_next_token("t-string: expecting '!', or ':', or '}'")
+     }
+    | '{' (yield_expr | star_expressions) '='? invalid_tstring_conversion_character
+    | '{' (yield_expr | star_expressions) '='? ['!' NAME] !(':' | '}') {
+        self.raise_syntax_error_on_next_token("t-string: expecting ':' or '}'")
+     }
+    | '{' (yield_expr | star_expressions) '='? ['!' NAME] ':' tstring_format_spec* !'}' {
+        self.raise_syntax_error_on_next_token("t-string: expecting '}', or format specs")
+     }
+    | '{' (yield_expr | star_expressions) '='? ['!' NAME] !'}' {
+        self.raise_syntax_error_on_next_token("t-string: expecting '}'")
+     }
+
+invalid_tstring_conversion_character:
+    | '!' &(':' | '}') { self.raise_syntax_error_on_next_token("t-string: missing conversion character") }
+    | '!' !NAME { self.raise_syntax_error_on_next_token("t-string: invalid conversion character") }
+
+invalid_string_tstring_concat:
+    | a=(fstring|STRING)+ b[expr_ty]=tstring {
+        self.raise_syntax_error_known_range("cannot mix t-string literals with string or bytes literals", a[-1], b) }
+    | a=tstring+ b[expr_ty]=(fstring|STRING) {
+        self.raise_syntax_error_known_range("cannot mix t-string literals with string or bytes literals", a[-1], b) }
+
 
 invalid_conversion_character:
     | '!' &(':' | '}') { self.raise_syntax_error_on_next_token("f-string: missing conversion character") }
