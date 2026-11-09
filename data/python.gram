@@ -389,7 +389,7 @@ class Parser(Parser):
 
         if debug_expr is not None:
             expr_end = self._source_offset(lbrace.end, debug_expr.start)
-            return inside[:expr_end].rstrip()
+            return inside[:expr_end]
 
         depth = 0
         for i, ch in enumerate(inside):

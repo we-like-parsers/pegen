@@ -36,6 +36,12 @@ import pytest
         "tstrings.py",
         "function_def.py",
         "imports.py",
+        pytest.param(
+            "lazy_imports.py",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 15), reason="Lazy imports allowed only in Python 3.15+"
+            ),
+        ),
         "lambdas.py",
         pytest.param(
             "multi_statement_per_line.py",
@@ -140,6 +146,25 @@ def test_star_annotation_ast(python_parse_str):
     source = "def f(*args: *Ts):\n    pass\n"
     tree = python_parse_str(source, "exec")
     assert tree.body[0].args.vararg.annotation is not None
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 11), reason="PEP 646 starred type expressions allowed only in Python 3.11+"
+)
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def f(x: Callable[[*Ts], R]):\n    pass\n",
+        "def f(x: tuple[*Ts, ...]):\n    pass\n",
+        "def f(x: list[*Ts]):\n    pass\n",
+    "def f(x: dict[str, *Ts]):\n    pass\n",
+    "def f(x: tuple[*Ts, *Us]):\n    pass\n",
+    ],
+)
+def test_starred_type_expression_ast(python_parse_str, source):
+    tree = python_parse_str(source, "exec")
+    ast_cpython = ast.parse(source)
+    assert ast.dump(tree) == ast.dump(ast_cpython)
 
 
 @pytest.mark.skipif(

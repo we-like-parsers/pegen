@@ -191,6 +191,67 @@ def test_syntax_error_in_str(
 
 
 @pytest.mark.parametrize(
+    "source, message",
+    [
+        (
+            "from pkg lazy import name",
+            "use 'lazy from ... ' instead of 'from ... lazy import'",
+        ),
+        ("from pkg import name lazy", "invalid syntax"),
+    ],
+)
+def test_invalid_lazy_import_syntax(python_parse_file, python_parse_str, tmp_path, source, message):
+    # CPython raises a generic invalid-syntax error for the malformed lazy-import form,
+    # but the grammar-specific invalid rule is more informative and should still be surfaced.
+    with pytest.raises(SyntaxError, match=message):
+        python_parse_str(source, "exec")
+
+    test_file = tmp_path / "test.py"
+    with open(test_file, "w") as f:
+        f.write(source)
+
+    with pytest.raises(SyntaxError, match=message):
+        python_parse_file(str(test_file))
+
+    with pytest.raises(SyntaxError):
+        exec(source, {}, {})
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 14), reason="T-strings are only supported in Python 3.14+"
+)
+@pytest.mark.parametrize(
+    "source, message, start, end",
+    [
+        (
+            't"{x!}"',
+            "t-string: missing conversion character",
+            (1, 6),
+            (1, 7),
+        ),
+        (
+            't"{x!z}"',
+            "invalid conversion character 'z': expected 's', 'r', or 'a'",
+            (1, 6),
+            (1, 7),
+        ),
+        (
+            't"{x:{y}"',
+            "expecting '}', or format specs",
+            (1, 9),
+            (1, 10),
+        ),
+    ],
+)
+def test_invalid_tstring_replacement_field(
+    python_parse_file, python_parse_str, tmp_path, source, message, start, end
+):
+    parse_invalid_syntax(
+        python_parse_file, python_parse_str, tmp_path, source, SyntaxError, message, start, end
+    )
+
+
+@pytest.mark.parametrize(
     "source, message, start, end",
     [
         ("(a 1)", "invalid syntax. Perhaps you forgot a comma?", (1, 2), (1, 5)),
